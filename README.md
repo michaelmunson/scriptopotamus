@@ -3,7 +3,7 @@
 * Inspired by bash, python, and sass
 * Written entirely in bash
 
-- Types
+- **Types**
     - Primitive Types:
         - int
         - float
@@ -23,7 +23,7 @@
     
     - type declarations are not necessary on var declarations, can be inferred
     - types are enforced at compile time
-- Lists
+- **Lists**
     - lists are just easier bash indexed arrays
     - `len` is a builtin to get the length
     
@@ -34,14 +34,14 @@
     echo "$(my_list --length) items"
     ```
     
-- Dicts
+- **Dicts**
     - dicts are just easier bash associative arrays
     
     ```bash
     my_dict<dict int str>=(a=1 b=2 c=3)
     ```
     
-- Functions
+- **Functions**
     - inside of function may have optional curly bracket wrappers
     
     ```bash
@@ -71,7 +71,7 @@
         prt $name
     ```
     
-- Commands
+- **Commands**
     
     ```bash
     # . in front means script command
@@ -80,7 +80,7 @@
         .subcmd(input)
     ```
     
-- Builtins
+- **Builtins**
     - built in compile/runtime type checking
     
     ```bash
@@ -108,7 +108,7 @@
     )
     ```
     
-- Conditional
+- **Conditional**
     
     ```bash
     name=$1
@@ -123,7 +123,7 @@
         throw 1 "Bad Input"
     ```
     
-- For / While Loops
+- **For / While Loops**
     
     ```jsx
     for i in 1 2 3
