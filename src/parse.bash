@@ -1,13 +1,17 @@
-FILE_PATH=$1
+#!/usr/bin/env bash
+USAGE="
+Usage: parse.bash <file_path>
+"
 
-if [ -z "$FILE_PATH" ]; then
-  echo "File path is required"
-  exit 1
-fi
+FILE_PATH=${1:?$USAGE}
 
 function parse(){
-  local text="$1"
+  local file_path="$1"
+  local text=$(cat "$file_path")
   echo "Hello"
 }
 
-parse 
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  parse "$(cat "$FILE_PATH")"
+fi
+
