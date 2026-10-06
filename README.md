@@ -31,7 +31,6 @@
     my_list<list int>=(1 2 3)
     
     echo "$(len my_list) items"
-    echo "$(my_list --length) items"
     ```
     
 - **Dicts**
