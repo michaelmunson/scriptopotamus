@@ -1,7 +1,1233 @@
 #!/usr/bin/env bash
-SRC_DIR=$(dirname "${BASH_SOURCE[0]}")
-source "$SRC_DIR/src/ast.bash"
-source "$SRC_DIR/src/compiler.bash"
+
+function ast {
+  local path=${1:?"ast: <path> Required"}
+  mapfile -t _ast_lines < "$path" || return 1
+  _ast_idx=0
+  _ast_last=0
+  ast_block -1
+  jq '{type: "program", body: .}' <<< "$_ast_result"
+}
+
+function ast_error {
+  echo "ast: line $(( _ast_idx + 1 )): $1" >&2
+  exit 1
+}
+
+function ast_next {
+  _ast_idx=$(( _ast_idx + 1 ))
+  _ast_last=$_ast_idx
+}
+
+function ast_peek {
+  local line
+  while (( _ast_idx < ${#_ast_lines[@]} )); do
+    line=${_ast_lines[_ast_idx]}
+    _ast_text=${line#"${line%%[![:space:]]*}"}
+    _ast_text=${_ast_text%"${_ast_text##*[![:space:]]}"}
+    _ast_indent=$(( ${#line} - ${#_ast_text} ))
+    if [[ -n $_ast_text && $_ast_text != \#* ]]; then
+      return 0
+    fi
+    _ast_idx=$(( _ast_idx + 1 ))
+  done
+  return 1
+}
+
+function ast_list {
+  _ast_result=$(printf '%s\n' "$@" | jq -sc .)
+}
+
+function ast_lines {
+  _ast_result=$(jq -c --argjson start "$1" --argjson end "$2" '. + {lines: [$start, $end]}' <<< "$_ast_result")
+}
+
+function ast_words {
+  local input=$1 word="" quote="" char i
+  _ast_words=()
+  for (( i=0; i<${#input}; i++ )); do
+    char=${input:i:1}
+    if [[ -n $quote ]]; then
+      word+=$char
+      [[ $char == "$quote" ]] && quote=""
+    elif [[ $char == [\"\'] ]]; then
+      word+=$char
+      quote=$char
+    elif [[ $char == [[:space:]] ]]; then
+      [[ -n $word ]] && _ast_words+=("$word")
+      word=""
+    else
+      word+=$char
+    fi
+  done
+  [[ -n $word ]] && _ast_words+=("$word")
+}
+
+function ast_block {
+  local parent_indent=$1 nodes=()
+  while ast_peek && (( _ast_indent > parent_indent )); do
+    ast_statement
+    nodes+=("$_ast_result")
+  done
+  ast_list "${nodes[@]}"
+}
+
+function ast_statement {
+  local start=$(( _ast_idx + 1 ))
+  local if_re='^if[[:space:]]+(.+)$'
+  local orphan_re='^(elif|else)([[:space:]]|$)'
+  local for_re='^for[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]+in[[:space:]]+(.+)$'
+  local while_re='^while[[:space:]]+(.+)$'
+  local echo_re='^->[[:space:]]*(.*)$'
+  local macro_re='^@([a-zA-Z_][a-zA-Z0-9_]*)([[:space:]]+(.*))?$'
+  local function_re='^\.?[a-zA-Z_][a-zA-Z0-9_]*\('
+  local declaration_re='^([a-zA-Z_][a-zA-Z0-9_]*)<([^>]*)>$'
+  local typed_assignment_re='^([a-zA-Z_][a-zA-Z0-9_]*)<([^>]*)>[[:space:]]*=[[:space:]]*(.*)$'
+  local assignment_re='^([a-zA-Z_][a-zA-Z0-9_]*)=(.*)$'
+
+  if [[ $_ast_text =~ $if_re ]]; then
+    ast_if "${BASH_REMATCH[1]}"
+  elif [[ $_ast_text =~ $orphan_re ]]; then
+    ast_error "'${BASH_REMATCH[1]}' without matching 'if'"
+  elif [[ $_ast_text =~ $for_re ]]; then
+    ast_for "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+  elif [[ $_ast_text =~ $while_re ]]; then
+    ast_while "${BASH_REMATCH[1]}"
+  elif [[ $_ast_text =~ $echo_re ]]; then
+    ast_next
+    ast_echo "${BASH_REMATCH[1]}"
+  elif [[ $_ast_text =~ $macro_re ]]; then
+    ast_next
+    ast_macro "${BASH_REMATCH[1]}" "${BASH_REMATCH[3]}"
+  elif [[ $_ast_text =~ $function_re ]]; then
+    ast_function
+  elif [[ $_ast_text =~ $declaration_re ]]; then
+    ast_next
+    ast_declaration "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+  elif [[ $_ast_text =~ $typed_assignment_re ]]; then
+    ast_next
+    ast_assignment "${BASH_REMATCH[1]}" "${BASH_REMATCH[3]}" "${BASH_REMATCH[2]}"
+  elif [[ $_ast_text =~ $assignment_re ]]; then
+    ast_next
+    ast_assignment "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+  else
+    ast_bash
+  fi
+  ast_lines "$start" "$_ast_last"
+}
+
+function ast_condition {
+  local raw=$1 kind=test negated=false
+  local negated_re='^![[:space:]]+(.*)$'
+  local bool_re='^\$(\{[a-zA-Z_][a-zA-Z0-9_]*\}|--?[a-zA-Z_][a-zA-Z0-9_-]*|[a-zA-Z_][a-zA-Z0-9_]*)$'
+  if [[ $raw =~ $negated_re ]]; then
+    negated=true
+    raw=${BASH_REMATCH[1]}
+  fi
+  if [[ $raw =~ $bool_re ]]; then
+    kind=bool
+  elif [[ $raw != [\$\"\'0-9-]* ]]; then
+    kind=command
+  fi
+  _ast_result=$(jq -nc --arg kind "$kind" --arg raw "$raw" --argjson negated "$negated" '{kind: $kind, raw: $raw, negated: $negated}')
+}
+
+function ast_branch {
+  local body=$_ast_result
+  ast_condition "$1"
+  _ast_result=$(jq -nc --argjson condition "$_ast_result" --argjson body "$body" '{condition: $condition, body: $body}')
+}
+
+function ast_if {
+  local indent=$_ast_indent condition=$1 branches=() else_body=null
+  local elif_re='^elif[[:space:]]+(.+)$'
+  ast_next
+  ast_block "$indent"
+  ast_branch "$condition"
+  branches+=("$_ast_result")
+  while ast_peek && (( _ast_indent == indent )) && [[ $_ast_text =~ $elif_re ]]; do
+    condition=${BASH_REMATCH[1]}
+    ast_next
+    ast_block "$indent"
+    ast_branch "$condition"
+    branches+=("$_ast_result")
+  done
+  if ast_peek && (( _ast_indent == indent )) && [[ $_ast_text == else ]]; then
+    ast_next
+    ast_block "$indent"
+    else_body=$_ast_result
+  fi
+  ast_list "${branches[@]}"
+  _ast_result=$(jq -c --argjson else_body "$else_body" '{type: "if", branches: ., else: $else_body}' <<< "$_ast_result")
+}
+
+function ast_for {
+  local indent=$_ast_indent var=$1 items
+  ast_next
+  ast_words "$2"
+  items=$(jq -nc '$ARGS.positional' --args -- "${_ast_words[@]}")
+  ast_block "$indent"
+  _ast_result=$(jq -nc --arg var "$var" --argjson items "$items" --argjson body "$_ast_result" '{type: "for", var: $var, items: $items, body: $body}')
+}
+
+function ast_while {
+  local indent=$_ast_indent condition
+  ast_condition "$1"
+  condition=$_ast_result
+  ast_next
+  ast_block "$indent"
+  _ast_result=$(jq -nc --argjson condition "$condition" --argjson body "$_ast_result" '{type: "while", condition: $condition, body: $body}')
+}
+
+function ast_echo {
+  ast_value "$1"
+  _ast_result=$(jq -c '{type: "echo", value: .}' <<< "$_ast_result")
+}
+
+function ast_macro {
+  ast_words "$2"
+  _ast_result=$(jq -nc --arg name "$1" '{type: "macro", name: $name, args: $ARGS.positional}' --args -- "${_ast_words[@]}")
+}
+
+function ast_bash {
+  local indent=$_ast_indent lines=("$_ast_text")
+  ast_next
+  while ast_peek && (( _ast_indent > indent )); do
+    lines+=("${_ast_lines[_ast_idx]:indent}")
+    ast_next
+  done
+  _ast_result=$(jq -nc '{type: "bash", raw: ($ARGS.positional | join("\n"))}' --args -- "${lines[@]}")
+}
+
+function ast_value {
+  local raw=$1
+  local list_re='^\((.*)\)$'
+  local math_re="^[^\"'()]+[[:space:]][-+*/%][[:space:]][^\"'()]+\$"
+  if [[ $raw =~ $list_re ]]; then
+    ast_words "${BASH_REMATCH[1]}"
+    _ast_result=$(jq -nc '
+      $ARGS.positional
+      | if length > 0 and all(test("^[^=]+="))
+        then {kind: "dict", entries: (map(capture("^(?<key>[^=]+)=(?<value>.*)$")) | from_entries)}
+        else {kind: "list", items: .}
+        end
+    ' --args -- "${_ast_words[@]}")
+  elif [[ $raw =~ $math_re ]]; then
+    _ast_result=$(jq -nc --arg raw "$raw" '{kind: "math", raw: $raw}')
+  else
+    _ast_result=$(jq -nc --arg raw "$raw" '{kind: "scalar", raw: $raw}')
+  fi
+}
+
+function ast_type {
+  local type=$1 literals="" has_literals=false
+  local literals_re='^([^({]*)[({](.*)[)}]$'
+  if [[ $type =~ $literals_re ]]; then
+    type=${BASH_REMATCH[1]}
+    literals=${BASH_REMATCH[2]}
+    has_literals=true
+  fi
+  ast_words "$literals"
+  _ast_result=$(jq -nc --arg type "$type" --argjson has_literals "$has_literals" '{
+    datatype: [$type | splits("\\s+") | select(. != "")],
+    literals: (if $has_literals then $ARGS.positional else null end)
+  }' --args -- "${_ast_words[@]}")
+}
+
+function ast_declaration {
+  ast_type "$2"
+  _ast_result=$(jq -c --arg name "$1" '{type: "declaration", name: $name} + .' <<< "$_ast_result")
+}
+
+function ast_assignment {
+  local name=$1 value=$2 type=$3 datatype='{"datatype": null, "literals": null}'
+  if [[ -n $type ]]; then
+    ast_type "$type"
+    datatype=$_ast_result
+  fi
+  ast_value "$value"
+  _ast_result=$(jq -c --arg name "$name" --argjson datatype "$datatype" '{type: "assignment", name: $name} + $datatype + {value: .}' <<< "$_ast_result")
+}
+
+function ast_function {
+  local indent=$_ast_indent start=$(( _ast_idx + 1 )) kind=function
+  local name=${_ast_text%%\(*} text=${_ast_text#*\(}
+  local params="" tail="" depth=1 char i param_list inline="" body
+  local comment_re='(^|[[:space:]])#.*$'
+  local echo_re='^->[[:space:]]*(.*)$'
+
+  if [[ $name == .* ]]; then
+    kind=command
+    name=${name#.}
+  fi
+
+  while true; do
+    if [[ $text =~ $comment_re ]]; then
+      text=${text%"${BASH_REMATCH[0]}"}
+    fi
+    for (( i=0; i<${#text}; i++ )); do
+      char=${text:i:1}
+      [[ $char == "(" ]] && depth=$(( depth + 1 ))
+      [[ $char == ")" ]] && depth=$(( depth - 1 ))
+      if (( depth == 0 )); then
+        tail=${text:i+1}
+        break 2
+      fi
+      params+=$char
+    done
+    params+=" "
+    _ast_idx=$(( _ast_idx + 1 ))
+    (( _ast_idx < ${#_ast_lines[@]} )) || ast_error "unclosed '(' in $name"
+    text=${_ast_lines[_ast_idx]}
+  done
+
+  tail=${tail#"${tail%%[![:space:]]*}"}
+  if [[ -n $tail && ! $tail =~ $echo_re ]]; then
+    ast_error "unexpected '$tail' after $name(...)"
+  fi
+
+  ast_params "$params"
+  param_list=$_ast_result
+  ast_next
+
+  if [[ $tail =~ $echo_re ]]; then
+    ast_echo "${BASH_REMATCH[1]}"
+    ast_lines "$_ast_last" "$_ast_last"
+    inline=$_ast_result
+  fi
+
+  ast_block "$indent"
+  body=$_ast_result
+  if [[ -n $inline ]]; then
+    body=$(jq -c --argjson inline "$inline" '[$inline] + .' <<< "$body")
+  fi
+
+  _ast_result=$(jq -nc --arg type "$kind" --arg name "$name" --argjson params "$param_list" --argjson body "$body" '{type: $type, name: $name, params: $params, body: $body}')
+}
+
+function ast_param_tokens {
+  local input=$1 word="" char i in_type=false
+  _ast_tokens=()
+  for (( i=0; i<${#input}; i++ )); do
+    char=${input:i:1}
+    if [[ $in_type == true ]]; then
+      word+=$char
+      [[ $char == ">" ]] && in_type=false
+    elif [[ $char == "<" ]]; then
+      if [[ -z $word ]] && (( ${#_ast_tokens[@]} > 0 )) && [[ ${_ast_tokens[-1]} != [\[\]\|] ]]; then
+        word=${_ast_tokens[-1]}
+        unset '_ast_tokens[-1]'
+      fi
+      word+=$char
+      in_type=true
+    elif [[ $char == [\[\]\|] ]]; then
+      [[ -n $word ]] && _ast_tokens+=("$word")
+      _ast_tokens+=("$char")
+      word=""
+    elif [[ $char == [[:space:]] ]]; then
+      [[ -n $word ]] && _ast_tokens+=("$word")
+      word=""
+    else
+      word+=$char
+    fi
+  done
+  [[ -n $word ]] && _ast_tokens+=("$word")
+}
+
+function ast_params {
+  ast_param_tokens "$1"
+  _ast_pos=0
+  ast_param_sequence
+  if (( _ast_pos < ${#_ast_tokens[@]} )); then
+    ast_error "unexpected '${_ast_tokens[_ast_pos]}' in parameters"
+  fi
+}
+
+function ast_param_sequence {
+  local items=()
+  while (( _ast_pos < ${#_ast_tokens[@]} )) && [[ ${_ast_tokens[_ast_pos]} != "]" ]]; do
+    ast_param_alternatives
+    items+=("$_ast_result")
+  done
+  ast_list "${items[@]}"
+}
+
+function ast_param_alternatives {
+  local options=()
+  ast_param_item
+  options+=("$_ast_result")
+  while [[ ${_ast_tokens[_ast_pos]} == "|" ]]; do
+    _ast_pos=$(( _ast_pos + 1 ))
+    ast_param_item
+    options+=("$_ast_result")
+  done
+  if (( ${#options[@]} > 1 )); then
+    ast_list "${options[@]}"
+    _ast_result=$(jq -c '
+      def long: .flag | startswith("--");
+      if length == 2 and all(.[]; .kind == "opt") and ([.[] | long] | sort) == [false, true]
+      then (map(select(long)) | .[0]) + {aliases: [.[] | select(long | not) | .flag]}
+      else {kind: "exclusive", options: .}
+      end
+    ' <<< "$_ast_result")
+  fi
+}
+
+function ast_param_item {
+  local token=${_ast_tokens[_ast_pos]} repeat=false
+  _ast_pos=$(( _ast_pos + 1 ))
+  if [[ $token != "[" ]]; then
+    ast_param "$token"
+    return
+  fi
+  ast_param_sequence
+  [[ ${_ast_tokens[_ast_pos]} == "]" ]] || ast_error "missing ']' in parameters"
+  _ast_pos=$(( _ast_pos + 1 ))
+  if [[ ${_ast_tokens[_ast_pos]} == "..." ]]; then
+    repeat=true
+    _ast_pos=$(( _ast_pos + 1 ))
+  fi
+  _ast_result=$(jq -c --argjson repeat "$repeat" '
+    if length == 1 and (.[0].kind == "arg" or .[0].kind == "opt")
+    then .[0] + {optional: true, repeat: (.[0].repeat or $repeat)}
+    else {kind: "group", optional: true, repeat: $repeat, params: .}
+    end
+  ' <<< "$_ast_result")
+}
+
+function ast_param {
+  local token=$1
+  local param_re='^(-{0,2})([a-zA-Z_][a-zA-Z0-9_-]*)(<([^>]*)>)?(\.\.\.)?$'
+  local default_re='^([^=]*)=(.*)$'
+  [[ $token =~ $param_re ]] || ast_error "invalid parameter '$token'"
+  local dashes=${BASH_REMATCH[1]} name=${BASH_REMATCH[2]} type=${BASH_REMATCH[4]} repeat=false
+  local kind=arg flag="" default_type=str default="" has_default=false
+  [[ -n ${BASH_REMATCH[5]} ]] && repeat=true
+  if [[ -n $dashes ]]; then
+    kind=opt
+    flag=$dashes$name
+    default_type=bool
+  fi
+  if [[ $type =~ $default_re ]]; then
+    type=${BASH_REMATCH[1]}
+    default=${BASH_REMATCH[2]}
+    has_default=true
+  fi
+  ast_type "${type:-$default_type}"
+  _ast_result=$(jq -c \
+    --arg kind "$kind" \
+    --arg name "${name//-/_}" \
+    --arg flag "$flag" \
+    --argjson repeat "$repeat" \
+    --arg default "$default" \
+    --argjson has_default "$has_default" '
+    {kind: $kind, name: $name, flag: (if $flag == "" then null else $flag end), optional: false, repeat: $repeat}
+    + .
+    + {default: (if $has_default then $default else null end)}
+  ' <<< "$_ast_result")
+}
+
+if [[ ${0##*/} == ast.bash ]]; then
+  ast "$@"
+fi
+
+function compile_macro {
+  local node=$1 name raw_args arg args=()
+  name=$(jq -r .name <<< "$node")
+  if ! declare -F "macro_$name" > /dev/null; then
+    compile_error "$node" "unknown macro '@$name'"
+  fi
+  mapfile -t raw_args < <(jq -r '.args[]' <<< "$node")
+  for arg in "${raw_args[@]}"; do
+    compile_expr "$arg"
+    args+=("$_compile_result")
+  done
+  "macro_$name" "$node" "${args[@]}"
+}
+
+function macro_throw {
+  local node=$1 code=$2
+  local code_re='^([0-9]+|\$\{?[a-zA-Z_][a-zA-Z0-9_]*\}?)$'
+  if (( $# < 3 )); then
+    compile_error "$node" "@throw: <code> <msg> required"
+  fi
+  if [[ ! $code =~ $code_re ]]; then
+    compile_error "$node" "@throw: <code> expected int, received $code"
+  fi
+  macro_prt_echo "" "${_macro_prt_codes[red]}" "${@:3}"
+  compile_emit "$_compile_result >&2"
+  compile_emit "exit $code"
+}
+
+declare -gA _macro_prt_codes=(
+  [bold]=1
+  [dim]=2
+  [italic]=3
+  [underline]=4
+  [black]=30
+  [red]=31
+  [green]=32
+  [yellow]=33
+  [blue]=34
+  [magenta]=35
+  [cyan]=36
+  [white]=37
+)
+
+function macro_prt {
+  local node=$1 flags="" style codes=() msg=()
+  shift
+  while (( $# > 0 )); do
+    case $1 in
+      -s|--style)
+        if ! macro_prt_code "$2"; then
+          compile_error "$node" "@prt: unknown style '$2'"
+        fi
+        codes+=("$_compile_result")
+        shift 2
+        while (( $# > 0 )) && macro_prt_code "$1"; do
+          codes+=("$_compile_result")
+          shift
+        done
+        ;;
+      -n)
+        flags=" -n"
+        shift
+        ;;
+      *)
+        msg+=("$1")
+        shift
+        ;;
+    esac
+  done
+  printf -v style '%s;' "${codes[@]}"
+  macro_prt_echo "$flags" "${style%;}" "${msg[@]}"
+  compile_emit "$_compile_result"
+}
+
+function macro_prt_code {
+  compile_literal "$1" || return 1
+  [[ -n $_compile_result ]] || return 1
+  _compile_result=${_macro_prt_codes[$_compile_result]}
+  [[ -n $_compile_result ]]
+}
+
+function macro_prt_echo {
+  local flags=$1 codes=$2 text
+  shift 2
+  text="$*"
+  if [[ -n $codes ]]; then
+    text="\$'\\e[${codes}m'$text\$'\\e[0m'"
+  fi
+  _compile_result="echo$flags $text"
+}
+
+function macro_input {
+  local node=$1 prompt="" var="" select=false multi=false confirm=false options=()
+  local name_re='^[a-zA-Z_][a-zA-Z0-9_]*$'
+  shift
+  while (( $# > 0 )); do
+    case $1 in
+      -v)
+        if (( $# < 2 )); then
+          compile_error "$node" "@input: -v requires a value"
+        fi
+        compile_literal "$2"
+        var=$_compile_result
+        shift 2
+        ;;
+      -s|--select)
+        select=true
+        shift
+        ;;
+      --multi)
+        multi=true
+        shift
+        ;;
+      --confirm)
+        confirm=true
+        shift
+        ;;
+      --options)
+        shift
+        while (( $# > 0 )) && [[ $1 != -?* ]]; do
+          options+=("$1")
+          shift
+        done
+        ;;
+      -?*)
+        compile_error "$node" "@input: unknown option '$1'"
+        ;;
+      *)
+        if [[ -n $prompt ]]; then
+          compile_error "$node" "@input: unexpected '$1'"
+        fi
+        prompt=$1
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -z $prompt ]]; then
+    compile_error "$node" "@input: <prompt> is required"
+  elif [[ -z $var ]]; then
+    compile_error "$node" "@input: -v is required"
+  elif [[ ! $var =~ $name_re ]]; then
+    compile_error "$node" "@input: -v expected a variable name, received '$var'"
+  elif [[ $select == true && $confirm == true ]]; then
+    compile_error "$node" "@input: --select and --confirm are mutually exclusive"
+  elif [[ $select == false && ( $multi == true || ${#options[@]} -gt 0 ) ]]; then
+    compile_error "$node" "@input: --options and --multi require --select"
+  elif [[ $select == true ]] && (( ${#options[@]} == 0 )); then
+    compile_error "$node" "@input: --select requires --options"
+  fi
+
+  if [[ $confirm == true ]]; then
+    macro_input_confirm "$prompt" "$var"
+  elif [[ $multi == true ]]; then
+    macro_input_multi "$prompt" "$var" "${options[@]}"
+  elif [[ $select == true ]]; then
+    macro_input_select "$prompt" "$var" "${options[@]}"
+  else
+    compile_emit "read -rp $prompt' ' $var"
+  fi
+}
+
+function macro_input_confirm {
+  local prompt=$1 var=$2
+  compile_emit "read -rp $prompt' [y/N] ' _scrippo_reply"
+  compile_emit "if [[ \$_scrippo_reply == [yY]* ]]; then"
+  compile_emit "  $var=true"
+  compile_emit "else"
+  compile_emit "  $var=false"
+  compile_emit "fi"
+}
+
+function macro_input_select {
+  local prompt=$1 var=$2
+  shift 2
+  compile_emit "PS3=$prompt' '"
+  compile_emit "select $var in $*; do"
+  compile_emit "  [[ -n \$$var ]] && break"
+  compile_emit "done"
+}
+
+function macro_input_multi {
+  local prompt=$1 var=$2
+  shift 2
+  compile_emit "_scrippo_options=($*)"
+  compile_emit "for _scrippo_i in \"\${!_scrippo_options[@]}\"; do"
+  compile_emit "  echo \"\$(( _scrippo_i + 1 ))) \${_scrippo_options[_scrippo_i]}\" >&2"
+  compile_emit "done"
+  compile_emit "IFS=', ' read -rp $prompt' ' -a _scrippo_picks"
+  compile_emit "$var=()"
+  compile_emit "for _scrippo_i in \"\${_scrippo_picks[@]}\"; do"
+  compile_emit "  if [[ \$_scrippo_i =~ ^[0-9]+\$ ]] && (( _scrippo_i >= 1 && _scrippo_i <= \${#_scrippo_options[@]} )); then"
+  compile_emit "    $var+=(\"\${_scrippo_options[_scrippo_i - 1]}\")"
+  compile_emit "  fi"
+  compile_emit "done"
+}
+
+function macro_import {
+  local node=$1 path file tree nodes child content previous=$_compile_import_dir
+  if (( $# != 2 )); then
+    compile_error "$node" "@import: expected a single <path>"
+  fi
+  if ! compile_literal "$2"; then
+    compile_error "$node" "@import: <path> must be a literal, received $2"
+  fi
+  path=$_compile_result
+  [[ $path == /* ]] || path=$_compile_import_dir/$path
+  if [[ ! -f $path ]]; then
+    compile_error "$node" "@import: file not found: $path"
+  fi
+  file=$(cd "$(dirname "$path")" && pwd)/$(basename "$path")
+  [[ -z ${_compile_imported[$file]} ]] || return 0
+  _compile_imported[$file]=1
+
+  if [[ $file == *.scrippo ]]; then
+    tree=$(ast "$file") || exit 1
+    mapfile -t nodes < <(jq -c '.body[]' <<< "$tree")
+    _compile_import_dir=$(dirname "$file")
+    for child in "${nodes[@]}"; do
+      compile_node "$child"
+    done
+    _compile_import_dir=$previous
+  else
+    content=$(< "$file")
+    compile_emit "${content#\#!*$'\n'}"
+  fi
+}
+
+declare -gA _compile_types=()
+declare -gA _compile_imported=()
+declare -ga _compile_commands=()
+declare -gA _compile_patterns=(
+  [int]='^-?[0-9]+$'
+  [float]='^-?[0-9]*\.?[0-9]+$'
+  [bool]='^(true|false)$'
+)
+
+_compile_var_re='^\$\{?([a-zA-Z_][a-zA-Z0-9_]*)\}?$'
+
+_compile_type_fields='[
+  (.datatype | map(select(. != "const")) | .[0] // ""),
+  (.datatype | index("const") != null),
+  (.literals // [] | join("|")),
+  ((.datatype | join(" ")) + (if .literals then " (\(.literals | join(" ")))" else "" end))
+]'
+
+_compile_param_jq='
+def annotate($repeat):
+  map(
+    if .kind == "group" then .repeat as $r | .params |= annotate($repeat or $r)
+    elif .kind == "exclusive" then .options |= annotate($repeat)
+    else . + {array: ((.repeat or $repeat) and .datatype != ["bool"])}
+    end
+  );
+
+def leaves:
+  .[]
+  | if .kind == "group" then .params | leaves
+    elif .kind == "exclusive" then .options | leaves
+    else .
+    end;
+
+def used:
+  if .kind == "group" then "( " + ([.params[] | used] | join(" || ")) + " )"
+  elif .kind == "exclusive" then "( " + ([.options[] | used] | join(" || ")) + " )"
+  elif .array then "${#\(.name)[@]} -gt 0"
+  elif .kind == "opt" and .datatype == ["bool"] then "$\(.name) == true"
+  else "-n $\(.name)"
+  end;
+
+def name_of:
+  if .kind == "group" then "[" + ([.params[] | name_of] | join(" ")) + "]"
+  elif .kind == "exclusive" then [.options[] | name_of] | join(" | ")
+  elif .kind == "arg" then "<\(.name)>"
+  else .flag
+  end;
+
+def when($context; $test):
+  if $context == null then $test else "\($context) && \($test)" end;
+
+def checks($context):
+  .[]
+  | if .kind == "group" then used as $used | .params | checks($used)
+    elif .kind == "exclusive" then
+      .options as $options
+      | (
+          range(0; $options | length) as $i
+          | range($i + 1; $options | length) as $j
+          | {
+              test: when($context; "\($options[$i] | used) && \($options[$j] | used)"),
+              message: "\($options[$i] | name_of) and \($options[$j] | name_of) are mutually exclusive"
+            }
+        ),
+        (
+          if any($options[]; .optional) then empty
+          else {test: when($context; "! \(used)"), message: "one of \(name_of) is required"}
+          end
+        ),
+        ($options[] | select(.kind == "group") | used as $used | .params | checks($used))
+    elif .optional then empty
+    else {test: when($context; "! ( \(used) )"), message: "\(name_of) is required"}
+    end;
+'
+
+function compile {
+  local path=${1:?"compile: <path> Required"} tree nodes node
+  tree=$(ast "$path") || exit 1
+  _compile_output=()
+  _compile_depth=0
+  _compile_types=()
+  _compile_imported=()
+  _compile_commands=()
+  _compile_import_dir=${SCRIPPO_IMPORT_DIR:-$(dirname "$path")}
+  compile_emit "#!/usr/bin/env bash"
+  mapfile -t nodes < <(jq -c '.body[]' <<< "$tree")
+  for node in "${nodes[@]}"; do
+    compile_node "$node"
+  done
+  compile_dispatch
+  printf '%s\n' "${_compile_output[@]}"
+}
+
+function compile_error {
+  echo "compile: line $(jq -r '.lines[0]' <<< "$1"): $2" >&2
+  exit 1
+}
+
+function compile_read {
+  IFS=$'\x1f' read -r "${@:3}" < <(jq -r "$2 | map(. // \"\" | tostring) | join(\"\\u001f\")" <<< "$1")
+}
+
+function compile_emit {
+  local pad line
+  printf -v pad '%*s' $(( _compile_depth * 2 )) ''
+  while IFS= read -r line; do
+    _compile_output+=("$pad$line")
+  done <<< "$1"
+}
+
+function compile_indent {
+  _compile_depth=$(( _compile_depth + 1 ))
+}
+
+function compile_dedent {
+  _compile_depth=$(( _compile_depth - 1 ))
+}
+
+function compile_fail {
+  compile_emit "if $1; then"
+  compile_emit "  echo \"$2\" >&2"
+  compile_emit "  exit 1"
+  compile_emit "fi"
+}
+
+function compile_node {
+  local node=$1 type
+  type=$(jq -r .type <<< "$node")
+  case $type in
+    if) compile_if "$node" ;;
+    for) compile_for "$node" ;;
+    while) compile_while "$node" ;;
+    echo) compile_echo "$node" ;;
+    declaration) compile_declaration "$node" ;;
+    assignment) compile_assignment "$node" ;;
+    function|command) compile_function "$node" ;;
+    bash) compile_bash "$node" ;;
+    macro) compile_macro "$node" ;;
+  esac
+}
+
+function compile_body {
+  local nodes node
+  mapfile -t nodes < <(jq -c '.body[] | select(.type != "command")' <<< "$1")
+  compile_indent
+  for node in "${nodes[@]}"; do
+    compile_node "$node"
+  done
+  if (( ${#nodes[@]} == 0 )); then
+    compile_emit ":"
+  fi
+  compile_dedent
+}
+
+function compile_expr {
+  local text=$1 replacement
+  local opt_re='\$--?([a-zA-Z_][a-zA-Z0-9_-]*)'
+  local index_re='\$([a-zA-Z_][a-zA-Z0-9_]*)\[([^]]*)\]'
+  local operand='(\$\{?[a-zA-Z_][a-zA-Z0-9_]*(\[[^]]*\])?\}?|[0-9]*\.?[0-9]+)'
+  local math_re='\$\(([[:space:]]*'"$operand"'([[:space:]]*[-+*/%^][[:space:]]*'"$operand"')+[[:space:]]*)\)'
+
+  while [[ $text =~ $opt_re ]]; do
+    replacement="\$${BASH_REMATCH[1]//-/_}"
+    text=${text/"${BASH_REMATCH[0]}"/"$replacement"}
+  done
+  while [[ $text =~ $index_re ]]; do
+    replacement="\${${BASH_REMATCH[1]}[${BASH_REMATCH[2]}]}"
+    text=${text/"${BASH_REMATCH[0]}"/"$replacement"}
+  done
+  while [[ $text =~ $math_re ]]; do
+    replacement="\$(bc -l <<< \"${BASH_REMATCH[1]}\")"
+    text=${text/"${BASH_REMATCH[0]}"/"$replacement"}
+  done
+  _compile_result=$text
+}
+
+function compile_condition {
+  local kind raw negated
+  compile_read "$1" '[.kind, .raw, .negated]' kind raw negated
+  compile_expr "$raw"
+  if [[ $kind == bool ]]; then
+    _compile_result="[[ $_compile_result == true ]]"
+  elif [[ $kind == test ]]; then
+    _compile_result="[[ $_compile_result ]]"
+  fi
+  if [[ $negated == true ]]; then
+    _compile_result="! $_compile_result"
+  fi
+}
+
+function compile_value {
+  local value=$1 base=$2 kind raw
+  compile_read "$value" '[.kind, .raw]' kind raw
+  if [[ $kind == list ]]; then
+    raw=$(jq -r '"(" + (.items | join(" ")) + ")"' <<< "$value")
+  elif [[ $kind == dict ]]; then
+    raw=$(jq -r '"(\n" + (.entries | to_entries | map("  [\(.key)]=\(.value)") | join("\n")) + "\n)"' <<< "$value")
+  fi
+  compile_expr "$raw"
+  if [[ $kind == math && $base == int ]]; then
+    _compile_result="\$(( $_compile_result ))"
+  elif [[ $kind == math ]]; then
+    _compile_result="\$(bc -l <<< \"$_compile_result\")"
+  fi
+}
+
+function compile_flags {
+  local base=$1 const=$2 flags=""
+  case $base in
+    int) flags=i ;;
+    list) flags=a ;;
+    dict) flags=A ;;
+    upper) flags=u ;;
+    lower) flags=l ;;
+  esac
+  if [[ $const == true ]]; then
+    flags+=r
+  fi
+  _compile_result=${flags:+ -$flags}
+}
+
+function compile_type_test {
+  local var=$1 base=$2 literals=$3
+  _compile_result=""
+  if [[ -n $literals ]]; then
+    _compile_result="$var != @($literals)"
+  elif [[ -n ${_compile_patterns[$base]} ]]; then
+    _compile_result="! $var =~ ${_compile_patterns[$base]}"
+  fi
+}
+
+function compile_literal {
+  local raw=$1
+  local double_re='^"([^"$`\]*)"$'
+  local single_re="^'([^']*)'\$"
+  local bare_re='^[a-zA-Z0-9_.+-]+$'
+  if [[ $raw =~ $double_re || $raw =~ $single_re ]]; then
+    _compile_result=${BASH_REMATCH[1]}
+    return 0
+  fi
+  if [[ $raw =~ $bare_re ]]; then
+    _compile_result=$raw
+    return 0
+  fi
+  return 1
+}
+
+function compile_accepts {
+  local value=$1 base=$2 literals=$3
+  if [[ -n $literals ]]; then
+    [[ "|$literals|" == *"|$value|"* ]]
+    return
+  fi
+  [[ -z ${_compile_patterns[$base]} || $value =~ ${_compile_patterns[$base]} ]]
+}
+
+function compile_if {
+  local node=$1 branches branch keyword=if
+  mapfile -t branches < <(jq -c '.branches[]' <<< "$node")
+  for branch in "${branches[@]}"; do
+    compile_condition "$(jq -c .condition <<< "$branch")"
+    compile_emit "$keyword $_compile_result; then"
+    compile_body "$branch"
+    keyword=elif
+  done
+  if [[ $(jq '.else != null' <<< "$node") == true ]]; then
+    compile_emit "else"
+    compile_body "$(jq -c '{body: .else}' <<< "$node")"
+  fi
+  compile_emit "fi"
+}
+
+function compile_for {
+  local node=$1 var raw_items item items=()
+  var=$(jq -r .var <<< "$node")
+  mapfile -t raw_items < <(jq -r '.items[]' <<< "$node")
+  for item in "${raw_items[@]}"; do
+    compile_expr "$item"
+    if [[ $_compile_result =~ $_compile_var_re ]]; then
+      items+=("\"\${${BASH_REMATCH[1]}[@]}\"")
+    else
+      items+=("$_compile_result")
+    fi
+  done
+  compile_emit "for $var in ${items[*]}; do"
+  compile_body "$node"
+  compile_emit "done"
+}
+
+function compile_while {
+  local node=$1
+  compile_condition "$(jq -c .condition <<< "$node")"
+  compile_emit "while $_compile_result; do"
+  compile_body "$node"
+  compile_emit "done"
+}
+
+function compile_echo {
+  compile_value "$(jq -c .value <<< "$1")" ""
+  compile_emit "echo $_compile_result"
+}
+
+function compile_bash {
+  local node=$1 raw
+  local closer_re='^(fi|done|then|do)([[:space:];]|$)'
+  raw=$(jq -r .raw <<< "$node")
+  if [[ $raw =~ $closer_re ]]; then
+    compile_error "$node" "unexpected '${BASH_REMATCH[1]}': blocks are closed by indentation"
+  fi
+  compile_expr "$raw"
+  compile_emit "$_compile_result"
+}
+
+function compile_declaration {
+  local node=$1 name type_json base const literals description
+  name=$(jq -r .name <<< "$node")
+  type_json=$(jq -c '{datatype, literals}' <<< "$node")
+  _compile_types[$name]=$type_json
+  compile_read "$type_json" "$_compile_type_fields" base const literals description
+  compile_flags "$base" "$const"
+  compile_emit "declare$_compile_result $name"
+}
+
+function compile_assignment {
+  local node=$1 name typed kind raw value type_json
+  local base const literals description prefix="" code test
+  compile_read "$node" '[.name, (.datatype != null), .value.kind, .value.raw]' name typed kind raw
+  value=$(jq -c .value <<< "$node")
+
+  if [[ $typed == true ]]; then
+    type_json=$(jq -c '{datatype, literals}' <<< "$node")
+    _compile_types[$name]=$type_json
+  else
+    type_json=${_compile_types[$name]}
+  fi
+
+  if [[ -z $type_json ]]; then
+    compile_value "$value" ""
+    compile_emit "$name=$_compile_result"
+    return
+  fi
+
+  compile_read "$type_json" "$_compile_type_fields" base const literals description
+  if [[ $typed == true ]]; then
+    compile_flags "$base" "$const"
+    prefix="declare$_compile_result "
+  elif [[ $const == true ]]; then
+    compile_error "$node" "cannot reassign const '$name'"
+  fi
+
+  compile_value "$value" "$base"
+  code=$_compile_result
+  compile_type_test '$_scrippo_value' "$base" "$literals"
+  test=$_compile_result
+
+  if [[ -z $test || $kind == list || $kind == dict ]]; then
+    compile_emit "$prefix$name=$code"
+    return
+  fi
+
+  if [[ $kind == scalar ]] && compile_literal "$raw"; then
+    if ! compile_accepts "$_compile_result" "$base" "$literals"; then
+      compile_error "$node" "$name: expected $description, received $raw"
+    fi
+    compile_emit "$prefix$name=$code"
+    return
+  fi
+
+  compile_emit "_scrippo_value=$code"
+  compile_fail "[[ -n \$_scrippo_value && $test ]]" "$name: expected $description, received '\$_scrippo_value'"
+  compile_emit "$prefix$name=\$_scrippo_value"
+}
+
+function compile_function {
+  local node=$1 name=$2 type subcommands sub subname
+  if [[ -z $name ]]; then
+    compile_read "$node" '[.name, .type]' name type
+    if [[ $type == command ]] && (( _compile_depth == 0 )); then
+      compile_command "$node" "$name"
+    fi
+  fi
+  mapfile -t subcommands < <(jq -c '.body[] | select(.type == "command")' <<< "$node")
+
+  for sub in "${subcommands[@]}"; do
+    compile_function "$sub" "${name}__$(jq -r .name <<< "$sub")"
+  done
+
+  compile_emit "function $name {"
+  compile_indent
+  for sub in "${subcommands[@]}"; do
+    subname=$(jq -r .name <<< "$sub")
+    compile_emit "if [[ \$1 == $subname ]]; then"
+    compile_emit "  shift"
+    compile_emit "  ${name}__$subname \"\$@\""
+    compile_emit "  return"
+    compile_emit "fi"
+  done
+  compile_params "$node" "${name//__/ }"
+  compile_dedent
+  compile_body "$node"
+  compile_emit "}"
+  if (( _compile_depth == 0 )); then
+    compile_emit ""
+  fi
+}
+
+function compile_params {
+  local node=$1 fn=$2 leaves leaf checks check test message
+  local kind name flag array multi default base const literals description pattern
+  local position=0 rest=false
+
+  mapfile -t leaves < <(jq -c "$_compile_param_jq"'.params | annotate(false) | leaves' <<< "$node")
+  if (( ${#leaves[@]} == 0 )); then
+    return 0
+  fi
+
+  for leaf in "${leaves[@]}"; do
+    compile_read "$leaf" '[.kind, .name, .array, .default, .datatype[0]]' kind name array default base
+    if [[ $kind != opt ]]; then
+      continue
+    elif [[ $array == true ]]; then
+      compile_emit "local -a $name=()"
+    elif [[ $base == bool ]]; then
+      compile_emit "local $name=${default:-false}"
+    else
+      compile_emit "local $name${default:+=$default}"
+    fi
+  done
+
+  compile_emit "local _scrippo_args=()"
+  compile_emit "while (( \$# > 0 )); do"
+  compile_indent
+  compile_emit "case \$1 in"
+  compile_indent
+  for leaf in "${leaves[@]}"; do
+    compile_read "$leaf" '[.kind, .name, .flag, .array, .repeat, .datatype[0], ((.aliases // []) + [.flag] | join("|"))]' kind name flag array multi base pattern
+    if [[ $kind == opt ]]; then
+      compile_option "$fn" "$name" "$flag" "$array" "$multi" "$base" "$pattern"
+    fi
+  done
+  compile_emit "--)"
+  compile_emit "  shift"
+  compile_emit "  _scrippo_args+=(\"\$@\")"
+  compile_emit "  break"
+  compile_emit "  ;;"
+  compile_emit "-?*)"
+  compile_emit "  echo \"$fn: unknown option '\$1'\" >&2"
+  compile_emit "  exit 1"
+  compile_emit "  ;;"
+  compile_emit "*)"
+  compile_emit "  _scrippo_args+=(\"\$1\")"
+  compile_emit "  shift"
+  compile_emit "  ;;"
+  compile_dedent
+  compile_emit "esac"
+  compile_dedent
+  compile_emit "done"
+
+  for leaf in "${leaves[@]}"; do
+    compile_read "$leaf" '[.kind, .name, .array, .default]' kind name array default
+    if [[ $kind != arg ]]; then
+      continue
+    elif [[ $array == true ]]; then
+      compile_emit "local -a $name=(\"\${_scrippo_args[@]:$position}\")"
+      rest=true
+    else
+      compile_emit "local $name=\${_scrippo_args[$position]${default:+:-$default}}"
+      position=$(( position + 1 ))
+    fi
+  done
+  if [[ $rest == false ]]; then
+    compile_fail "(( \${#_scrippo_args[@]} > $position ))" "$fn: too many arguments"
+  fi
+
+  mapfile -t checks < <(jq -c "$_compile_param_jq"'.params | annotate(false) | checks(null)' <<< "$node")
+  for check in "${checks[@]}"; do
+    compile_read "$check" '[.test, .message]' test message
+    compile_fail "[[ $test ]]" "$fn: $message"
+  done
+
+  for leaf in "${leaves[@]}"; do
+    compile_read "$leaf" '[.kind, .name, .flag, .array]' kind name flag array
+    compile_read "$leaf" "$_compile_type_fields" base const literals description
+    if [[ $kind == opt && $base == bool ]]; then
+      continue
+    fi
+    [[ $kind == arg ]] && flag="<$name>"
+    if [[ $array == true ]]; then
+      compile_type_test '$_scrippo_item' "$base" "$literals"
+      [[ -n $_compile_result ]] || continue
+      compile_emit "for _scrippo_item in \"\${$name[@]}\"; do"
+      compile_indent
+      compile_fail "[[ $_compile_result ]]" "$fn: $flag expected $description, received '\$_scrippo_item'"
+      compile_dedent
+      compile_emit "done"
+    else
+      _compile_types[$name]=$(jq -c '{datatype, literals}' <<< "$leaf")
+      compile_type_test "\$$name" "$base" "$literals"
+      [[ -n $_compile_result ]] || continue
+      compile_fail "[[ -n \$$name && $_compile_result ]]" "$fn: $flag expected $description, received '\$$name'"
+    fi
+  done
+}
+
+function compile_option {
+  local fn=$1 name=$2 flag=$3 array=$4 multi=$5 base=$6 pattern=$7
+  compile_emit "$pattern)"
+  compile_indent
+  if [[ $base == bool && $array != true ]]; then
+    compile_emit "$name=true"
+    compile_emit "shift"
+  elif [[ $multi == true ]]; then
+    compile_emit "shift"
+    compile_emit "while (( \$# > 0 )) && [[ \$1 != -?* ]]; do"
+    compile_emit "  $name+=(\"\$1\")"
+    compile_emit "  shift"
+    compile_emit "done"
+  else
+    compile_fail "(( \$# < 2 ))" "$fn: $flag requires a value"
+    if [[ $array == true ]]; then
+      compile_emit "$name+=(\"\$2\")"
+    else
+      compile_emit "$name=\$2"
+    fi
+    compile_emit "shift 2"
+  fi
+  compile_emit ";;"
+  compile_dedent
+}
+
+function compile_command {
+  local node=$1 name=$2
+  if [[ " ${_compile_commands[*]} " == *" $name "* ]]; then
+    compile_error "$node" "command '$name' already defined"
+  fi
+  _compile_commands+=("$name")
+}
+
+function compile_dispatch {
+  local command
+  if (( ${#_compile_commands[@]} == 0 )); then
+    return 0
+  fi
+  compile_emit "case \$1 in"
+  compile_indent
+  for command in "${_compile_commands[@]}"; do
+    compile_emit "$command)"
+    compile_emit "  shift"
+    compile_emit "  $command \"\$@\""
+    compile_emit "  ;;"
+  done
+  compile_emit "*)"
+  compile_emit "  echo \"\${0##*/}: unknown command '\$1'\" >&2"
+  compile_emit "  exit 1"
+  compile_emit "  ;;"
+  compile_dedent
+  compile_emit "esac"
+}
+
+if [[ ${0##*/} == compiler.bash ]]; then
+  _compile_dir=$(dirname "${BASH_SOURCE[0]}")
+  source "$_compile_dir/ast.bash"
+  source "$_compile_dir/macros.bash"
+  for _compile_macro_file in "$_compile_dir"/macros/*.bash; do
+    source "$_compile_macro_file"
+  done
+  compile "$@"
+fi
 function scrippo {
   local compile=false
   local noexec=false

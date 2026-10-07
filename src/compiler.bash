@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-_compile_dir=$(dirname "${BASH_SOURCE[0]}")
-
 declare -gA _compile_types=()
+declare -gA _compile_imported=()
+declare -ga _compile_commands=()
 declare -gA _compile_patterns=(
   [int]='^-?[0-9]+$'
   [float]='^-?[0-9]*\.?[0-9]+$'
@@ -82,13 +82,15 @@ function compile {
   _compile_output=()
   _compile_depth=0
   _compile_types=()
+  _compile_imported=()
+  _compile_commands=()
+  _compile_import_dir=${SCRIPPO_IMPORT_DIR:-$(dirname "$path")}
   compile_emit "#!/usr/bin/env bash"
-  compile_builtins
   mapfile -t nodes < <(jq -c '.body[]' <<< "$tree")
   for node in "${nodes[@]}"; do
     compile_node "$node"
   done
-  compile_dispatch "$tree"
+  compile_dispatch
   printf '%s\n' "${_compile_output[@]}"
 }
 
@@ -124,17 +126,6 @@ function compile_fail {
   compile_emit "fi"
 }
 
-function compile_builtins {
-  local builtins
-  [[ -f $_compile_dir/builtins.bash ]] || return 0
-  builtins=$(< "$_compile_dir/builtins.bash")
-  builtins=${builtins#\#!*$'\n'}
-  if [[ -n ${builtins//[[:space:]]/} ]]; then
-    compile_emit "$builtins"
-    compile_emit ""
-  fi
-}
-
 function compile_node {
   local node=$1 type
   type=$(jq -r .type <<< "$node")
@@ -147,6 +138,7 @@ function compile_node {
     assignment) compile_assignment "$node" ;;
     function|command) compile_function "$node" ;;
     bash) compile_bash "$node" ;;
+    macro) compile_macro "$node" ;;
   esac
 }
 
@@ -383,9 +375,12 @@ function compile_assignment {
 }
 
 function compile_function {
-  local node=$1 name=$2 subcommands sub subname
+  local node=$1 name=$2 type subcommands sub subname
   if [[ -z $name ]]; then
-    name=$(jq -r .name <<< "$node")
+    compile_read "$node" '[.name, .type]' name type
+    if [[ $type == command ]] && (( _compile_depth == 0 )); then
+      compile_command "$node" "$name"
+    fi
   fi
   mapfile -t subcommands < <(jq -c '.body[] | select(.type == "command")' <<< "$node")
 
@@ -536,15 +531,22 @@ function compile_option {
   compile_dedent
 }
 
+function compile_command {
+  local node=$1 name=$2
+  if [[ " ${_compile_commands[*]} " == *" $name "* ]]; then
+    compile_error "$node" "command '$name' already defined"
+  fi
+  _compile_commands+=("$name")
+}
+
 function compile_dispatch {
-  local commands command
-  mapfile -t commands < <(jq -r '.body[] | select(.type == "command") | .name' <<< "$1")
-  if (( ${#commands[@]} == 0 )); then
+  local command
+  if (( ${#_compile_commands[@]} == 0 )); then
     return 0
   fi
   compile_emit "case \$1 in"
   compile_indent
-  for command in "${commands[@]}"; do
+  for command in "${_compile_commands[@]}"; do
     compile_emit "$command)"
     compile_emit "  shift"
     compile_emit "  $command \"\$@\""
@@ -558,7 +560,12 @@ function compile_dispatch {
   compile_emit "esac"
 }
 
-if [[ ${BASH_SOURCE[0]} == "${0}" ]]; then
+if [[ ${0##*/} == compiler.bash ]]; then
+  _compile_dir=$(dirname "${BASH_SOURCE[0]}")
   source "$_compile_dir/ast.bash"
+  source "$_compile_dir/macros.bash"
+  for _compile_macro_file in "$_compile_dir"/macros/*.bash; do
+    source "$_compile_macro_file"
+  done
   compile "$@"
 fi

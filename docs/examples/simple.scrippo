@@ -8,7 +8,7 @@ circumference(
   elif -n $radius
     -> $($PI * $radius * 2)
   else
-    throw 1 "no diameter or radius provided"
+    @throw 1 "no diameter or radius provided"
 
 echo $(circumference --diameter 2)
 echo $(circumference --radius 2)

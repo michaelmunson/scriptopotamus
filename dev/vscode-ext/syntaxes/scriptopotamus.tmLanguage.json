@@ -14,6 +14,7 @@
     { "include": "#for-loop" },
     { "include": "#else" },
     { "include": "#block-closer" },
+    { "include": "#macro" },
     { "include": "#command-call" },
     { "include": "#expression" }
   ],
@@ -210,7 +211,7 @@
       }
     },
     "command-call": {
-      "match": "^\\s*(?!(?:if|elif|else|for|while|fi|done|then|do|true|false|throw|prt|input|len|echo|printf|read|cd|source|shift|local|declare|export|readonly|unset|set|eval|exec|test|trap|wait|mapfile|let|return|exit|break|continue)(?![\\w-]))([A-Za-z_][A-Za-z0-9_-]*)(?=\\s|$|;)",
+      "match": "^\\s*(?!(?:if|elif|else|for|while|fi|done|then|do|true|false|len|echo|printf|read|cd|source|shift|local|declare|export|readonly|unset|set|eval|exec|test|trap|wait|mapfile|let|return|exit|break|continue)(?![\\w-]))([A-Za-z_][A-Za-z0-9_-]*)(?=\\s|$|;)",
       "captures": {
         "1": { "name": "entity.name.function.call.scriptopotamus" }
       }
@@ -227,6 +228,7 @@
         { "include": "#backtick" },
         { "include": "#variable" },
         { "include": "#flow" },
+        { "include": "#macro" },
         { "include": "#builtin" },
         { "include": "#boolean" },
         { "include": "#number" },
@@ -313,7 +315,7 @@
       },
       "patterns": [
         {
-          "match": "\\G\\s*(?!(?:true|false|throw|prt|input|len|echo|printf|read|cd|source|shift|local|declare|export|unset|set|eval|exec|test)(?![\\w-]))([A-Za-z_][A-Za-z0-9_-]*)(?=\\s|\\))",
+          "match": "\\G\\s*(?!(?:true|false|len|echo|printf|read|cd|source|shift|local|declare|export|unset|set|eval|exec|test)(?![\\w-]))([A-Za-z_][A-Za-z0-9_-]*)(?=\\s|\\))",
           "captures": {
             "1": { "name": "entity.name.function.call.scriptopotamus" }
           }
@@ -422,10 +424,17 @@
       "match": "(?<![\\w$.-])(?:return|exit|break|continue)(?![\\w-])",
       "name": "keyword.control.flow.scriptopotamus"
     },
+    "macro": {
+      "match": "(?<![\\w$])(@)([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "entity.name.function.macro.scriptopotamus punctuation.definition.macro.scriptopotamus" },
+        "2": { "name": "entity.name.function.macro.scriptopotamus" }
+      }
+    },
     "builtin": {
       "patterns": [
         {
-          "match": "(?<![\\w$.-])(?:throw|prt|input|len)(?![\\w-])",
+          "match": "(?<![\\w$.-])(?:len)(?![\\w-])",
           "name": "support.function.builtin.scriptopotamus"
         },
         {

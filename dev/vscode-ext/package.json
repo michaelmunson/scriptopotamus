@@ -2,7 +2,7 @@
   "name": "scriptopotamus",
   "displayName": "Scriptopotamus",
   "description": "Syntax highlighting, linting, and compiler diagnostics for Scriptopotamus (.scrippo) scripts",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "michaelmunson",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -136,6 +136,16 @@
         "editor.insertSpaces": true,
         "editor.tabSize": 2,
         "files.trimTrailingWhitespace": true
+      },
+      "editor.tokenColorCustomizations": {
+        "textMateRules": [
+          {
+            "scope": "entity.name.function.macro.scriptopotamus",
+            "settings": {
+              "foreground": "#3A6FD8"
+            }
+          }
+        ]
       }
     }
   },

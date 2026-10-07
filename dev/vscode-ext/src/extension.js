@@ -47,6 +47,10 @@ function isScrippo(doc) {
   return doc.languageId === LANGUAGE_ID;
 }
 
+function importDirOf(doc) {
+  return doc.uri.scheme === 'file' ? path.dirname(doc.uri.fsPath) : undefined;
+}
+
 function activate(context) {
   const output = vscode.window.createOutputChannel('Scriptopotamus');
   const lintCollection = vscode.languages.createDiagnosticCollection(LINT_SOURCE);
@@ -198,7 +202,7 @@ function activate(context) {
     }
     const key = doc.uri.toString();
     const version = doc.version;
-    const job = compiler.compile({ ...setup, source: doc.getText() });
+    const job = compiler.compile({ ...setup, source: doc.getText(), importDir: importDirOf(doc) });
     jobs.set(key, job);
     const result = await job.promise;
     if (jobs.get(key) === job) jobs.delete(key);
@@ -391,7 +395,7 @@ function activate(context) {
     const version = doc.version;
     const result = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: 'Compiling Scriptopotamus' },
-      () => compiler.compile({ ...setup, source: doc.getText() }).promise,
+      () => compiler.compile({ ...setup, source: doc.getText(), importDir: importDirOf(doc) }).promise,
     );
     if (!doc.isClosed && doc.version === version) publishCompilerResult(doc, result);
     if (!result.ok) {

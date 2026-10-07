@@ -79,6 +79,7 @@ function ast_statement {
   local for_re='^for[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]+in[[:space:]]+(.+)$'
   local while_re='^while[[:space:]]+(.+)$'
   local echo_re='^->[[:space:]]*(.*)$'
+  local macro_re='^@([a-zA-Z_][a-zA-Z0-9_]*)([[:space:]]+(.*))?$'
   local function_re='^\.?[a-zA-Z_][a-zA-Z0-9_]*\('
   local declaration_re='^([a-zA-Z_][a-zA-Z0-9_]*)<([^>]*)>$'
   local typed_assignment_re='^([a-zA-Z_][a-zA-Z0-9_]*)<([^>]*)>[[:space:]]*=[[:space:]]*(.*)$'
@@ -95,6 +96,9 @@ function ast_statement {
   elif [[ $_ast_text =~ $echo_re ]]; then
     ast_next
     ast_echo "${BASH_REMATCH[1]}"
+  elif [[ $_ast_text =~ $macro_re ]]; then
+    ast_next
+    ast_macro "${BASH_REMATCH[1]}" "${BASH_REMATCH[3]}"
   elif [[ $_ast_text =~ $function_re ]]; then
     ast_function
   elif [[ $_ast_text =~ $declaration_re ]]; then
@@ -161,7 +165,7 @@ function ast_for {
   local indent=$_ast_indent var=$1 items
   ast_next
   ast_words "$2"
-  items=$(jq -nc '$ARGS.positional' --args "${_ast_words[@]}")
+  items=$(jq -nc '$ARGS.positional' --args -- "${_ast_words[@]}")
   ast_block "$indent"
   _ast_result=$(jq -nc --arg var "$var" --argjson items "$items" --argjson body "$_ast_result" '{type: "for", var: $var, items: $items, body: $body}')
 }
@@ -180,6 +184,11 @@ function ast_echo {
   _ast_result=$(jq -c '{type: "echo", value: .}' <<< "$_ast_result")
 }
 
+function ast_macro {
+  ast_words "$2"
+  _ast_result=$(jq -nc --arg name "$1" '{type: "macro", name: $name, args: $ARGS.positional}' --args -- "${_ast_words[@]}")
+}
+
 function ast_bash {
   local indent=$_ast_indent lines=("$_ast_text")
   ast_next
@@ -187,7 +196,7 @@ function ast_bash {
     lines+=("${_ast_lines[_ast_idx]:indent}")
     ast_next
   done
-  _ast_result=$(jq -nc '{type: "bash", raw: ($ARGS.positional | join("\n"))}' --args "${lines[@]}")
+  _ast_result=$(jq -nc '{type: "bash", raw: ($ARGS.positional | join("\n"))}' --args -- "${lines[@]}")
 }
 
 function ast_value {
@@ -202,7 +211,7 @@ function ast_value {
         then {kind: "dict", entries: (map(capture("^(?<key>[^=]+)=(?<value>.*)$")) | from_entries)}
         else {kind: "list", items: .}
         end
-    ' --args "${_ast_words[@]}")
+    ' --args -- "${_ast_words[@]}")
   elif [[ $raw =~ $math_re ]]; then
     _ast_result=$(jq -nc --arg raw "$raw" '{kind: "math", raw: $raw}')
   else
@@ -222,7 +231,7 @@ function ast_type {
   _ast_result=$(jq -nc --arg type "$type" --argjson has_literals "$has_literals" '{
     datatype: [$type | splits("\\s+") | select(. != "")],
     literals: (if $has_literals then $ARGS.positional else null end)
-  }' --args "${_ast_words[@]}")
+  }' --args -- "${_ast_words[@]}")
 }
 
 function ast_declaration {
@@ -418,6 +427,6 @@ function ast_param {
   ' <<< "$_ast_result")
 }
 
-if [[ ${BASH_SOURCE[0]} == "${0}" ]]; then
+if [[ ${0##*/} == ast.bash ]]; then
   ast "$@"
 fi

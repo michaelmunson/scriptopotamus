@@ -1,7 +1,10 @@
-SRC_DIR=$(dirname "${BASH_SOURCE[0]}")
-
-source "$SRC_DIR/src/ast.bash"
-source "$SRC_DIR/src/compiler.bash"
+@import "ast.bash"
+@import "macros.bash"
+@import "macros/throw.bash"
+@import "macros/prt.bash"
+@import "macros/input.bash"
+@import "macros/import.bash"
+@import "compiler.bash"
 
 scrippo(
   path

@@ -189,38 +189,67 @@ function my_func {
 ./test my_cmd my_subcmd "world" # -> "world"
 ```
 
-#### Builtins
-* scriptopotamus provides some builtins for common tasks
+#### Macros
+* macros are referenced with `@` and, like rust macros, are expanded inline at compile time
+* there is no runtime library: each macro call is replaced by the bash it generates
+* macros are defined in `src/macros/<name>.bash` as a `macro_<name>` function that receives the call's args and emits bash
 ```bash
 # throw: exits with red error message
-throw(code<int> msg)
+@throw(code<int> msg...)
 
 # prt: echo with style
-prt(
+# styles: bold dim italic underline black red green yellow blue magenta cyan white
+@prt(
     msg...
     [-s|--style <str>...]...
     [-n]
 )
 
 # wrapper around read
-input(
-  prompt 
+@input(
+  prompt
   -v<str>
   [
-      --select 
+      --select
       --options<str>...
       [--multi]
   ] | [ # | delineates mutual exclusivity
       --confirm
   ]
 )
+
+# import: inline another file at compile time
+# paths are relative to the importing file and must be literals
+# .scrippo files are compiled, any other file is inserted as-is
+@import(path)
 ```
 ```bash
-# examples
-throw 1 "bad input"
-prt -s "red" "hello" -n
-input "prompt" -v "var" --select --options "option1" "option2" --multi
-input "prompt" -v "var" --confirm
+@throw 1 "bad input"
+@prt -s red bold "hello" -n
+@input "Enter a message" -v msg
+@input "Are you sure?" -v sure --confirm
+@input "Pick one" -v choice --select --options "a" "b"
+@import "lib/utils.bash"
+
+# COMPILES TO
+echo $'\e[31m'"bad input"$'\e[0m' >&2
+exit 1
+echo -n $'\e[31;1m'"hello"$'\e[0m'
+read -rp "Enter a message"' ' msg
+read -rp "Are you sure?"' [y/N] ' _scrippo_reply
+if [[ $_scrippo_reply == [yY]* ]]; then
+  sure=true
+else
+  sure=false
+fi
+PS3="Pick one"' '
+select choice in "a" "b"; do
+  [[ -n $choice ]] && break
+done
+# ...contents of lib/utils.bash
 ```
+* `--select --multi` prints a numbered list and reads space or comma separated choices into a list
+* each file is only imported once, so repeated or circular imports are skipped
+* top-level commands in an imported `.scrippo` file are added to the script's commands, and defining the same command twice is a compile error
 
 ### Implementation

@@ -38,17 +38,18 @@ function bashMajorVersion(bash) {
   });
 }
 
-function compile({ bash, compilerPath, source, timeout = 20000 }) {
+function compile({ bash, compilerPath, source, importDir, timeout = 20000 }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scrippo-'));
   const file = path.join(dir, 'input.scrippo');
   fs.writeFileSync(file, source);
+  const env = importDir ? { ...process.env, SCRIPPO_IMPORT_DIR: importDir } : process.env;
   let child;
   let cancelled = false;
   const promise = new Promise((resolve) => {
     child = cp.execFile(
       bash,
       [compilerPath, file],
-      { cwd: path.dirname(compilerPath), timeout, maxBuffer: 16 * 1024 * 1024 },
+      { cwd: path.dirname(compilerPath), env, timeout, maxBuffer: 16 * 1024 * 1024 },
       (error, stdout, stderr) => {
         fs.rmSync(dir, { recursive: true, force: true });
         resolve({

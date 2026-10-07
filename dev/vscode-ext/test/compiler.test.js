@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const cp = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { analyze } = require('../src/analyzer');
@@ -40,6 +41,34 @@ test('compiles the vision example', { skip }, async () => {
   const result = await run(fs.readFileSync(path.join(REPO, 'tests', 'vision.local.scrippo'), 'utf8').split('\n'));
   assert.equal(result.ok, true, result.stderr);
   assert.match(result.stdout, /^#!\/usr\/bin\/env bash/);
+});
+
+test('macros expand inline and @import resolves from importDir', { skip }, async () => {
+  const result = await compiler.compile({
+    bash: 'bash',
+    compilerPath: COMPILER,
+    source: ['@import "simple.scrippo"', '@throw 2 "bad"'].join('\n'),
+    importDir: path.join(REPO, 'docs', 'examples'),
+  }).promise;
+  assert.equal(result.ok, true, result.stderr);
+  assert.match(result.stdout, /function circumference/);
+  assert.match(result.stdout, /^exit 2$/m);
+});
+
+test('commands from imports are dispatched and duplicates are compile errors', { skip }, async () => {
+  const importDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scrippo-test-'));
+  fs.writeFileSync(path.join(importDir, 'deploy.scrippo'), '.deploy(env)\n  -> "$env"\n');
+  const ok = await compiler.compile({ bash: 'bash', compilerPath: COMPILER, source: '@import "deploy.scrippo"', importDir }).promise;
+  const dup = await compiler.compile({ bash: 'bash', compilerPath: COMPILER, source: '@import "deploy.scrippo"\n.deploy()\n  -> 1', importDir }).promise;
+  fs.rmSync(importDir, { recursive: true, force: true });
+  assert.equal(ok.ok, true, ok.stderr);
+  assert.match(ok.stdout, /^ {2}deploy\)$/m);
+  assert.deepEqual(dup.errors.map((e) => [e.line, e.message]), [[1, "command 'deploy' already defined"]]);
+});
+
+test('unknown macros are compile errors', { skip }, async () => {
+  const result = await run(['f()', '  @nope 1']);
+  assert.deepEqual(result.errors.map((e) => [e.line, e.message]), [[1, "unknown macro '@nope'"]]);
 });
 
 test('trailing whitespace breaks else in the compiler and is flagged at its cause', { skip }, async () => {

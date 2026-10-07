@@ -71,10 +71,13 @@ test('substitutions and calls', async () => {
   assert.match(await scopeOf(src, '2'), /meta\.embedded\.substitution/);
 });
 
-test('statement calls and builtins', async () => {
-  const src = 'deploy --env prod\nthrow 1 "bad"';
+test('statement calls and macros', async () => {
+  const src = 'deploy --env prod\n@throw 1 "bad"\nf()\n  @prt -s red "$@"';
   assert.match(await scopeOf(src, 'deploy'), /entity\.name\.function\.call/);
-  assert.match(await scopeOf(src, 'throw'), /support\.function\.builtin\.scriptopotamus/);
+  assert.match(await scopeOf(src, '@'), /entity\.name\.function\.macro\.scriptopotamus/);
+  assert.match(await scopeOf(src, 'throw'), /entity\.name\.function\.macro\.scriptopotamus/);
+  assert.match(await scopeOf(src, 'prt'), /entity\.name\.function\.macro\.scriptopotamus/);
+  assert.doesNotMatch(await scopeOf(src, '@', 2), /macro/);
 });
 
 test('shebang and comments', async () => {

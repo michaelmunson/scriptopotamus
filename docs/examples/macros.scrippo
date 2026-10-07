@@ -1,0 +1,13 @@
+@import "simple.scrippo"
+
+throw_error()
+  @throw 1 "This is a bad function"
+
+prt_msg()
+  @prt -s red "I am colored red!"
+
+input_fn()
+  @input --select "Choose an option" --options "option1" "option2" "option3" --multi -v my_var
+  @input --confirm "Are you sure you want to do this?" -v my_var
+  @input "Enter a message" -v my_var
+
