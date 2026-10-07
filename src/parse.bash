@@ -1,17 +1,36 @@
 #!/usr/bin/env bash
-USAGE="
-Usage: parse.bash <file_path>
-"
 
-FILE_PATH=${1:?$USAGE}
+function parse {
+	input=${1:?"parse: input required"}
+	local exprs=("")
+	local expr_idx=0
+	for (( i=0; i<${#input}; i++ )); do
+		char="${input:$i:1}"
+		case "$char" in
+    			[a-zA-Z0-9_]) 
+				exprs[$expr_idx]="${exprs[expr_idx]}$char"
+				;;
+			\() 
+				echo "(" 
+				;;
+			\)) 	
+				echo ")" 
+				;;
+    			'<') 
+				exprs[$expr_idx]="[var]::${exprs[expr_idx]}" 
+				expr_idx=$((expr_idx+1))
+				;;
+    			'>') 
+				exprs[$expr_idx]="[type]::${exprs[expr_idx]}"
+				expr_idx=$((expr_idx+1))
+				;;
+    			' ') 
+				echo "SPACE" 
+				;;
+  		esac
+	done
 
-function parse(){
-  local file_path="$1"
-  local text=$(cat "$file_path")
-  echo "Hello"
+	echo "${exprs[@]}"
 }
 
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  parse "$(cat "$FILE_PATH")"
-fi
-
+parse "$1"
