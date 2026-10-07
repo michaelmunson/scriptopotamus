@@ -1,0 +1,470 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Scriptopotamus",
+  "scopeName": "source.scriptopotamus",
+  "fileTypes": ["scrippo", "scriptopotamus"],
+  "patterns": [
+    { "include": "#shebang" },
+    { "include": "#comment" },
+    { "include": "#command-definition" },
+    { "include": "#function-definition" },
+    { "include": "#typed-variable" },
+    { "include": "#assignment" },
+    { "include": "#condition" },
+    { "include": "#for-loop" },
+    { "include": "#else" },
+    { "include": "#block-closer" },
+    { "include": "#command-call" },
+    { "include": "#expression" }
+  ],
+  "repository": {
+    "shebang": {
+      "name": "comment.line.shebang.scriptopotamus",
+      "match": "\\A#!.*$"
+    },
+    "comment": {
+      "match": "(?:^|(?<=[\\s;]))(#).*$",
+      "name": "comment.line.number-sign.scriptopotamus",
+      "captures": {
+        "1": { "name": "punctuation.definition.comment.scriptopotamus" }
+      }
+    },
+    "command-definition": {
+      "name": "meta.function.command.scriptopotamus",
+      "begin": "^\\s*(\\.)([A-Za-z_][A-Za-z0-9_]*)(\\()",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.command.scriptopotamus" },
+        "2": { "name": "entity.name.function.command.scriptopotamus" },
+        "3": { "name": "punctuation.definition.parameters.begin.scriptopotamus" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.parameters.end.scriptopotamus" }
+      },
+      "contentName": "meta.function.parameters.scriptopotamus",
+      "patterns": [{ "include": "#parameters" }]
+    },
+    "function-definition": {
+      "name": "meta.function.scriptopotamus",
+      "begin": "^\\s*([A-Za-z_][A-Za-z0-9_]*)(\\()",
+      "beginCaptures": {
+        "1": { "name": "entity.name.function.scriptopotamus" },
+        "2": { "name": "punctuation.definition.parameters.begin.scriptopotamus" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.parameters.end.scriptopotamus" }
+      },
+      "contentName": "meta.function.parameters.scriptopotamus",
+      "patterns": [{ "include": "#parameters" }]
+    },
+    "parameters": {
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#type-annotation" },
+        {
+          "match": "\\.\\.\\.",
+          "name": "keyword.operator.repeat.scriptopotamus"
+        },
+        {
+          "match": "\\|",
+          "name": "keyword.operator.exclusive.scriptopotamus"
+        },
+        {
+          "match": "[\\[\\]]",
+          "name": "punctuation.section.optional.scriptopotamus"
+        },
+        {
+          "match": "(?<![\\w-])--?[A-Za-z_][A-Za-z0-9_-]*",
+          "name": "variable.parameter.option.scriptopotamus"
+        },
+        {
+          "match": "(?<![\\w-])[A-Za-z_][A-Za-z0-9_-]*",
+          "name": "variable.parameter.scriptopotamus"
+        }
+      ]
+    },
+    "type-annotation": {
+      "name": "meta.type.annotation.scriptopotamus",
+      "begin": "<",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.type.begin.scriptopotamus" }
+      },
+      "end": ">",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.type.end.scriptopotamus" }
+      },
+      "patterns": [
+        { "include": "#type-default" },
+        { "include": "#type-literals" },
+        { "include": "#type-names" }
+      ]
+    },
+    "type-names": {
+      "patterns": [
+        {
+          "match": "\\bconst\\b",
+          "name": "storage.modifier.const.scriptopotamus"
+        },
+        {
+          "match": "\\b(?:int|float|str|upper|lower|bool)\\b",
+          "name": "support.type.primitive.scriptopotamus"
+        },
+        {
+          "match": "\\b(?:list|dict)\\b",
+          "name": "support.type.collection.scriptopotamus"
+        },
+        {
+          "match": "[A-Za-z_][A-Za-z0-9_]*",
+          "name": "entity.name.type.scriptopotamus"
+        }
+      ]
+    },
+    "type-literals": {
+      "name": "meta.type.literals.scriptopotamus",
+      "begin": "[({]",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.literals.begin.scriptopotamus" }
+      },
+      "end": "[)}]",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.literals.end.scriptopotamus" }
+      },
+      "patterns": [
+        { "include": "#string-double" },
+        { "include": "#string-single" },
+        { "include": "#number" },
+        { "include": "#boolean" },
+        {
+          "match": "[^\\s)}\"'>]+",
+          "name": "constant.other.literal.scriptopotamus"
+        }
+      ]
+    },
+    "type-default": {
+      "begin": "=",
+      "beginCaptures": {
+        "0": { "name": "keyword.operator.assignment.scriptopotamus" }
+      },
+      "end": "(?=>)",
+      "patterns": [
+        { "include": "#string-double" },
+        { "include": "#string-single" },
+        { "include": "#number" },
+        { "include": "#boolean" },
+        { "include": "#variable" },
+        {
+          "match": "[^\\s>\"'$]+",
+          "name": "string.unquoted.default.scriptopotamus"
+        }
+      ]
+    },
+    "typed-variable": {
+      "match": "^\\s*([A-Za-z_][A-Za-z0-9_]*)(<[^>]*>)(?=\\s*(?:=|$|#))(?:\\s*(=))?",
+      "captures": {
+        "1": { "name": "variable.other.declaration.scriptopotamus" },
+        "2": { "patterns": [{ "include": "#type-annotation" }] },
+        "3": { "name": "keyword.operator.assignment.scriptopotamus" }
+      }
+    },
+    "assignment": {
+      "match": "^\\s*([A-Za-z_][A-Za-z0-9_]*)(=)",
+      "captures": {
+        "1": { "name": "variable.other.assignment.scriptopotamus" },
+        "2": { "name": "keyword.operator.assignment.scriptopotamus" }
+      }
+    },
+    "condition": {
+      "begin": "^\\s*(?:(if|elif)|(while))(?=\\s|$)",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.conditional.scriptopotamus" },
+        "2": { "name": "keyword.control.loop.scriptopotamus" }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "match": "(?<=\\s)!?-(?:[a-zA-Z]|eq|ne|lt|le|gt|ge|nt|ot|ef)(?=\\s)",
+          "name": "keyword.operator.test.scriptopotamus"
+        },
+        { "include": "#expression" }
+      ]
+    },
+    "for-loop": {
+      "match": "^\\s*(for)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(in)(?=\\s|$)",
+      "captures": {
+        "1": { "name": "keyword.control.loop.scriptopotamus" },
+        "2": { "name": "variable.other.loop.scriptopotamus" },
+        "3": { "name": "keyword.control.in.scriptopotamus" }
+      }
+    },
+    "else": {
+      "match": "^\\s*(else)\\b",
+      "captures": {
+        "1": { "name": "keyword.control.conditional.scriptopotamus" }
+      }
+    },
+    "block-closer": {
+      "match": "^\\s*(fi|done|then|do)(?=[\\s;]|$)",
+      "captures": {
+        "1": { "name": "invalid.illegal.block-closer.scriptopotamus" }
+      }
+    },
+    "command-call": {
+      "match": "^\\s*(?!(?:if|elif|else|for|while|fi|done|then|do|true|false|throw|prt|input|len|echo|printf|read|cd|source|shift|local|declare|export|readonly|unset|set|eval|exec|test|trap|wait|mapfile|let|return|exit|break|continue)(?![\\w-]))([A-Za-z_][A-Za-z0-9_-]*)(?=\\s|$|;)",
+      "captures": {
+        "1": { "name": "entity.name.function.call.scriptopotamus" }
+      }
+    },
+    "expression": {
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#echo-arrow" },
+        { "include": "#string-ansi" },
+        { "include": "#string-double" },
+        { "include": "#string-single" },
+        { "include": "#arithmetic" },
+        { "include": "#substitution" },
+        { "include": "#backtick" },
+        { "include": "#variable" },
+        { "include": "#flow" },
+        { "include": "#builtin" },
+        { "include": "#boolean" },
+        { "include": "#number" },
+        { "include": "#option" },
+        { "include": "#redirection" },
+        { "include": "#operator" },
+        { "include": "#parens" }
+      ]
+    },
+    "echo-arrow": {
+      "match": "(?<![\\w-])->",
+      "name": "keyword.control.echo.scriptopotamus"
+    },
+    "string-double": {
+      "name": "string.quoted.double.scriptopotamus",
+      "begin": "\"",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.scriptopotamus" }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.scriptopotamus" }
+      },
+      "patterns": [
+        {
+          "match": "\\\\[\\\\$`\"\\n]",
+          "name": "constant.character.escape.scriptopotamus"
+        },
+        { "include": "#arithmetic" },
+        { "include": "#substitution" },
+        { "include": "#backtick" },
+        { "include": "#variable" }
+      ]
+    },
+    "string-single": {
+      "name": "string.quoted.single.scriptopotamus",
+      "begin": "'",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.scriptopotamus" }
+      },
+      "end": "'",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.scriptopotamus" }
+      }
+    },
+    "string-ansi": {
+      "name": "string.quoted.single.ansi-c.scriptopotamus",
+      "begin": "\\$'",
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.scriptopotamus" }
+      },
+      "end": "'",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.scriptopotamus" }
+      },
+      "patterns": [
+        {
+          "match": "\\\\(?:[abeEfnrtv\\\\'\"?]|[0-7]{1,3}|x[0-9A-Fa-f]{1,2}|u[0-9A-Fa-f]{1,4}|U[0-9A-Fa-f]{1,8}|c.)",
+          "name": "constant.character.escape.scriptopotamus"
+        }
+      ]
+    },
+    "arithmetic": {
+      "name": "meta.embedded.arithmetic.scriptopotamus",
+      "begin": "\\$\\(\\(",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.arithmetic.begin.scriptopotamus" }
+      },
+      "end": "\\)\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.arithmetic.end.scriptopotamus" }
+      },
+      "patterns": [{ "include": "#expression" }]
+    },
+    "substitution": {
+      "name": "meta.embedded.substitution.scriptopotamus",
+      "begin": "\\$\\(",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.substitution.begin.scriptopotamus" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.substitution.end.scriptopotamus" }
+      },
+      "patterns": [
+        {
+          "match": "\\G\\s*(?!(?:true|false|throw|prt|input|len|echo|printf|read|cd|source|shift|local|declare|export|unset|set|eval|exec|test)(?![\\w-]))([A-Za-z_][A-Za-z0-9_-]*)(?=\\s|\\))",
+          "captures": {
+            "1": { "name": "entity.name.function.call.scriptopotamus" }
+          }
+        },
+        { "include": "#expression" }
+      ]
+    },
+    "backtick": {
+      "name": "meta.embedded.substitution.backtick.scriptopotamus",
+      "begin": "`",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.substitution.begin.scriptopotamus" }
+      },
+      "end": "`",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.substitution.end.scriptopotamus" }
+      },
+      "patterns": [{ "include": "#expression" }]
+    },
+    "parens": {
+      "begin": "\\(",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.parens.begin.scriptopotamus" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.parens.end.scriptopotamus" }
+      },
+      "patterns": [
+        {
+          "match": "(?<=[\\s(])([^\\s=()\"'$]+)(=)",
+          "captures": {
+            "1": { "name": "entity.name.tag.key.scriptopotamus" },
+            "2": { "name": "keyword.operator.assignment.scriptopotamus" }
+          }
+        },
+        { "include": "#expression" }
+      ]
+    },
+    "variable": {
+      "patterns": [
+        {
+          "match": "(\\$)(--?[A-Za-z_][A-Za-z0-9_-]*)",
+          "name": "variable.parameter.option.reference.scriptopotamus",
+          "captures": {
+            "1": { "name": "punctuation.definition.variable.scriptopotamus" }
+          }
+        },
+        {
+          "name": "variable.other.bracket.scriptopotamus",
+          "begin": "\\$\\{",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.variable.scriptopotamus" }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.variable.scriptopotamus" }
+          },
+          "patterns": [
+            { "include": "#string-double" },
+            { "include": "#string-single" },
+            { "include": "#substitution" },
+            { "include": "#variable" },
+            {
+              "match": "[#%/^,:@!*?+\\-=]+",
+              "name": "keyword.operator.expansion.scriptopotamus"
+            }
+          ]
+        },
+        {
+          "match": "(\\$)([A-Za-z_][A-Za-z0-9_]*)(\\[)([^\\]]*)(\\])",
+          "captures": {
+            "1": { "name": "variable.other.scriptopotamus punctuation.definition.variable.scriptopotamus" },
+            "2": { "name": "variable.other.scriptopotamus" },
+            "3": { "name": "punctuation.section.index.begin.scriptopotamus" },
+            "4": {
+              "patterns": [
+                { "include": "#variable" },
+                { "include": "#number" },
+                {
+                  "match": "[^\\s$]+",
+                  "name": "string.unquoted.key.scriptopotamus"
+                }
+              ]
+            },
+            "5": { "name": "punctuation.section.index.end.scriptopotamus" }
+          }
+        },
+        {
+          "match": "(\\$)([A-Za-z_][A-Za-z0-9_]*)",
+          "name": "variable.other.scriptopotamus",
+          "captures": {
+            "1": { "name": "punctuation.definition.variable.scriptopotamus" }
+          }
+        },
+        {
+          "match": "(\\$)([0-9@#?*!$-])",
+          "name": "variable.language.special.scriptopotamus",
+          "captures": {
+            "1": { "name": "punctuation.definition.variable.scriptopotamus" }
+          }
+        }
+      ]
+    },
+    "flow": {
+      "match": "(?<![\\w$.-])(?:return|exit|break|continue)(?![\\w-])",
+      "name": "keyword.control.flow.scriptopotamus"
+    },
+    "builtin": {
+      "patterns": [
+        {
+          "match": "(?<![\\w$.-])(?:throw|prt|input|len)(?![\\w-])",
+          "name": "support.function.builtin.scriptopotamus"
+        },
+        {
+          "match": "(?<![\\w$./-])(?:echo|printf|read|cd|source|shift|local|declare|export|readonly|unset|set|eval|exec|test|trap|wait|mapfile|let)(?![\\w-])",
+          "name": "support.function.builtin.shell.scriptopotamus"
+        }
+      ]
+    },
+    "boolean": {
+      "match": "(?<![\\w$.-])(?:true|false)(?![\\w-])",
+      "name": "constant.language.boolean.scriptopotamus"
+    },
+    "number": {
+      "match": "(?<![\\w$.-])-?(?:\\d+\\.?\\d*|\\.\\d+)(?![\\w.-])",
+      "name": "constant.numeric.scriptopotamus"
+    },
+    "option": {
+      "match": "(?<![^\\s(])--?[A-Za-z][A-Za-z0-9_-]*",
+      "name": "constant.other.option.scriptopotamus"
+    },
+    "redirection": {
+      "match": "\\d*(?:&>>?|>>|>&\\d*-?|<<<|<<-?|<&|>|<)",
+      "name": "keyword.operator.redirect.scriptopotamus"
+    },
+    "operator": {
+      "patterns": [
+        {
+          "match": "&&|\\|\\||[|;&!]",
+          "name": "keyword.operator.logical.scriptopotamus"
+        },
+        {
+          "match": "==|!=|=~|=",
+          "name": "keyword.operator.comparison.scriptopotamus"
+        },
+        {
+          "match": "(?<=\\s)[-+*/%^](?=\\s)",
+          "name": "keyword.operator.arithmetic.scriptopotamus"
+        }
+      ]
+    }
+  }
+}

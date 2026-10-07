@@ -1,0 +1,150 @@
+{
+  "name": "scriptopotamus",
+  "displayName": "Scriptopotamus",
+  "description": "Syntax highlighting, linting, and compiler diagnostics for Scriptopotamus (.scrippo) scripts",
+  "version": "0.1.0",
+  "publisher": "michaelmunson",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/michaelmunson/scriptopotamus.git",
+    "directory": "dev/vscode-ext"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "scriptopotamus",
+    "scrippo",
+    "bash",
+    "shell"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onLanguage:scriptopotamus"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "The Scriptopotamus compiler runs bash scripts from the workspace, so compiler diagnostics are only available in trusted workspaces.",
+      "restrictedConfigurations": [
+        "scriptopotamus.compiler.path",
+        "scriptopotamus.compiler.bashPath"
+      ]
+    }
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "scriptopotamus",
+        "aliases": [
+          "Scriptopotamus",
+          "scrippo"
+        ],
+        "extensions": [
+          ".scrippo",
+          ".scriptopotamus"
+        ],
+        "firstLine": "^#!.*\\bscriptopotamus\\b",
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/file-icon.png",
+          "dark": "./images/file-icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "scriptopotamus",
+        "scopeName": "source.scriptopotamus",
+        "path": "./syntaxes/scriptopotamus.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "scriptopotamus.showCompiled",
+        "title": "Show Compiled Bash",
+        "category": "Scriptopotamus",
+        "icon": "$(output)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "scriptopotamus.showCompiled",
+          "when": "editorLangId == scriptopotamus",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "scriptopotamus.showCompiled",
+          "when": "editorLangId == scriptopotamus"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Scriptopotamus",
+      "properties": {
+        "scriptopotamus.lint.enable": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Lint Scriptopotamus files as you type."
+        },
+        "scriptopotamus.compiler.run": {
+          "type": "string",
+          "enum": [
+            "onSave",
+            "onType",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Run the compiler when a file is opened or saved.",
+            "Run the compiler shortly after you stop typing.",
+            "Never run the compiler for diagnostics."
+          ],
+          "default": "onSave",
+          "scope": "resource",
+          "description": "When to run the Scriptopotamus compiler and report its errors."
+        },
+        "scriptopotamus.compiler.path": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Path to compiler.bash. Supports ${workspaceFolder} and ~. When empty, src/compiler.bash is looked up in the workspace."
+        },
+        "scriptopotamus.compiler.bashPath": {
+          "type": "string",
+          "default": "bash",
+          "scope": "machine-overridable",
+          "description": "Bash 4+ executable used to run the compiler."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "[scriptopotamus]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "files.trimTrailingWhitespace": true
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "package": "npx --yes @vscode/vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.0.0"
+  }
+}

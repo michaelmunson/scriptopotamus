@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+SRC_DIR=$(dirname "${BASH_SOURCE[0]}")
+source "$SRC_DIR/src/ast.bash"
+source "$SRC_DIR/src/compiler.bash"
+function scrippo {
+  local compile=false
+  local noexec=false
+  local verbose=false
+  local _scrippo_args=()
+  while (( $# > 0 )); do
+    case $1 in
+      -c|--compile)
+        compile=true
+        shift
+        ;;
+      -n|--noexec)
+        noexec=true
+        shift
+        ;;
+      -v|--verbose)
+        verbose=true
+        shift
+        ;;
+      --)
+        shift
+        _scrippo_args+=("$@")
+        break
+        ;;
+      -?*)
+        echo "scrippo: unknown option '$1'" >&2
+        exit 1
+        ;;
+      *)
+        _scrippo_args+=("$1")
+        shift
+        ;;
+    esac
+  done
+  local path=${_scrippo_args[0]}
+  if (( ${#_scrippo_args[@]} > 1 )); then
+    echo "scrippo: too many arguments" >&2
+    exit 1
+  fi
+  if [[ ! ( -n $path ) ]]; then
+    echo "scrippo: <path> is required" >&2
+    exit 1
+  fi
+  echo "path: $path"
+  echo "compile: $compile"
+  echo "noexec: $noexec"
+  echo "verbose: $verbose"
+  if [[ $noexec == true ]]; then
+    bash -n <(compile "$path")
+  elif [[ $compile == true ]]; then
+    compile "$path"
+  else
+    bash -c "$(compile "$path")"
+  fi
+}
+
+scrippo "$@"
