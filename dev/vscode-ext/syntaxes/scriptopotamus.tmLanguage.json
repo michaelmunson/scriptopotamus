@@ -12,6 +12,7 @@
     { "include": "#assignment" },
     { "include": "#condition" },
     { "include": "#for-loop" },
+    { "include": "#case" },
     { "include": "#else" },
     { "include": "#block-closer" },
     { "include": "#macro" },
@@ -32,7 +33,7 @@
     },
     "command-definition": {
       "name": "meta.function.command.scriptopotamus",
-      "begin": "^\\s*(\\.)([A-Za-z_][A-Za-z0-9_]*)(\\()",
+      "begin": "^\\s*(\\.)([A-Za-z_][A-Za-z0-9_]*)?(\\()",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.command.scriptopotamus" },
         "2": { "name": "entity.name.function.command.scriptopotamus" },
@@ -205,6 +206,20 @@
         "3": { "name": "keyword.control.in.scriptopotamus" }
       }
     },
+    "case": {
+      "begin": "^\\s*(case)(?=\\s|$)",
+      "beginCaptures": {
+        "1": { "name": "keyword.control.conditional.scriptopotamus" }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "match": "(?<=\\s)in(?=\\s*$)",
+          "name": "keyword.control.in.scriptopotamus"
+        },
+        { "include": "#expression" }
+      ]
+    },
     "else": {
       "match": "^\\s*(else)\\b",
       "captures": {
@@ -212,13 +227,13 @@
       }
     },
     "block-closer": {
-      "match": "^\\s*(fi|done|then|do)(?=[\\s;]|$)",
+      "match": "^\\s*(fi|done|then|do|esac)(?=[\\s;]|$)",
       "captures": {
         "1": { "name": "invalid.illegal.block-closer.scriptopotamus" }
       }
     },
     "command-call": {
-      "match": "^\\s*(?!(?:if|elif|else|for|while|fi|done|then|do|true|false|len|echo|printf|read|cd|source|shift|local|declare|export|readonly|unset|set|eval|exec|test|trap|wait|mapfile|let|return|exit|break|continue)(?![\\w-]))([A-Za-z_][A-Za-z0-9_-]*)(?=\\s|$|;)",
+      "match": "^\\s*(?!(?:if|elif|else|for|while|case|fi|done|then|do|esac|true|false|len|echo|printf|read|cd|source|shift|local|declare|export|readonly|unset|set|eval|exec|test|trap|wait|mapfile|let|return|exit|break|continue)(?![\\w-]))([A-Za-z_][A-Za-z0-9_-]*)(?=\\s|$|;)",
       "captures": {
         "1": { "name": "entity.name.function.call.scriptopotamus" }
       }

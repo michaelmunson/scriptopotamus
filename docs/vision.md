@@ -38,6 +38,30 @@ else
 fi
 ```
 
+#### Case
+* arms are `pattern)` followed by an inline statement, an indented body, or both
+* `in` and `;;` are optional, `;&` and `;;&` can end an arm for fallthrough, and `esac` is an error like `fi`
+```bash
+case $str
+  hello | hi) -> "Hi"
+  world)
+    -> "Bye"
+  *) -> "?" ;;
+
+# COMPILES TO
+case $str in
+  hello | hi)
+    echo "Hi"
+    ;;
+  world)
+    echo "Bye"
+    ;;
+  *)
+    echo "?"
+    ;;
+esac
+```
+
 #### Declaring Variables
 * when declaring a variable with a type, scriptopotamus identifies all subsequent assignments to that variable and inserts a type check
 ```bash

@@ -78,9 +78,10 @@ function ast_statement {
   local orphan_re='^(elif|else)([[:space:]]|$)'
   local for_re='^for[[:space:]]+([a-zA-Z_][a-zA-Z0-9_]*)[[:space:]]+in[[:space:]]+(.+)$'
   local while_re='^while[[:space:]]+(.+)$'
+  local case_re='^case[[:space:]]+(.+)$'
   local echo_re='^->[[:space:]]*(.*)$'
   local macro_re='^@([a-zA-Z_][a-zA-Z0-9_]*)([[:space:]]+(.*))?$'
-  local function_re='^\.?[a-zA-Z_][a-zA-Z0-9_]*\('
+  local function_re='^(\.|\.?[a-zA-Z_][a-zA-Z0-9_]*)\('
   local declaration_re='^([a-zA-Z_][a-zA-Z0-9_]*)<([^>]*)>$'
   local typed_assignment_re='^([a-zA-Z_][a-zA-Z0-9_]*)<([^>]*)>[[:space:]]*=[[:space:]]*(.*)$'
   local assignment_re='^([a-zA-Z_][a-zA-Z0-9_]*)=(.*)$'
@@ -93,6 +94,8 @@ function ast_statement {
     ast_for "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
   elif [[ $_ast_text =~ $while_re ]]; then
     ast_while "${BASH_REMATCH[1]}"
+  elif [[ $_ast_text =~ $case_re ]]; then
+    ast_case "${BASH_REMATCH[1]}"
   elif [[ $_ast_text =~ $echo_re ]]; then
     ast_next
     ast_echo "${BASH_REMATCH[1]}"
@@ -177,6 +180,76 @@ function ast_while {
   ast_next
   ast_block "$indent"
   _ast_result=$(jq -nc --argjson condition "$condition" --argjson body "$_ast_result" '{type: "while", condition: $condition, body: $body}')
+}
+
+function ast_case {
+  local indent=$_ast_indent subject=${1%[[:space:]]in} arms=()
+  subject=${subject%"${subject##*[![:space:]]}"}
+  ast_next
+  while ast_peek && (( _ast_indent > indent )); do
+    ast_case_arm
+    arms+=("$_ast_result")
+  done
+  ast_list "${arms[@]}"
+  _ast_result=$(jq -c --arg subject "$subject" '{type: "case", subject: $subject, arms: .}' <<< "$_ast_result")
+}
+
+function ast_case_arm {
+  local indent=$_ast_indent text=$_ast_text pattern="" quote="" depth=0 char i
+  local rest lead terminator=";;" inline="" body last
+  local terminated_re='^(.*[^;])?(;;&|;;|;&)$'
+  local terminator_re='^(;;&|;;|;&)$'
+  if [[ $text =~ $terminator_re ]]; then
+    ast_error "unexpected '$text': end the arm's line with it or indent it under the arm"
+  fi
+  for (( i=0; i<${#text}; i++ )); do
+    char=${text:i:1}
+    if [[ -n $quote ]]; then
+      [[ $char == "$quote" ]] && quote=""
+    elif [[ $char == [\"\'] ]]; then
+      quote=$char
+    elif [[ $char == "(" ]]; then
+      depth=$(( depth + 1 ))
+    elif [[ $char == ")" ]] && (( depth == 0 )); then
+      break
+    elif [[ $char == ")" ]]; then
+      depth=$(( depth - 1 ))
+    fi
+    pattern+=$char
+  done
+  if [[ -z $pattern ]] || (( i == ${#text} )); then
+    ast_error "expected 'pattern)' in case, got '$text'"
+  fi
+
+  rest=${text:i+1}
+  lead=${rest%%[![:space:]]*}
+  rest=${rest#"$lead"}
+  if [[ $rest =~ $terminated_re ]]; then
+    rest=${BASH_REMATCH[1]}
+    terminator=${BASH_REMATCH[2]}
+  fi
+  rest=${rest%"${rest##*[![:space:]]}"}
+
+  if [[ -n $rest ]]; then
+    _ast_text=$rest
+    _ast_indent=$(( indent + i + 1 + ${#lead} ))
+    ast_statement
+    inline=$_ast_result
+  else
+    ast_next
+  fi
+
+  ast_block "$indent"
+  body=$_ast_result
+  if [[ -n $inline ]]; then
+    body=$(jq -c --argjson inline "$inline" '[$inline] + .' <<< "$body")
+  fi
+  last=$(jq -r '.[-1] | select(.type == "bash") | .raw' <<< "$body")
+  if [[ $last =~ $terminator_re ]]; then
+    terminator=$last
+    body=$(jq -c '.[:-1]' <<< "$body")
+  fi
+  _ast_result=$(jq -nc --arg pattern "$pattern" --arg terminator "$terminator" --argjson body "$body" '{pattern: $pattern, terminator: $terminator, body: $body}')
 }
 
 function ast_echo {

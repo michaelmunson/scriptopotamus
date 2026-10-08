@@ -1,9 +1,15 @@
 #!./scrippo
 
+.(
+  arg
+  --hello<str>
+  [*rest]
+)
+  -> "root command"
 .test(
   arg
   [--flag<str>]
-  []
+  [*rest]
 )
   -> "arg: $arg"
   -> "flag: $--flag"

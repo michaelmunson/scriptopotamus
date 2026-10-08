@@ -59,6 +59,13 @@ test('control flow', async () => {
   assert.match(await scopeOf(src, 'fi'), /invalid\.illegal/);
 });
 
+test('case', async () => {
+  const src = ['case $x in', '  a) -> 1', 'esac'].join('\n');
+  assert.match(await scopeOf(src, 'case'), /keyword\.control\.conditional/);
+  assert.match(await scopeOf(src, 'in'), /keyword\.control\.in/);
+  assert.match(await scopeOf(src, 'esac'), /invalid\.illegal/);
+});
+
 test('variables, option references, and indexing', async () => {
   const src = 'echo $name $--opt "$dict[key]" ${arr[@]} $1';
   assert.match(await scopeOf(src, 'name'), /variable\.other/);

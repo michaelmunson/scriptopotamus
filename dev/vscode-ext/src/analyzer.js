@@ -17,8 +17,11 @@ const RE = {
   orphan: /^(elif|else)(?=\s|$)/,
   for: new RegExp(`^for\\s+(${NAME})\\s+in\\s+(.+)$`, 'd'),
   while: /^while\s+(.+)$/d,
+  case: /^case\s+(.+?)(?:\s+in)?$/d,
+  terminated: /^(.*[^;])?(;;&|;;|;&)$/,
+  terminator: /^(;;&|;;|;&)$/,
   echo: /^->\s*(.*)$/d,
-  function: new RegExp(`^\\.?${NAME}\\(`),
+  function: new RegExp(`^(?:\\.|\\.?${NAME})\\(`),
   declaration: new RegExp(`^(${NAME})(<([^>]*)>)$`, 'd'),
   typedAssignment: new RegExp(`^(${NAME})(<([^>]*)>)\\s*=\\s*(.*)$`, 'd'),
   assignment: new RegExp(`^(${NAME})=(.*)$`, 'd'),
@@ -26,8 +29,8 @@ const RE = {
   literals: /^([^({]*)[({](.*)[)}]$/,
   list: /^\((.*)\)$/,
   math: /^[^"'()]+\s[-+*/%]\s[^"'()]+$/,
-  closer: /^(fi|done|then|do)(?=[\s;]|$)/,
-  bareCondition: /^(if|while)$/,
+  closer: /^(fi|done|then|do|esac)(?=[\s;]|$)/,
+  bareCondition: /^(if|while|case)$/,
   badFor: /^for(?=\s|$)/,
   spacedAssignment: new RegExp(`^(${NAME})(<[^>]*>)?\\s+=(?!=)`),
   optionRef: /\$(--?)([A-Za-z_][A-Za-z0-9_-]*)/g,
@@ -290,6 +293,7 @@ class Analyzer {
     if ((m = RE.orphan.exec(t))) return this.parseOrphan(m[1], prev);
     if ((m = RE.for.exec(t))) return this.parseLoop('for', m);
     if ((m = RE.while.exec(t))) return this.parseLoop('while', m);
+    if ((m = RE.case.exec(t))) return this.parseCase(m);
     if ((m = RE.echo.exec(t))) {
       this.idx++;
       return { kind: 'echo', line: i, value: m[1], col: line.indent + m.indices[1][0] };
@@ -395,6 +399,64 @@ class Analyzer {
     return node;
   }
 
+  parseCase(m) {
+    const i = this.idx;
+    const line = this.lines[i];
+    this.idx++;
+    const node = { kind: 'case', line: i, indent: line.indent, subject: m[1], col: line.indent + m.indices[1][0], arms: [] };
+    let arm;
+    while ((arm = this.peek()) && arm.indent > line.indent) node.arms.push(this.parseCaseArm());
+    return node;
+  }
+
+  parseCaseArm() {
+    const i = this.idx;
+    const line = this.lines[i];
+    const t = line.text;
+    let quote = '';
+    let depth = 0;
+    let close = -1;
+    for (let k = 0; k < t.length && close < 0; k++) {
+      const c = t[k];
+      if (quote) {
+        if (c === quote) quote = '';
+      } else if (c === '"' || c === "'") {
+        quote = c;
+      } else if (c === '(') {
+        depth++;
+      } else if (c === ')' && depth) {
+        depth--;
+      } else if (c === ')') {
+        close = k;
+      }
+    }
+    if (close <= 0) {
+      const message = RE.terminator.test(t)
+        ? `Unexpected '${t}': end the arm's line with it or indent it under the arm`
+        : "Expected 'pattern)' to start a case arm";
+      this.report('error', this.lineRange(i), message, 'case-arm');
+      this.idx++;
+      return { line: i, pattern: null, body: this.parseBlock(line.indent) };
+    }
+
+    const arm = { line: i, pattern: t.slice(0, close), body: [] };
+    const after = t.slice(close + 1);
+    const col = line.indent + close + 1 + after.length - after.trimStart().length;
+    let rest = after.trim();
+    const terminated = RE.terminated.exec(rest);
+    if (terminated) rest = (terminated[1] || '').trimEnd();
+    if (rest) {
+      this.lines[i] = { raw: line.raw, text: rest, indent: col };
+      arm.body.push(this.parseStatement());
+    } else {
+      this.idx++;
+    }
+    arm.body.push(...this.parseBlock(line.indent));
+    const last = arm.body[arm.body.length - 1];
+    if (last && last.kind === 'bash' && last.lines.length === 1 && RE.terminator.test(last.text)) arm.body.pop();
+    return arm;
+  }
+
   parseBash() {
     const i = this.idx;
     const indent = this.lines[i].indent;
@@ -421,7 +483,7 @@ class Analyzer {
       name = name.slice(1);
       nameCol++;
     }
-    const nameRange = span(start, nameCol, nameCol + name.length);
+    const nameRange = name ? span(start, nameCol, nameCol + name.length) : span(start, indent, nameCol);
 
     const chars = [];
     let depth = 1;
@@ -620,9 +682,9 @@ class Analyzer {
     let style = null;
     this.lines.forEach((line, i) => {
       if (!line.text || line.text.startsWith('#')) return;
-      const lead = line.raw.slice(0, line.indent);
+      const lead = line.raw.slice(0, line.raw.length - line.raw.trimStart().length);
       if (lead.includes('\t') && lead.includes(' ')) {
-        this.report('warning', span(i, 0, line.indent), 'Mixed tabs and spaces: the compiler counts a tab as a single column', 'indent-style');
+        this.report('warning', span(i, 0, lead.length), 'Mixed tabs and spaces: the compiler counts a tab as a single column', 'indent-style');
       } else if (lead) {
         const current = lead[0] === '\t' ? 'tabs' : 'spaces';
         if (!style) {
@@ -630,7 +692,7 @@ class Analyzer {
         } else if (current !== style.kind) {
           this.report(
             'warning',
-            span(i, 0, line.indent),
+            span(i, 0, lead.length),
             `Indented with ${current}, but line ${style.line + 1} uses ${style.kind}: the compiler counts a tab as a single column`,
             'indent-style',
           );
@@ -669,6 +731,13 @@ class Analyzer {
         this.checkCondition(node.line, node.col, node.condition, scope, 'while');
         this.checkBody(node, 'while', scope);
         break;
+      case 'case':
+        this.checkCondition(node.line, node.col, node.subject, scope, 'case');
+        if (!node.arms.length) {
+          this.report('warning', this.keywordRange(node.line, 'case'), "Empty 'case' block: indent the 'pattern)' arms that belong to it", 'empty-block');
+        }
+        for (const arm of node.arms) this.check(arm.body, { ...scope, inBlock: true });
+        break;
       case 'echo':
         this.checkText([{ line: node.line, col: node.col, text: node.value }], scope, { calls: 'substitution' });
         break;
@@ -701,7 +770,7 @@ class Analyzer {
   }
 
   checkCondition(line, col, text, scope, keyword) {
-    const target = keyword === 'for' ? 'item list' : 'condition';
+    const target = { for: 'item list', case: 'value' }[keyword] || 'condition';
     this.checkText([{ line, col, text }], scope, {
       calls: 'substitution',
       comment: `Comments after '${keyword}' are compiled into the ${target} and break it: move the comment to its own line`,
@@ -767,12 +836,12 @@ class Analyzer {
   }
 
   checkFunction(node, scope) {
-    const label = node.kind === 'command' ? `.${node.name}` : node.name;
+    const label = functionLabel(node);
     if (node.kind === 'command' && scope.inBlock) {
       this.report(
         'warning',
         node.nameRange,
-        `Command '${label}' is inside an if/for/while block and will be ignored by the compiler: define commands at the top level or directly inside another function`,
+        `Command '${label}' is inside an if/for/while/case block and will be ignored by the compiler: define commands at the top level or directly inside another function`,
         'nested-command',
       );
     }
@@ -856,7 +925,7 @@ class Analyzer {
     if ((m = RE.closer.exec(t))) {
       this.report('error', this.keywordRange(i, m[1]), `Unexpected '${m[1]}': blocks are closed by indentation, so remove this line`, 'block-closer');
     } else if ((m = RE.bareCondition.exec(t))) {
-      this.report('error', this.lineRange(i), `'${m[1]}' needs a condition`, 'missing-condition');
+      this.report('error', this.lineRange(i), `'${m[1]}' needs a ${m[1] === 'case' ? 'value to match' : 'condition'}`, 'missing-condition');
     } else if (RE.badFor.test(t)) {
       this.report('error', this.lineRange(i), "Expected 'for <name> in <items>'", 'bad-for');
     } else if ((m = RE.spacedAssignment.exec(t))) {
@@ -1009,16 +1078,23 @@ class Analyzer {
 function childBlocks(node) {
   if (node.kind === 'if') return [...node.branches.map((b) => b.body), ...(node.else ? [node.else.body] : [])];
   if (node.kind === 'for' || node.kind === 'while' || node.kind === 'orphan') return [node.body];
+  if (node.kind === 'case') return node.arms.map((arm) => arm.body);
   return [];
 }
 
 function endLine(node) {
   let last = node.kind === 'bash' ? node.lines[node.lines.length - 1] : node.closeLine ?? node.line;
+  if (node.kind === 'case') for (const arm of node.arms) last = Math.max(last, arm.line);
   const blocks = node.kind === 'function' || node.kind === 'command' ? [node.body] : childBlocks(node);
   for (const block of blocks) {
     if (block.length) last = Math.max(last, endLine(block[block.length - 1]));
   }
   return last;
+}
+
+function functionLabel(node) {
+  if (node.kind !== 'command') return node.name;
+  return node.name ? `.${node.name}` : '.()';
 }
 
 function describeParam(leaf) {
@@ -1047,7 +1123,7 @@ function buildSymbols(analyzer, nodes) {
           children: [],
         }));
         symbols.push({
-          name: node.kind === 'command' ? `.${node.name}` : node.name,
+          name: functionLabel(node),
           detail: node.leaves.map(describeParam).join(' '),
           kind: node.kind,
           range: fullRange(node),

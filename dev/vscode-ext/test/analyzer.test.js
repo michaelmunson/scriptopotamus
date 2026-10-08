@@ -60,6 +60,19 @@ test('conditions are required', () => {
   assert.deepEqual(codes(['for i', '  echo a']), ['1:bad-for']);
 });
 
+test('case arms parse like the compiler', () => {
+  assert.deepEqual(codes(['case $str', '\thello) -> "Hi" ;;', '\tworld) -> "Bye" ;;']), []);
+  assert.deepEqual(codes(['f(--name<str>)', '  case $--name in', '    a | "b c") echo "$name"', '    @(x|y)z)', '      -> "x"', '      ;;', '    *) ;&']), []);
+  assert.deepEqual(codes(['case $x', '  a) echo a', 'esac']), ['3:block-closer']);
+  assert.deepEqual(codes(['case $x', '  echo a']), ['2:case-arm']);
+  assert.deepEqual(codes(['case $x', '  a)', '    echo a', '  ;;']), ['4:case-arm']);
+  assert.deepEqual(codes(['case $x # why', '  a) echo a']), ['1:trailing-comment']);
+  assert.deepEqual(codes(['case', '  a) echo a']), ['1:missing-condition']);
+  assert.deepEqual(codes(['case $x']), ['1:empty-block']);
+  const [d] = lint(['f(--a)', '  case $1', '    x) echo $--b ;;']);
+  assert.deepEqual([d.line, d.col, d.code], [3, 13, 'unknown-option-ref']);
+});
+
 test('trailing whitespace is flagged because the compiler counts it as indentation', () => {
   const [d] = lint(['if $x   ', '  echo a']);
   assert.equal(d.code, 'trailing-whitespace');

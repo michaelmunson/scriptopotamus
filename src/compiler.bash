@@ -3,6 +3,7 @@
 declare -gA _compile_types=()
 declare -gA _compile_imported=()
 declare -ga _compile_commands=()
+declare -g _compile_root=""
 declare -gA _compile_patterns=(
   [int]='^-?[0-9]+$'
   [float]='^-?[0-9]*\.?[0-9]+$'
@@ -85,6 +86,7 @@ function compile {
   _compile_types=()
   _compile_imported=()
   _compile_commands=()
+  _compile_root=""
   _compile_import_dir=${SCRIPPO_IMPORT_DIR:-$(dirname "$path")}
   compile_emit "#!/usr/bin/env bash"
   mapfile -t nodes < <(jq -c '.body[]' <<< "$tree")
@@ -134,6 +136,7 @@ function compile_node {
     if) compile_if "$node" ;;
     for) compile_for "$node" ;;
     while) compile_while "$node" ;;
+    case) compile_case "$node" ;;
     echo) compile_echo "$node" ;;
     declaration) compile_declaration "$node" ;;
     assignment) compile_assignment "$node" ;;
@@ -299,6 +302,23 @@ function compile_while {
   compile_emit "done"
 }
 
+function compile_case {
+  local node=$1 arms arm pattern terminator
+  compile_expr "$(jq -r .subject <<< "$node")"
+  compile_emit "case $_compile_result in"
+  compile_indent
+  mapfile -t arms < <(jq -c '.arms[]' <<< "$node")
+  for arm in "${arms[@]}"; do
+    compile_read "$arm" '[.pattern, .terminator]' pattern terminator
+    compile_expr "$pattern"
+    compile_emit "$_compile_result)"
+    compile_body "$arm"
+    compile_emit "  $terminator"
+  done
+  compile_dedent
+  compile_emit "esac"
+}
+
 function compile_echo {
   compile_value "$(jq -c .value <<< "$1")" ""
   compile_emit "echo $_compile_result"
@@ -306,7 +326,7 @@ function compile_echo {
 
 function compile_bash {
   local node=$1 raw
-  local closer_re='^(fi|done|then|do)([[:space:];]|$)'
+  local closer_re='^(fi|done|then|do|esac)([[:space:];]|$)'
   raw=$(jq -r .raw <<< "$node")
   if [[ $raw =~ $closer_re ]]; then
     compile_error "$node" "unexpected '${BASH_REMATCH[1]}': blocks are closed by indentation"
@@ -376,17 +396,28 @@ function compile_assignment {
 }
 
 function compile_function {
-  local node=$1 name=$2 type subcommands sub subname
+  local node=$1 name=$2 type subcommands sub subname label
   if [[ -z $name ]]; then
     compile_read "$node" '[.name, .type]' name type
     if [[ $type == command ]] && (( _compile_depth == 0 )); then
       compile_command "$node" "$name"
     fi
   fi
+  label=${name//__/ }
+  if [[ -z $name ]]; then
+    name=_scrippo_root
+    label='${0##*/}'
+  fi
   mapfile -t subcommands < <(jq -c '.body[] | select(.type == "command")' <<< "$node")
 
   for sub in "${subcommands[@]}"; do
-    compile_function "$sub" "${name}__$(jq -r .name <<< "$sub")"
+    subname=$(jq -r .name <<< "$sub")
+    if [[ $name == _scrippo_root ]]; then
+      compile_error "$sub" "commands cannot be nested inside the root command '.()'"
+    elif [[ -z $subname ]]; then
+      compile_error "$sub" "the root command '.()' must be defined at the top level"
+    fi
+    compile_function "$sub" "${name}__$subname"
   done
 
   compile_emit "function $name {"
@@ -399,7 +430,7 @@ function compile_function {
     compile_emit "  return"
     compile_emit "fi"
   done
-  compile_params "$node" "${name//__/ }"
+  compile_params "$node" "$label"
   compile_dedent
   compile_body "$node"
   compile_emit "}"
@@ -612,7 +643,15 @@ function compile_option {
 }
 
 function compile_command {
-  local node=$1 name=$2
+  local node=$1 name=$2 params
+  if [[ -z $name && -n $_compile_root ]]; then
+    compile_error "$node" "root command '.()' already defined"
+  elif [[ -z $name ]]; then
+    params=$(jq "$_compile_param_jq"'[.params | leaves] | length' <<< "$node")
+    _compile_root=bare
+    (( params == 0 )) || _compile_root=params
+    return 0
+  fi
   if [[ " ${_compile_commands[*]} " == *" $name "* ]]; then
     compile_error "$node" "command '$name' already defined"
   fi
@@ -621,16 +660,22 @@ function compile_command {
 
 function compile_dispatch {
   local command
-  if (( ${#_compile_commands[@]} == 0 )); then
+  if [[ -z $_compile_root ]] && (( ${#_compile_commands[@]} == 0 )); then
     return 0
   fi
-  compile_emit "if [[ -z \$1 ]]; then"
-  compile_emit "  echo \"\${0##*/}: command required\" >&2"
-  compile_emit "  echo \"commands: ${_compile_commands[*]}\" >&2"
-  compile_emit "  exit 1"
-  compile_emit "fi"
   compile_emit "case \$1 in"
   compile_indent
+  if [[ -z $_compile_root ]]; then
+    compile_emit "\"\")"
+    compile_emit "  echo \"\${0##*/}: command required\" >&2"
+    compile_emit "  echo \"commands: ${_compile_commands[*]}\" >&2"
+    compile_emit "  exit 1"
+    compile_emit "  ;;"
+  elif [[ $_compile_root == bare ]]; then
+    compile_emit "\"\")"
+    compile_emit "  _scrippo_root"
+    compile_emit "  ;;"
+  fi
   for command in "${_compile_commands[@]}"; do
     compile_emit "$command)"
     compile_emit "  shift"
@@ -638,9 +683,15 @@ function compile_dispatch {
     compile_emit "  ;;"
   done
   compile_emit "*)"
-  compile_emit "  echo \"\${0##*/}: unknown command '\$1'\" >&2"
-  compile_emit "  echo \"commands: ${_compile_commands[*]}\" >&2"
-  compile_emit "  exit 1"
+  if [[ $_compile_root == params ]]; then
+    compile_emit "  _scrippo_root \"\$@\""
+  else
+    compile_emit "  echo \"\${0##*/}: unknown command '\$1'\" >&2"
+    if (( ${#_compile_commands[@]} > 0 )); then
+      compile_emit "  echo \"commands: ${_compile_commands[*]}\" >&2"
+    fi
+    compile_emit "  exit 1"
+  fi
   compile_emit "  ;;"
   compile_dedent
   compile_emit "esac"

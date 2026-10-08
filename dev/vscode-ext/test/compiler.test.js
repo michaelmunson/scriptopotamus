@@ -80,8 +80,34 @@ test('trailing whitespace breaks else in the compiler and is flagged at its caus
   assert.equal(d.range.start.line, 0);
 });
 
+test('case arms compile with optional terminators', { skip }, async () => {
+  const result = await run(['case $str', '\thello) -> "Hi" ;;', '\tworld)', '\t\t-> "Bye"', '\t*) ;&']);
+  assert.equal(result.ok, true, result.stderr);
+  assert.equal(
+    result.stdout,
+    [
+      '#!/usr/bin/env bash',
+      'case $str in',
+      '  hello)',
+      '    echo "Hi"',
+      '    ;;',
+      '  world)',
+      '    echo "Bye"',
+      '    ;;',
+      '  *)',
+      '    :',
+      '    ;&',
+      'esac',
+      '',
+    ].join('\n'),
+  );
+});
+
 const agreeing = {
   'block closer': ['if $x', '  echo a', 'fi'],
+  'esac': ['case $x', '  a) echo a', 'esac'],
+  'case arm without pattern': ['case $x', '  echo a'],
+  'case terminator on its own': ['case $x', '  a)', '    echo a', '  ;;'],
   'orphan else': ['if $x', '  echo a', '  else', '  echo b'],
   'else with comment': ['if $x', '  echo a', 'else # c', '  echo b'],
   'type mismatch': ['n<int>="asd"'],

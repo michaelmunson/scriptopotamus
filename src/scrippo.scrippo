@@ -7,13 +7,16 @@
 @import "compiler.bash"
 
 scrippo(
-  path
+  [path]
   [-c | --compile]
   [-n | --noexec]
   [-v | --verbose]
+  [--version]
   [*rest]
 )
-  if $--noexec
+  if $--version
+    -> $(jq -r '.version' <<< $(cat ./dev/vscode-ext/package.json))
+  elif $--noexec
     bash -n <(compile "$path")
   elif $--compile
     compile "$path"
