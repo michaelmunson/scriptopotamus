@@ -1,0 +1,9 @@
+#!./scrippo
+
+.test(
+  arg
+  [--flag<str>]
+  []
+)
+  -> "arg: $arg"
+  -> "flag: $--flag"

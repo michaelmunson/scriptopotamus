@@ -125,6 +125,8 @@ test('function parameter syntax errors', () => {
   assert.deepEqual(codes(['f(--n<int="x">)', '  echo']), ['1:param-default']);
   assert.deepEqual(codes(['f(a a)', '  echo']), ['1:duplicate-param']);
   assert.deepEqual(codes(['f(rest... last)', '  echo']), ['1:param-order']);
+  assert.deepEqual(codes(['f(*rest path)', '  echo']), ['1:param-order']);
+  assert.deepEqual(codes(['f(*a *b)', '  echo']), ['1:param']);
   assert.deepEqual(codes(['f([])', '  echo']), ['1:param']);
 });
 
@@ -156,6 +158,21 @@ test('option references must match a parameter', () => {
   assert.deepEqual(codes(['f(--a)', '  echo $--b']), ['2:unknown-option-ref']);
   assert.deepEqual(codes(['echo $--a']), ['1:unknown-option-ref']);
   assert.deepEqual(codes(['f(--some-flag)', '  echo $--some-flag', '  g(x)', '    echo $--some-flag']), []);
+});
+
+test('*param is an optional catch-all array and accepts unknown options', () => {
+  const source = ['f(path [--verbose] [*rest])', '  echo $path'];
+  assert.deepEqual(codes(source), []);
+  const fn = analyze(source.join('\n')).functions[0];
+  assert.deepEqual(
+    fn.leaves.map((l) => [l.kind, l.name, l.effectiveOptional, l.array]),
+    [
+      ['arg', 'path', false, false],
+      ['opt', 'verbose', true, false],
+      ['rest', 'rest', true, true],
+    ],
+  );
+  assert.deepEqual(codes([...source, 'f file --verbose --other x']), []);
 });
 
 test('calls to user functions are checked for unknown options', () => {

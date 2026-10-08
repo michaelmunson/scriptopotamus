@@ -23,7 +23,7 @@ def annotate($repeat):
   map(
     if .kind == "group" then .repeat as $r | .params |= annotate($repeat or $r)
     elif .kind == "exclusive" then .options |= annotate($repeat)
-    else . + {array: ((.repeat or $repeat) and .datatype != ["bool"])}
+    else . + {array: (.kind == "rest" or ((.repeat or $repeat) and .datatype != ["bool"]))}
     end
   );
 
@@ -45,6 +45,7 @@ def used:
 def name_of:
   if .kind == "group" then "[" + ([.params[] | name_of] | join(" ")) + "]"
   elif .kind == "exclusive" then [.options[] | name_of] | join(" | ")
+  elif .kind == "rest" then "*\(.name)"
   elif .kind == "arg" then "<\(.name)>"
   else .flag
   end;
@@ -410,7 +411,7 @@ function compile_function {
 function compile_params {
   local node=$1 fn=$2 leaves leaf checks check test message
   local kind name flag array multi default base const literals description pattern
-  local position=0 rest=false
+  local position=0 rest=false catchall="" catchall_at=-1 index=0
 
   mapfile -t leaves < <(jq -c "$_compile_param_jq"'.params | annotate(false) | leaves' <<< "$node")
   if (( ${#leaves[@]} == 0 )); then
@@ -418,8 +419,25 @@ function compile_params {
   fi
 
   for leaf in "${leaves[@]}"; do
+    compile_read "$leaf" '[.kind, .name]' kind name
+    if [[ $kind == rest ]]; then
+      if [[ -n $catchall ]]; then
+        compile_error "$node" "only one *param is allowed"
+      fi
+      catchall=$name
+      catchall_at=$index
+    fi
+    index=$(( index + 1 ))
+  done
+  if [[ -n $catchall && $catchall_at -ne $(( ${#leaves[@]} - 1 )) ]]; then
+    compile_error "$node" "*$catchall must be the last parameter"
+  fi
+
+  for leaf in "${leaves[@]}"; do
     compile_read "$leaf" '[.kind, .name, .array, .default, .datatype[0]]' kind name array default base
-    if [[ $kind != opt ]]; then
+    if [[ $kind == rest ]]; then
+      compile_emit "local -a $name=()"
+    elif [[ $kind != opt ]]; then
       continue
     elif [[ $array == true ]]; then
       compile_emit "local -a $name=()"
@@ -430,6 +448,10 @@ function compile_params {
     fi
   done
 
+  if [[ -n $catchall ]]; then
+    compile_emit "local -a _scrippo_seq=()"
+    compile_emit "local -a _scrippo_kind=()"
+  fi
   compile_emit "local _scrippo_args=()"
   compile_emit "while (( \$# > 0 )); do"
   compile_indent
@@ -441,23 +463,53 @@ function compile_params {
       compile_option "$fn" "$name" "$flag" "$array" "$multi" "$base" "$pattern"
     fi
   done
-  compile_emit "--)"
-  compile_emit "  shift"
-  compile_emit "  _scrippo_args+=(\"\$@\")"
-  compile_emit "  break"
-  compile_emit "  ;;"
-  compile_emit "-?*)"
-  compile_emit "  echo \"$fn: unknown option '\$1'\" >&2"
-  compile_emit "  exit 1"
-  compile_emit "  ;;"
-  compile_emit "*)"
-  compile_emit "  _scrippo_args+=(\"\$1\")"
-  compile_emit "  shift"
-  compile_emit "  ;;"
+  if [[ -n $catchall ]]; then
+    compile_emit "--)"
+    compile_emit "  shift"
+    compile_emit "  while (( \$# > 0 )); do"
+    compile_emit "    _scrippo_seq+=(\"\$1\")"
+    compile_emit "    _scrippo_kind+=(arg)"
+    compile_emit "    shift"
+    compile_emit "  done"
+    compile_emit "  ;;"
+    compile_emit "-?*)"
+    compile_emit "  _scrippo_seq+=(\"\$1\")"
+    compile_emit "  _scrippo_kind+=(flag)"
+    compile_emit "  shift"
+    compile_emit "  ;;"
+    compile_emit "*)"
+    compile_emit "  _scrippo_seq+=(\"\$1\")"
+    compile_emit "  _scrippo_kind+=(arg)"
+    compile_emit "  shift"
+    compile_emit "  ;;"
+  else
+    compile_emit "--)"
+    compile_emit "  shift"
+    compile_emit "  _scrippo_args+=(\"\$@\")"
+    compile_emit "  break"
+    compile_emit "  ;;"
+    compile_emit "-?*)"
+    compile_emit "  echo \"$fn: unknown option '\$1'\" >&2"
+    compile_emit "  exit 1"
+    compile_emit "  ;;"
+    compile_emit "*)"
+    compile_emit "  _scrippo_args+=(\"\$1\")"
+    compile_emit "  shift"
+    compile_emit "  ;;"
+  fi
   compile_dedent
   compile_emit "esac"
   compile_dedent
   compile_emit "done"
+
+  if [[ -n $catchall ]]; then
+    compile_emit "local _scrippo_i"
+    compile_emit "for _scrippo_i in \"\${!_scrippo_seq[@]}\"; do"
+    compile_emit "  if [[ \${_scrippo_kind[_scrippo_i]} == arg ]]; then"
+    compile_emit "    _scrippo_args+=(\"\${_scrippo_seq[_scrippo_i]}\")"
+    compile_emit "  fi"
+    compile_emit "done"
+  fi
 
   for leaf in "${leaves[@]}"; do
     compile_read "$leaf" '[.kind, .name, .array, .default]' kind name array default
@@ -471,7 +523,9 @@ function compile_params {
       position=$(( position + 1 ))
     fi
   done
-  if [[ $rest == false ]]; then
+  if [[ -n $catchall ]]; then
+    compile_rest "$catchall" "$position" "$rest"
+  elif [[ $rest == false ]]; then
     compile_fail "(( \${#_scrippo_args[@]} > $position ))" "$fn: too many arguments"
   fi
 
@@ -487,7 +541,11 @@ function compile_params {
     if [[ $kind == opt && $base == bool ]]; then
       continue
     fi
-    [[ $kind == arg ]] && flag="<$name>"
+    if [[ $kind == rest ]]; then
+      flag="*$name"
+    elif [[ $kind == arg ]]; then
+      flag="<$name>"
+    fi
     if [[ $array == true ]]; then
       compile_type_test '$_scrippo_item' "$base" "$literals"
       [[ -n $_compile_result ]] || continue
@@ -503,6 +561,28 @@ function compile_params {
       compile_fail "[[ -n \$$name && $_compile_result ]]" "$fn: $flag expected $description, received '\$$name'"
     fi
   done
+}
+
+function compile_rest {
+  local name=$1 skip=$2 takes_all=$3
+  if [[ $takes_all == true ]]; then
+    compile_emit "for _scrippo_i in \"\${!_scrippo_seq[@]}\"; do"
+    compile_emit "  if [[ \${_scrippo_kind[_scrippo_i]} == flag ]]; then"
+    compile_emit "    $name+=(\"\${_scrippo_seq[_scrippo_i]}\")"
+    compile_emit "  fi"
+    compile_emit "done"
+  elif (( skip == 0 )); then
+    compile_emit "$name=(\"\${_scrippo_seq[@]}\")"
+  else
+    compile_emit "local _scrippo_seen=0"
+    compile_emit "for _scrippo_i in \"\${!_scrippo_seq[@]}\"; do"
+    compile_emit "  if [[ \${_scrippo_kind[_scrippo_i]} == arg ]] && (( _scrippo_seen < $skip )); then"
+    compile_emit "    _scrippo_seen=\$(( _scrippo_seen + 1 ))"
+    compile_emit "    continue"
+    compile_emit "  fi"
+    compile_emit "  $name+=(\"\${_scrippo_seq[_scrippo_i]}\")"
+    compile_emit "done"
+  fi
 }
 
 function compile_option {
@@ -544,6 +624,11 @@ function compile_dispatch {
   if (( ${#_compile_commands[@]} == 0 )); then
     return 0
   fi
+  compile_emit "if [[ -z \$1 ]]; then"
+  compile_emit "  echo \"\${0##*/}: command required\" >&2"
+  compile_emit "  echo \"commands: ${_compile_commands[*]}\" >&2"
+  compile_emit "  exit 1"
+  compile_emit "fi"
   compile_emit "case \$1 in"
   compile_indent
   for command in "${_compile_commands[@]}"; do
@@ -554,6 +639,7 @@ function compile_dispatch {
   done
   compile_emit "*)"
   compile_emit "  echo \"\${0##*/}: unknown command '\$1'\" >&2"
+  compile_emit "  echo \"commands: ${_compile_commands[*]}\" >&2"
   compile_emit "  exit 1"
   compile_emit "  ;;"
   compile_dedent

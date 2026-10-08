@@ -76,6 +76,13 @@
           "name": "punctuation.section.optional.scriptopotamus"
         },
         {
+          "match": "(?<![\\w*-])(\\*)([A-Za-z_][A-Za-z0-9_-]*)",
+          "captures": {
+            "1": { "name": "keyword.operator.rest.scriptopotamus" },
+            "2": { "name": "variable.parameter.rest.scriptopotamus" }
+          }
+        },
+        {
           "match": "(?<![\\w-])--?[A-Za-z_][A-Za-z0-9_-]*",
           "name": "variable.parameter.option.scriptopotamus"
         },

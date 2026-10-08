@@ -22,7 +22,7 @@ const RE = {
   declaration: new RegExp(`^(${NAME})(<([^>]*)>)$`, 'd'),
   typedAssignment: new RegExp(`^(${NAME})(<([^>]*)>)\\s*=\\s*(.*)$`, 'd'),
   assignment: new RegExp(`^(${NAME})=(.*)$`, 'd'),
-  param: /^(-{0,2})([A-Za-z_][A-Za-z0-9_-]*)(?:<([^>]*)>)?(\.\.\.)?$/,
+  param: /^(\*|-{0,2})([A-Za-z_][A-Za-z0-9_-]*)(?:<([^>]*)>)?(\.\.\.)?$/,
   literals: /^([^({]*)[({](.*)[)}]$/,
   list: /^\((.*)\)$/,
   math: /^[^"'()]+\s[-+*/%]\s[^"'()]+$/,
@@ -203,9 +203,9 @@ function leavesOf(params, groupRepeat = false, groupOptional = false, out = []) 
       leavesOf(p.params, groupRepeat || p.repeat, groupOptional || p.optional, out);
     } else if (p.kind === 'exclusive') {
       leavesOf(p.options, groupRepeat, groupOptional, out);
-    } else if (p.kind === 'arg' || p.kind === 'opt') {
+    } else if (p.kind === 'arg' || p.kind === 'opt' || p.kind === 'rest') {
       const isBool = p.datatype.datatype.length === 1 && p.datatype.datatype[0] === 'bool';
-      p.array = (p.repeat || groupRepeat) && !isBool;
+      p.array = p.kind === 'rest' || ((p.repeat || groupRepeat) && !isBool);
       p.effectiveOptional = p.optional || groupOptional;
       out.push(p);
     }
@@ -565,7 +565,7 @@ class Analyzer {
       repeat = true;
       state.pos++;
     }
-    if (params.length === 1 && (params[0].kind === 'arg' || params[0].kind === 'opt')) {
+    if (params.length === 1 && (params[0].kind === 'arg' || params[0].kind === 'opt' || params[0].kind === 'rest')) {
       return { ...params[0], optional: true, repeat: params[0].repeat || repeat };
     }
     return { kind: 'group', optional: true, repeat, params, token };
@@ -577,12 +577,13 @@ class Analyzer {
       const message =
         token.text === '|' || token.text === ']'
           ? `Expected a parameter before '${token.text}'`
-          : `Invalid parameter '${token.text}': expected name, -f, or --flag, optionally followed by <type> and ...`;
+          : `Invalid parameter '${token.text}': expected name, -f, --flag, or *name, optionally followed by <type> and ...`;
       this.report('error', tokenRange(token), message, 'param');
       return { kind: 'invalid', token };
     }
-    const [, dashes, rawName, rawType, dots] = m;
-    const isOpt = dashes.length > 0;
+    const [, prefix, rawName, rawType, dots] = m;
+    const isOpt = prefix.startsWith('-');
+    const isRest = prefix === '*';
     let typeText = rawType || '';
     let defaultValue = null;
     const eq = typeText.indexOf('=');
@@ -591,9 +592,9 @@ class Analyzer {
       typeText = typeText.slice(0, eq);
     }
     return {
-      kind: isOpt ? 'opt' : 'arg',
+      kind: isRest ? 'rest' : isOpt ? 'opt' : 'arg',
       name: rawName.replace(/-/g, '_'),
-      flag: isOpt ? dashes + rawName : null,
+      flag: isOpt ? prefix + rawName : null,
       optional: false,
       repeat: Boolean(dots),
       datatype: parseType(typeText.trim() ? typeText : isOpt ? 'bool' : 'str'),
@@ -838,6 +839,14 @@ class Analyzer {
       }
     };
     walk(node.params);
+    const stars = node.leaves.filter((leaf) => leaf.kind === 'rest');
+    if (stars.length > 1) {
+      for (const leaf of stars.slice(1)) {
+        this.report('error', tokenRange(leaf.token), 'Only one *param is allowed', 'param');
+      }
+    } else if (stars.length === 1 && node.leaves[node.leaves.length - 1] !== stars[0]) {
+      this.report('error', tokenRange(stars[0].token), `'*${stars[0].name}' must be the last parameter`, 'param-order');
+    }
   }
 
   checkBash(node, scope) {
@@ -941,6 +950,7 @@ class Analyzer {
       }
       const leaf = flags.get(arg.text);
       if (!leaf) {
+        if (fn.leaves.some((item) => item.kind === 'rest')) continue;
         this.report('warning', range, `Unknown option '${arg.text}' for '${fn.name}'`, 'unknown-option');
         continue;
       }
@@ -1012,7 +1022,7 @@ function endLine(node) {
 }
 
 function describeParam(leaf) {
-  let text = leaf.flag || leaf.name;
+  let text = leaf.kind === 'rest' ? `*${leaf.name}` : leaf.flag || leaf.name;
   if (leaf.kind === 'arg' ? leaf.datatype.raw !== 'str' : leaf.datatype.raw !== 'bool') text += `<${leaf.datatype.description}>`;
   if (leaf.repeat) text += '...';
   return leaf.optional ? `[${text}]` : text;
@@ -1029,7 +1039,7 @@ function buildSymbols(analyzer, nodes) {
     for (const node of list) {
       if (node.kind === 'function' || node.kind === 'command') {
         const params = node.leaves.map((leaf) => ({
-          name: leaf.flag || leaf.name,
+          name: leaf.kind === 'rest' ? `*${leaf.name}` : leaf.flag || leaf.name,
           detail: leaf.datatype.description,
           kind: leaf.kind,
           range: tokenRange(leaf.token),

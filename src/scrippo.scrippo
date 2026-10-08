@@ -11,16 +11,13 @@ scrippo(
   [-c | --compile]
   [-n | --noexec]
   [-v | --verbose]
+  [*rest]
 )
-  echo "path: $path"
-  echo "compile: $--compile"
-  echo "noexec: $--noexec"
-  echo "verbose: $--verbose"
   if $--noexec
     bash -n <(compile "$path")
   elif $--compile
     compile "$path"
   else
-    bash -c "$(compile "$path")"
+    bash -c "$(compile "$path")" "$path" "${rest[@]}"
 
 scrippo "$@"

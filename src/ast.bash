@@ -388,7 +388,7 @@ function ast_param_item {
     _ast_pos=$(( _ast_pos + 1 ))
   fi
   _ast_result=$(jq -c --argjson repeat "$repeat" '
-    if length == 1 and (.[0].kind == "arg" or .[0].kind == "opt")
+    if length == 1 and (.[0].kind == "arg" or .[0].kind == "opt" or .[0].kind == "rest")
     then .[0] + {optional: true, repeat: (.[0].repeat or $repeat)}
     else {kind: "group", optional: true, repeat: $repeat, params: .}
     end
@@ -397,15 +397,17 @@ function ast_param_item {
 
 function ast_param {
   local token=$1
-  local param_re='^(-{0,2})([a-zA-Z_][a-zA-Z0-9_-]*)(<([^>]*)>)?(\.\.\.)?$'
+  local param_re='^(\*|-{0,2})([a-zA-Z_][a-zA-Z0-9_-]*)(<([^>]*)>)?(\.\.\.)?$'
   local default_re='^([^=]*)=(.*)$'
   [[ $token =~ $param_re ]] || ast_error "invalid parameter '$token'"
-  local dashes=${BASH_REMATCH[1]} name=${BASH_REMATCH[2]} type=${BASH_REMATCH[4]} repeat=false
+  local prefix=${BASH_REMATCH[1]} name=${BASH_REMATCH[2]} type=${BASH_REMATCH[4]} repeat=false
   local kind=arg flag="" default_type=str default="" has_default=false
   [[ -n ${BASH_REMATCH[5]} ]] && repeat=true
-  if [[ -n $dashes ]]; then
+  if [[ $prefix == '*' ]]; then
+    kind=rest
+  elif [[ -n $prefix ]]; then
     kind=opt
-    flag=$dashes$name
+    flag=$prefix$name
     default_type=bool
   fi
   if [[ $type =~ $default_re ]]; then

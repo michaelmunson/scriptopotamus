@@ -30,6 +30,9 @@ test('function definitions with multi-line parameters', async () => {
   assert.match(await scopeOf(src, 'path'), /variable\.parameter/);
   assert.match(await scopeOf(src, '--select'), /variable\.parameter\.option/);
   assert.match(await scopeOf(src, '...'), /keyword\.operator\.repeat/);
+  const starred = ['f(', '  [*rest]', ')', '  echo'].join('\n');
+  assert.match(await scopeOf(starred, '*'), /keyword\.operator\.rest/);
+  assert.match(await scopeOf(starred, 'rest'), /variable\.parameter\.rest/);
   assert.match(await scopeOf(src, '|'), /keyword\.operator\.exclusive/);
   assert.match(await scopeOf(src, 'mike'), /string\.quoted\.double/);
   assert.match(await scopeOf(src, ' note'), /comment\.line/);

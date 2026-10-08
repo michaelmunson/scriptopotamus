@@ -87,6 +87,7 @@ const agreeing = {
   'type mismatch': ['n<int>="asd"'],
   'const reassignment': ['PI<const float>=3.14', 'PI=3'],
   'invalid parameter': ['f(9a)', '  echo'],
+  'star param not last': ['f(*rest a)', '  echo'],
   'missing bracket': ['f(a [b)', '  echo'],
   'brace after params': ['f(a) {', '  echo $a', '}'],
 };
