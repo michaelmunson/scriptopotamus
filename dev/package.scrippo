@@ -1,36 +1,36 @@
 #! /usr/bin/env scrippo
 
 .version(
-  [version<str {patch minor major}>]
+	[version<str {patch minor major}>]
 )
-  current_version<str>=$(jq -r '.version' <<< $(cat ./dev/vscode-ext/package.json))
-  version_parts<list int>=()
-  for part in ${current_version//./" "}
-    version_parts+=($part)
+	current_version<str>=$(jq -r '.version' <<< $(cat ./dev/vscode-ext/package.json))
+	version_parts<list int>=()
+	for part in ${current_version//./" "}
+		version_parts+=($part)
 
-  case $version
-    patch)
-      version_parts[2]=$($version_parts[2] + 1)
-    minor)
-      version_parts[1]=$($version_parts[1] + 1)
-      version_parts[2]=0
-    major)
-      version_parts[0]=$($version_parts[0] + 1)
-      version_parts[1]=0
-      version_parts[2]=0
-    *) @throw 1 "invalid version: $version"
+	case $version
+		patch)
+			version_parts[2]=$((version_parts[2] + 1))
+		minor)
+			version_parts[1]=$($version_parts[1] + 1)
+			version_parts[2]=0
+		major)
+			version_parts[0]=$($version_parts[0] + 1)
+			version_parts[1]=0
+			version_parts[2]=0
+		*) @throw 1 "invalid version: $version"
 
-  new_version<str>="$version_parts[0].$version_parts[1].$version_parts[2]"
+	new_version<str>="$version_parts[0].$version_parts[1].$version_parts[2]"
 
-  jq -r '.version = "'"$new_version"'"' <<< $(cat ./dev/vscode-ext/package.json) > ./dev/vscode-ext/package.json.tmp
+	jq -r '.version = "'"$new_version"'"' <<< $(cat ./dev/vscode-ext/package.json) > ./dev/vscode-ext/package.json.tmp
 
-  mv ./dev/vscode-ext/package.json.tmp ./dev/vscode-ext/package.json
+	mv ./dev/vscode-ext/package.json.tmp ./dev/vscode-ext/package.json
 
-  -> $(jq -r '.version' <<< $(cat ./dev/vscode-ext/package.json))
+	-> $(jq -r '.version' <<< $(cat ./dev/vscode-ext/package.json))
 
 .build()
-  cd ./dev/vscode-ext
-  for f in ./*.vsix
-    rm $f
-    -> "removed $f"
-  npm run build
+	cd ./dev/vscode-ext
+	for f in ./*.vsix
+		rm $f
+		-> "removed $f"
+	npm run build

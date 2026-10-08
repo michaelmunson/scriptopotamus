@@ -2,7 +2,7 @@
   "name": "scriptopotamus",
   "displayName": "Scriptopotamus",
   "description": "Syntax highlighting, linting, and compiler diagnostics for Scriptopotamus (.scrippo) scripts",
-  "version": "0.1.5",
+  "version": "0.1.10",
   "publisher": "michaelmunson",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -142,7 +142,13 @@
           {
             "scope": "entity.name.function.macro.scriptopotamus",
             "settings": {
-              "foreground": "#3A6FD8"
+              "foreground": "#52a6ff"
+            }
+          },
+          {
+            "scope": "entity.name.function.command.scriptopotamus",
+            "settings": {
+              "foreground": "#00ff37"
             }
           }
         ]
