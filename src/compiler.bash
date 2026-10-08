@@ -88,6 +88,8 @@ function compile {
   _compile_commands=()
   _compile_root=""
   _compile_import_dir=${SCRIPPO_IMPORT_DIR:-$(dirname "$path")}
+  macro_import_remember "$path"
+  [[ -z ${SCRIPPO_SOURCE:-} ]] || macro_import_remember "$SCRIPPO_SOURCE"
   compile_emit "#!/usr/bin/env bash"
   mapfile -t nodes < <(jq -c '.body[]' <<< "$tree")
   for node in "${nodes[@]}"; do

@@ -10,6 +10,7 @@ const PATTERNS = {
 };
 const PARAM_PUNCTUATION = new Set(['[', ']', '|']);
 const NAME = '[A-Za-z_][A-Za-z0-9_]*';
+const FUNCTION_NAME = '[A-Za-z_][A-Za-z0-9_-]*';
 
 const RE = {
   if: /^if\s+(.+)$/d,
@@ -21,7 +22,7 @@ const RE = {
   terminated: /^(.*[^;])?(;;&|;;|;&)$/,
   terminator: /^(;;&|;;|;&)$/,
   echo: /^->\s*(.*)$/d,
-  function: new RegExp(`^(?:\\.|\\.?${NAME})\\(`),
+  function: new RegExp(`^(?:\\.|\\.?${FUNCTION_NAME})\\(`),
   declaration: new RegExp(`^(${NAME})(<([^>]*)>)$`, 'd'),
   typedAssignment: new RegExp(`^(${NAME})(<([^>]*)>)\\s*=\\s*(.*)$`, 'd'),
   assignment: new RegExp(`^(${NAME})=(.*)$`, 'd'),
@@ -985,7 +986,7 @@ class Analyzer {
   }
 
   checkCalls(text, mask, rangeAt, allowStart) {
-    for (const m of mask.matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)) {
+    for (const m of mask.matchAll(new RegExp(FUNCTION_NAME, 'g'))) {
       const fn = this.callable.get(m[0]);
       if (!fn || !fn.leaves.length) continue;
       const before = mask[m.index - 1];

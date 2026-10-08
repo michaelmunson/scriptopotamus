@@ -1,8 +1,7 @@
 #!./scrippo
 
 .(
-  arg
-  --hello<str>
+  [--hello<str>]
   [*rest]
 )
   -> "root command"

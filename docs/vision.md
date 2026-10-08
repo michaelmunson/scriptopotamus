@@ -244,6 +244,7 @@ function my_func {
 
 # import: inline another file at compile time
 # paths are relative to the importing file and must be literals
+# a glob imports every matching file, in sorted order; directories are skipped
 # .scrippo files are compiled, any other file is inserted as-is
 @import(path)
 ```
@@ -273,7 +274,8 @@ done
 # ...contents of lib/utils.bash
 ```
 * `--select --multi` prints a numbered list and reads space or comma separated choices into a list
-* each file is only imported once, so repeated or circular imports are skipped
+* a glob such as `@import ./*` imports every matching file in sorted order; directories are skipped
+* each file is only imported once, so repeated, circular, and self imports are skipped
 * top-level commands in an imported `.scrippo` file are added to the script's commands, and defining the same command twice is a compile error
 
 ### Implementation

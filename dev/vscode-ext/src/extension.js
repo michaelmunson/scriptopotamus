@@ -13,7 +13,7 @@ const LINT_SOURCE = 'scriptopotamus';
 const COMPILER_SOURCE = 'scriptopotamus compiler';
 const LINT_DELAY = 200;
 const COMPILE_DELAY = 800;
-const WORD = /->|\$?--?[A-Za-z_][A-Za-z0-9_-]*|\$?[A-Za-z_][A-Za-z0-9_]*/;
+const WORD = /->|\$?--?[A-Za-z_][A-Za-z0-9_-]*|\$[A-Za-z_][A-Za-z0-9_]*|[A-Za-z_][A-Za-z0-9_-]*/;
 
 const SEVERITY = {
   error: vscode.DiagnosticSeverity.Error,
@@ -49,6 +49,10 @@ function isScrippo(doc) {
 
 function importDirOf(doc) {
   return doc.uri.scheme === 'file' ? path.dirname(doc.uri.fsPath) : undefined;
+}
+
+function sourceFileOf(doc) {
+  return doc.uri.scheme === 'file' ? doc.uri.fsPath : undefined;
 }
 
 function activate(context) {
@@ -202,7 +206,7 @@ function activate(context) {
     }
     const key = doc.uri.toString();
     const version = doc.version;
-    const job = compiler.compile({ ...setup, source: doc.getText(), importDir: importDirOf(doc) });
+    const job = compiler.compile({ ...setup, source: doc.getText(), importDir: importDirOf(doc), sourceFile: sourceFileOf(doc) });
     jobs.set(key, job);
     const result = await job.promise;
     if (jobs.get(key) === job) jobs.delete(key);
@@ -395,7 +399,7 @@ function activate(context) {
     const version = doc.version;
     const result = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: 'Compiling Scriptopotamus' },
-      () => compiler.compile({ ...setup, source: doc.getText(), importDir: importDirOf(doc) }).promise,
+      () => compiler.compile({ ...setup, source: doc.getText(), importDir: importDirOf(doc), sourceFile: sourceFileOf(doc) }).promise,
     );
     if (!doc.isClosed && doc.version === version) publishCompilerResult(doc, result);
     if (!result.ok) {

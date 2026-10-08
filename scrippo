@@ -81,7 +81,7 @@ function ast_statement {
   local case_re='^case[[:space:]]+(.+)$'
   local echo_re='^->[[:space:]]*(.*)$'
   local macro_re='^@([a-zA-Z_][a-zA-Z0-9_]*)([[:space:]]+(.*))?$'
-  local function_re='^(\.|\.?[a-zA-Z_][a-zA-Z0-9_]*)\('
+  local function_re='^(\.|\.?[a-zA-Z_][a-zA-Z0-9_-]*)\('
   local declaration_re='^([a-zA-Z_][a-zA-Z0-9_]*)<([^>]*)>$'
   local typed_assignment_re='^([a-zA-Z_][a-zA-Z0-9_]*)<([^>]*)>[[:space:]]*=[[:space:]]*(.*)$'
   local assignment_re='^([a-zA-Z_][a-zA-Z0-9_]*)=(.*)$'
@@ -258,7 +258,22 @@ function ast_echo {
 }
 
 function ast_macro {
-  ast_words "$2"
+  local text="" quote="" char i
+  for (( i=0; i<${#2}; i++ )); do
+    char=${2:i:1}
+    if [[ -n $quote ]]; then
+      text+=$char
+      [[ $char == "$quote" ]] && quote=""
+    elif [[ $char == [\"\'] ]]; then
+      text+=$char
+      quote=$char
+    elif [[ $char == '#' ]] && { (( i == 0 )) || [[ ${2:i-1:1} == [[:space:]] ]]; }; then
+      break
+    else
+      text+=$char
+    fi
+  done
+  ast_words "${text%"${text##*[![:space:]]}"}"
   _ast_result=$(jq -nc --arg name "$1" '{type: "macro", name: $name, args: $ARGS.positional}' --args -- "${_ast_words[@]}")
 }
 
@@ -703,16 +718,61 @@ function macro_input_multi {
   compile_emit "done"
 }
 
+function macro_import_remember {
+  local file
+  [[ -f $1 ]] || return 0
+  file=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
+  _compile_imported[$file]=1
+}
+
 function macro_import {
-  local node=$1 path file tree nodes child content previous=$_compile_import_dir
+  local node=$1 pattern
   if (( $# != 2 )); then
     compile_error "$node" "@import: expected a single <path>"
   fi
-  if ! compile_literal "$2"; then
+  if ! macro_import_literal "$2"; then
     compile_error "$node" "@import: <path> must be a literal, received $2"
   fi
-  path=$_compile_result
-  [[ $path == /* ]] || path=$_compile_import_dir/$path
+  pattern=$_compile_result
+  [[ $pattern == /* ]] || pattern=$_compile_import_dir/$pattern
+  if [[ $pattern == *[*?\[]* ]]; then
+    macro_import_glob "$node" "$pattern"
+  else
+    macro_import_file "$node" "$pattern"
+  fi
+}
+
+function macro_import_literal {
+  local raw=$1
+  local path_re='^[][A-Za-z0-9_./+*?-]+$'
+  if compile_literal "$raw"; then
+    return 0
+  fi
+  [[ $raw =~ $path_re ]] || return 1
+  _compile_result=$raw
+}
+
+function macro_import_glob {
+  local node=$1 pattern=$2 file
+  local -a files=()
+  while IFS= read -r -d '' file; do
+    [[ -f $file ]] && files+=("$file")
+  done < <(
+    IFS=
+    shopt -s nullglob globstar
+    shopt -u failglob
+    for file in $pattern; do
+      printf '%s\0' "$file"
+    done
+  )
+  (( ${#files[@]} )) || compile_error "$node" "@import: no matches: $pattern"
+  for file in "${files[@]}"; do
+    macro_import_file "$node" "$file"
+  done
+}
+
+function macro_import_file {
+  local node=$1 path=$2 file tree nodes child content previous=$_compile_import_dir
   if [[ ! -f $path ]]; then
     compile_error "$node" "@import: file not found: $path"
   fi
@@ -822,6 +882,8 @@ function compile {
   _compile_commands=()
   _compile_root=""
   _compile_import_dir=${SCRIPPO_IMPORT_DIR:-$(dirname "$path")}
+  macro_import_remember "$path"
+  [[ -z ${SCRIPPO_SOURCE:-} ]] || macro_import_remember "$SCRIPPO_SOURCE"
   compile_emit "#!/usr/bin/env bash"
   mapfile -t nodes < <(jq -c '.body[]' <<< "$tree")
   for node in "${nodes[@]}"; do

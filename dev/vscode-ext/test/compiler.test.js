@@ -66,6 +66,85 @@ test('commands from imports are dispatched and duplicates are compile errors', {
   assert.deepEqual(dup.errors.map((e) => [e.line, e.message]), [[1, "command 'deploy' already defined"]]);
 });
 
+test('@import globs expand to every matching file', { skip }, async () => {
+  const importDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scrippo-glob-'));
+  const compileIn = (source, extra = {}) =>
+    compiler.compile({ bash: 'bash', compilerPath: COMPILER, source, importDir, ...extra }).promise;
+  try {
+    fs.mkdirSync(path.join(importDir, 'sub'));
+    fs.writeFileSync(path.join(importDir, 'a.bash'), '#!/usr/bin/env bash\necho from-a\n');
+    fs.writeFileSync(path.join(importDir, 'c.scrippo'), '-> "from-c"\n');
+    fs.writeFileSync(path.join(importDir, 'my file.bash'), 'echo from-space\n');
+    fs.writeFileSync(path.join(importDir, 'sub', 'nested.bash'), 'echo nested\n');
+
+    const all = await compileIn('@import ./* # imports all files');
+    assert.equal(all.ok, true, all.stderr);
+    assert.equal(all.stdout.split('#!/usr/bin/env bash').length - 1, 1);
+    const fromA = all.stdout.indexOf('echo from-a');
+    const fromC = all.stdout.indexOf('echo "from-c"');
+    assert.ok(fromA >= 0 && fromC > fromA);
+    assert.match(all.stdout, /echo from-space/);
+    assert.doesNotMatch(all.stdout, /nested/);
+    assert.deepEqual(analyze('@import ./* # imports all files').diagnostics, []);
+
+    const scrippoOnly = await compileIn('@import "*.scrippo"');
+    assert.equal(scrippoOnly.ok, true, scrippoOnly.stderr);
+    assert.match(scrippoOnly.stdout, /echo "from-c"/);
+    assert.doesNotMatch(scrippoOnly.stdout, /from-a/);
+
+    const nested = await compileIn('@import ./sub/*.bash');
+    assert.equal(nested.ok, true, nested.stderr);
+    assert.match(nested.stdout, /echo nested/);
+
+    const deep = await compileIn('@import "./**/*.bash"');
+    assert.equal(deep.ok, true, deep.stderr);
+    assert.match(deep.stdout, /echo from-a/);
+    assert.match(deep.stdout, /echo nested/);
+    assert.match(deep.stdout, /echo from-space/);
+
+    const one = await compileIn('@import ./a.bash');
+    assert.equal(one.ok, true, one.stderr);
+    assert.match(one.stdout, /echo from-a/);
+    assert.doesNotMatch(one.stdout, /from-c/);
+
+    const twice = await compileIn('@import ./*.scrippo\n@import "c.scrippo"');
+    assert.equal(twice.ok, true, twice.stderr);
+    assert.equal(twice.stdout.split('echo "from-c"').length - 1, 1);
+
+    const main = path.join(importDir, 'main.scrippo');
+    fs.writeFileSync(main, '-> "before"\n@import ./*\n-> "after"\n');
+    const self = cp.spawnSync('bash', [COMPILER, main], { encoding: 'utf8' });
+    assert.equal(self.status, 0, self.stderr);
+    assert.equal(self.stdout.split('echo "before"').length - 1, 1);
+    assert.equal(self.stdout.split('echo "after"').length - 1, 1);
+    assert.equal(self.stdout.split('echo from-a').length - 1, 1);
+
+    const buffer = await compileIn('@import ./*\n-> "from-buffer"\n', { sourceFile: main });
+    assert.equal(buffer.ok, true, buffer.stderr);
+    assert.equal(buffer.stdout.split('echo "from-buffer"').length - 1, 1);
+    assert.doesNotMatch(buffer.stdout, /echo "before"/);
+    assert.match(buffer.stdout, /echo from-a/);
+
+    const missing = await compileIn('@import ./*.nope');
+    assert.deepEqual(missing.errors.map((e) => e.message), [`@import: no matches: ${importDir}/./*.nope`]);
+
+    const dynamic = await compileIn('@import $path');
+    assert.deepEqual(dynamic.errors.map((e) => e.message), ['@import: <path> must be a literal, received $path']);
+  } finally {
+    fs.rmSync(importDir, { recursive: true, force: true });
+  }
+});
+
+test('trailing comments on macros are not arguments', { skip }, async () => {
+  const dropped = await run(['@throw 1 "bad" # note']);
+  assert.equal(dropped.ok, true, dropped.stderr);
+  assert.match(dropped.stdout, /bad/);
+  assert.doesNotMatch(dropped.stdout, /note/);
+  const kept = await run(['@throw 1 "bad # note"']);
+  assert.equal(kept.ok, true, kept.stderr);
+  assert.match(kept.stdout, /bad # note/);
+});
+
 test('unknown macros are compile errors', { skip }, async () => {
   const result = await run(['f()', '  @nope 1']);
   assert.deepEqual(result.errors.map((e) => [e.line, e.message]), [[1, "unknown macro '@nope'"]]);

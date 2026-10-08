@@ -199,6 +199,12 @@ test('calls to user functions are checked for unknown options', () => {
   assert.deepEqual(codes(['g()', '  echo', 'g --anything']), []);
 });
 
+test('function and command names may contain dashes', () => {
+  const source = ['my-fn(--a)', '  echo $a', '.bump-version(v)', '  my-fn --a', '  my-fn --b'];
+  assert.deepEqual(codes(source), ['5:unknown-option']);
+  assert.deepEqual(analyze(source.join('\n')).functions.map((f) => f.name), ['my-fn', 'bump-version']);
+});
+
 test('commands nested in blocks are ignored by the compiler', () => {
   assert.deepEqual(codes(['if $x', '  .sub(a)', '    echo $a']), ['2:nested-command']);
   assert.deepEqual(codes(['.cmd(a)', '  .sub(b)', '    echo $b']), []);

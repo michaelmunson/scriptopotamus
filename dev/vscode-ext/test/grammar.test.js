@@ -42,6 +42,8 @@ test('function definitions with multi-line parameters', async () => {
 test('commands', async () => {
   const src = '.deploy(env)\n  -> "$env"';
   assert.match(await scopeOf(src, 'deploy'), /entity\.name\.function\.command/);
+  assert.match(await scopeOf('.bump-version(v)\n  -> 1', 'bump-version'), /entity\.name\.function\.command/);
+  assert.match(await scopeOf('my-fn(v)\n  -> 1', 'my-fn'), /entity\.name\.function\.scriptopotamus/);
   assert.match(await scopeOf(src, '->'), /keyword\.control\.echo/);
 });
 
@@ -60,10 +62,19 @@ test('control flow', async () => {
 });
 
 test('case', async () => {
-  const src = ['case $x in', '  a) -> 1', 'esac'].join('\n');
-  assert.match(await scopeOf(src, 'case'), /keyword\.control\.conditional/);
+  const src = ['case $x in', '  hello | "a b") -> 1 ;;', '  @(x|y)*)', '    -> 2', 'esac', 'other)'].join('\n');
+  assert.match(await scopeOf(src, 'case'), /keyword\.control\.case/);
   assert.match(await scopeOf(src, 'in'), /keyword\.control\.in/);
+  assert.match(await scopeOf(src, 'hello'), /meta\.case\.entry\.pattern.*string\.regexp\.unquoted/);
+  assert.match(await scopeOf(src, '|'), /keyword\.operator\.alternation/);
+  assert.match(await scopeOf(src, 'a b'), /meta\.case\.entry\.pattern.*string\.quoted\.double/);
+  assert.match(await scopeOf(src, ')'), /keyword\.operator\.pattern\.case/);
+  assert.match(await scopeOf(src, ';;'), /punctuation\.terminator\.statement\.case/);
+  assert.match(await scopeOf(src, 'x', 1), /string\.regexp\.unquoted/);
+  assert.match(await scopeOf(src, '*'), /keyword\.operator\.quantifier/);
+  assert.doesNotMatch(await scopeOf(src, '2'), /meta\.case\.entry\.pattern/);
   assert.match(await scopeOf(src, 'esac'), /invalid\.illegal/);
+  assert.doesNotMatch(await scopeOf(src, 'other)'), /meta\.case/);
 });
 
 test('variables, option references, and indexing', async () => {

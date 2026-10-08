@@ -33,7 +33,7 @@
     },
     "command-definition": {
       "name": "meta.function.command.scriptopotamus",
-      "begin": "^\\s*(\\.)([A-Za-z_][A-Za-z0-9_]*)?(\\()",
+      "begin": "^\\s*(\\.)([A-Za-z_][A-Za-z0-9_-]*)?(\\()",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.command.scriptopotamus" },
         "2": { "name": "entity.name.function.command.scriptopotamus" },
@@ -48,7 +48,7 @@
     },
     "function-definition": {
       "name": "meta.function.scriptopotamus",
-      "begin": "^\\s*([A-Za-z_][A-Za-z0-9_]*)(\\()",
+      "begin": "^\\s*([A-Za-z_][A-Za-z0-9_-]*)(\\()",
       "beginCaptures": {
         "1": { "name": "entity.name.function.scriptopotamus" },
         "2": { "name": "punctuation.definition.parameters.begin.scriptopotamus" }
@@ -207,17 +207,68 @@
       }
     },
     "case": {
-      "begin": "^\\s*(case)(?=\\s|$)",
+      "name": "meta.case.scriptopotamus",
+      "begin": "^([ \\t]*)(case)(?:[ \\t]+(.*?))?(?:[ \\t]+(in))?[ \\t]*$",
       "beginCaptures": {
-        "1": { "name": "keyword.control.conditional.scriptopotamus" }
+        "2": { "name": "keyword.control.case.scriptopotamus" },
+        "3": { "patterns": [{ "include": "#expression" }] },
+        "4": { "name": "keyword.control.in.scriptopotamus" }
       },
-      "end": "$",
+      "end": "^(?![ \\t]*$|\\1[ \\t]+\\S)",
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#case-arm" },
+        { "include": "$self" }
+      ]
+    },
+    "case-arm": {
+      "name": "meta.case.entry.scriptopotamus",
+      "begin": "^([ \\t]*)((?:\"[^\"]*\"|'[^']*'|\\([^()]*\\)|[^()\"'])+?)(\\))",
+      "beginCaptures": {
+        "2": {
+          "name": "meta.case.entry.pattern.scriptopotamus",
+          "patterns": [{ "include": "#case-pattern" }]
+        },
+        "3": { "name": "keyword.operator.pattern.case.scriptopotamus" }
+      },
+      "end": "^(?![ \\t]*$|\\1[ \\t]+\\S)",
       "patterns": [
         {
-          "match": "(?<=\\s)in(?=\\s*$)",
-          "name": "keyword.control.in.scriptopotamus"
+          "match": ";;&|;;|;&",
+          "name": "punctuation.terminator.statement.case.scriptopotamus"
         },
-        { "include": "#expression" }
+        { "include": "$self" }
+      ]
+    },
+    "case-pattern": {
+      "patterns": [
+        { "include": "#string-double" },
+        { "include": "#string-single" },
+        { "include": "#variable" },
+        {
+          "match": "\\\\.",
+          "name": "constant.character.escape.scriptopotamus"
+        },
+        {
+          "match": "[*?+@!]",
+          "name": "keyword.operator.quantifier.scriptopotamus"
+        },
+        {
+          "match": "\\|",
+          "name": "keyword.operator.alternation.scriptopotamus punctuation.separator.regex.alternation.scriptopotamus"
+        },
+        {
+          "match": "\\[(?:\\\\.|[^\\]])*\\]",
+          "name": "string.regexp.character-class.scriptopotamus"
+        },
+        {
+          "match": "[()]",
+          "name": "punctuation.definition.group.scriptopotamus punctuation.definition.regex.group.scriptopotamus"
+        },
+        {
+          "match": "[^\\s()\\[*?+@!|\"'$\\\\]+",
+          "name": "string.unquoted.pattern.scriptopotamus string.regexp.unquoted.scriptopotamus"
+        }
       ]
     },
     "else": {

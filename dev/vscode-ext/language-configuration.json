@@ -34,7 +34,7 @@
   },
   "wordPattern": "(-?\\d*\\.\\d\\w*)|([A-Za-z_][\\w-]*)",
   "indentationRules": {
-    "increaseIndentPattern": "^\\s*(?:(?:if|elif|while|case)\\s+\\S.*|else|for\\s+\\w+\\s+in\\s+\\S.*|(?:\\.|\\.?[A-Za-z_]\\w*)\\(.*\\)|[^\\s()#][^()]*\\)|\\))\\s*$",
+    "increaseIndentPattern": "^\\s*(?:(?:if|elif|while|case)\\s+\\S.*|else|for\\s+\\w+\\s+in\\s+\\S.*|(?:\\.|\\.?[A-Za-z_][\\w-]*)\\(.*\\)|[^\\s()#][^()]*\\)|\\))\\s*$",
     "decreaseIndentPattern": "^\\s*(?:elif\\b|else\\b|\\))"
   }
 }

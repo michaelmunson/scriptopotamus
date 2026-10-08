@@ -81,7 +81,7 @@ function ast_statement {
   local case_re='^case[[:space:]]+(.+)$'
   local echo_re='^->[[:space:]]*(.*)$'
   local macro_re='^@([a-zA-Z_][a-zA-Z0-9_]*)([[:space:]]+(.*))?$'
-  local function_re='^(\.|\.?[a-zA-Z_][a-zA-Z0-9_]*)\('
+  local function_re='^(\.|\.?[a-zA-Z_][a-zA-Z0-9_-]*)\('
   local declaration_re='^([a-zA-Z_][a-zA-Z0-9_]*)<([^>]*)>$'
   local typed_assignment_re='^([a-zA-Z_][a-zA-Z0-9_]*)<([^>]*)>[[:space:]]*=[[:space:]]*(.*)$'
   local assignment_re='^([a-zA-Z_][a-zA-Z0-9_]*)=(.*)$'
@@ -258,7 +258,22 @@ function ast_echo {
 }
 
 function ast_macro {
-  ast_words "$2"
+  local text="" quote="" char i
+  for (( i=0; i<${#2}; i++ )); do
+    char=${2:i:1}
+    if [[ -n $quote ]]; then
+      text+=$char
+      [[ $char == "$quote" ]] && quote=""
+    elif [[ $char == [\"\'] ]]; then
+      text+=$char
+      quote=$char
+    elif [[ $char == '#' ]] && { (( i == 0 )) || [[ ${2:i-1:1} == [[:space:]] ]]; }; then
+      break
+    else
+      text+=$char
+    fi
+  done
+  ast_words "${text%"${text##*[![:space:]]}"}"
   _ast_result=$(jq -nc --arg name "$1" '{type: "macro", name: $name, args: $ARGS.positional}' --args -- "${_ast_words[@]}")
 }
 

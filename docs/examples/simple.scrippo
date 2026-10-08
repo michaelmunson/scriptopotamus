@@ -11,10 +11,6 @@ circumference(
   else
     @throw 1 "no diameter or radius provided"
 
--> "Circumference (diameter=2): $(circumference --diameter 2)"
--> "Circumference (radius=2): $(circumference --radius 2)"
-
 case $1
-  hello) -> "Hello!"
-  goodbye) -> "Goodbye!"
+  circumference) -> $(circumference --diameter 10)
 
