@@ -1,0 +1,2 @@
+.build(--flag<str>)
+	-> "building project"

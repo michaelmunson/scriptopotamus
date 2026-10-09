@@ -6,12 +6,12 @@ const BUILTINS = {
     description: 'Exits with `code`, printing `msg` as a red error message.',
   },
   prt: {
-    signature: 'prt(\n  msg...\n  [-s|--style <str>...]...\n  [-n]\n)',
-    description: 'Echo with style.',
+    signature: 'prt(\n  msg...\n  [-s|--style <str>...]...\n  [-j|--join <str>]\n  [-n]\n)',
+    description: 'Echo with style. Each `-s` styles only the msg that follows it; msgs are joined by a space, or by `-j`.',
   },
   input: {
-    signature: 'input(\n  prompt\n  -v<str>\n  [\n    --select\n    --options<str>...\n    [--multi]\n  ] | [\n    --confirm\n  ]\n)',
-    description: 'Wrapper around `read`: prompts for text, a selection from options, or a confirmation, storing the answer in `-v`.',
+    signature: 'input(\n  prompt\n  -v<str>\n  [\n    --select<str>...\n    [--multi]\n  ] | [\n    --confirm\n  ]\n)',
+    description: 'Interactive, styled prompt for text, an arrow-key selection from options (checkboxes with `--multi`), or a y/n confirmation, storing the answer in `-v`.',
   },
   len: {
     signature: 'len(name)',

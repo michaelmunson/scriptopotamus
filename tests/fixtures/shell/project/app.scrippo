@@ -1,0 +1,4 @@
+.run()
+	.dev()
+		-> "running app in development mode"
+	-> "running app"

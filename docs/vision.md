@@ -223,9 +223,12 @@ function my_func {
 
 # prt: echo with style
 # styles: bold dim italic underline black red green yellow blue magenta cyan white
+# a style applies only to the msg that follows it
+# msgs are joined by a space unless -j is given
 @prt(
     msg...
     [-s|--style <str>...]...
+    [-j|--join <str>]
     [-n]
 )
 
@@ -234,8 +237,7 @@ function my_func {
   prompt
   -v<str>
   [
-      --select
-      --options<str>...
+      --select<str>...
       [--multi]
   ] | [ # | delineates mutual exclusivity
       --confirm
@@ -253,27 +255,27 @@ function my_func {
 @prt -s red bold "hello" -n
 @input "Enter a message" -v msg
 @input "Are you sure?" -v sure --confirm
-@input "Pick one" -v choice --select --options "a" "b"
+@input "Pick one" -v choice --select "a" "b"
 @import "lib/utils.bash"
 
 # COMPILES TO
 echo $'\e[31m'"bad input"$'\e[0m' >&2
 exit 1
 echo -n $'\e[31;1m'"hello"$'\e[0m'
-read -rp "Enter a message"' ' msg
-read -rp "Are you sure?"' [y/N] ' _scrippo_reply
-if [[ $_scrippo_reply == [yY]* ]]; then
-  sure=true
-else
-  sure=false
-fi
-PS3="Pick one"' '
-select choice in "a" "b"; do
-  [[ -n $choice ]] && break
-done
+_scrippo_input "Enter a message"
+msg=$_scrippo_reply
+_scrippo_confirm "Are you sure?"
+sure=$_scrippo_reply
+_scrippo_select "Pick one" false "a" "b"
+choice=$_scrippo_reply
 # ...contents of lib/utils.bash
 ```
-* `--select --multi` prints a numbered list and reads space or comma separated choices into a list
+* `@input` emits its runtime helpers (`_scrippo_input`, `_scrippo_confirm`, `_scrippo_select`) once, at the top of the compiled script
+* prompts are styled and drawn on stderr; once answered, the prompt collapses to a single `✔ prompt · answer` line
+* `--confirm` answers on a single `y`/`n` keypress, and enter means no
+* `--select` is an arrow-key menu (`↑↓` or `j`/`k`, enter to pick)
+* `--select --multi` is a checkbox menu: space toggles, `a` toggles all, enter confirms, and the picks are stored as a list
+* when stdin or stderr is not a terminal, `--select` falls back to a numbered list and reads space or comma separated numbers, `--confirm` reads a line starting with `y`, and text input is a plain `read`
 * a glob such as `@import ./*` imports every matching file in sorted order; directories are skipped
 * each file is only imported once, so repeated, circular, and self imports are skipped
 * top-level commands in an imported `.scrippo` file are added to the script's commands, and defining the same command twice is a compile error

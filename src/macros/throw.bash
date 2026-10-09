@@ -9,7 +9,7 @@ function macro_throw {
   if [[ ! $code =~ $code_re ]]; then
     compile_error "$node" "@throw: <code> expected int, received $code"
   fi
-  macro_prt_echo "" "${_macro_prt_codes[red]}" "${@:3}"
-  compile_emit "$_compile_result >&2"
+  macro_prt_style "${_macro_prt_codes[red]}" "${*:3}"
+  compile_emit "echo $_compile_result >&2"
   compile_emit "exit $code"
 }

@@ -544,8 +544,8 @@ function macro_throw {
   if [[ ! $code =~ $code_re ]]; then
     compile_error "$node" "@throw: <code> expected int, received $code"
   fi
-  macro_prt_echo "" "${_macro_prt_codes[red]}" "${@:3}"
-  compile_emit "$_compile_result >&2"
+  macro_prt_style "${_macro_prt_codes[red]}" "${*:3}"
+  compile_emit "echo $_compile_result >&2"
   compile_emit "exit $code"
 }
 
@@ -565,7 +565,7 @@ declare -gA _macro_prt_codes=(
 )
 
 function macro_prt {
-  local node=$1 flags="" style codes=() msg=()
+  local node=$1 flags="" join=" " text="" style="" piece codes=() pieces=()
   shift
   while (( $# > 0 )); do
     case $1 in
@@ -573,26 +573,40 @@ function macro_prt {
         if ! macro_prt_code "$2"; then
           compile_error "$node" "@prt: unknown style '$2'"
         fi
-        codes+=("$_compile_result")
+        codes=("$_compile_result")
         shift 2
         while (( $# > 0 )) && macro_prt_code "$1"; do
           codes+=("$_compile_result")
           shift
         done
+        printf -v style '%s;' "${codes[@]}"
+        ;;
+      -j|--join)
+        if (( $# < 2 )); then
+          compile_error "$node" "@prt: $1 requires a value"
+        fi
+        join=$2
+        shift 2
         ;;
       -n)
         flags=" -n"
         shift
         ;;
       *)
-        msg+=("$1")
+        macro_prt_style "${style%;}" "$1"
+        pieces+=("$_compile_result")
+        style=""
         shift
         ;;
     esac
   done
-  printf -v style '%s;' "${codes[@]}"
-  macro_prt_echo "$flags" "${style%;}" "${msg[@]}"
-  compile_emit "$_compile_result"
+  if [[ -n $style ]]; then
+    compile_error "$node" "@prt: -s expected a message after the style"
+  fi
+  for piece in "${pieces[@]}"; do
+    text+=${text:+$join}$piece
+  done
+  compile_emit "echo$flags${text:+ $text}"
 }
 
 function macro_prt_code {
@@ -602,14 +616,12 @@ function macro_prt_code {
   [[ -n $_compile_result ]]
 }
 
-function macro_prt_echo {
-  local flags=$1 codes=$2 text
-  shift 2
-  text="$*"
+function macro_prt_style {
+  local codes=$1 text=$2
   if [[ -n $codes ]]; then
     text="\$'\\e[${codes}m'$text\$'\\e[0m'"
   fi
-  _compile_result="echo$flags $text"
+  _compile_result=$text
 }
 
 function macro_input {
@@ -629,6 +641,10 @@ function macro_input {
       -s|--select)
         select=true
         shift
+        while (( $# > 0 )) && [[ $1 != -?* ]]; do
+          options+=("$1")
+          shift
+        done
         ;;
       --multi)
         multi=true
@@ -637,13 +653,6 @@ function macro_input {
       --confirm)
         confirm=true
         shift
-        ;;
-      --options)
-        shift
-        while (( $# > 0 )) && [[ $1 != -?* ]]; do
-          options+=("$1")
-          shift
-        done
         ;;
       -?*)
         compile_error "$node" "@input: unknown option '$1'"
@@ -666,56 +675,190 @@ function macro_input {
     compile_error "$node" "@input: -v expected a variable name, received '$var'"
   elif [[ $select == true && $confirm == true ]]; then
     compile_error "$node" "@input: --select and --confirm are mutually exclusive"
-  elif [[ $select == false && ( $multi == true || ${#options[@]} -gt 0 ) ]]; then
-    compile_error "$node" "@input: --options and --multi require --select"
+  elif [[ $select == false && $multi == true ]]; then
+    compile_error "$node" "@input: --multi requires --select"
   elif [[ $select == true ]] && (( ${#options[@]} == 0 )); then
-    compile_error "$node" "@input: --select requires --options"
+    compile_error "$node" "@input: --select requires at least one option"
   fi
 
+  macro_input_runtime_answered
   if [[ $confirm == true ]]; then
-    macro_input_confirm "$prompt" "$var"
-  elif [[ $multi == true ]]; then
-    macro_input_multi "$prompt" "$var" "${options[@]}"
+    macro_input_runtime_key
+    macro_input_runtime_confirm
+    compile_emit "_scrippo_confirm $prompt"
+    compile_emit "$var=\$_scrippo_reply"
   elif [[ $select == true ]]; then
-    macro_input_select "$prompt" "$var" "${options[@]}"
+    macro_input_runtime_key
+    macro_input_runtime_select
+    compile_emit "_scrippo_select $prompt $multi ${options[*]}"
+    if [[ $multi == true ]]; then
+      compile_emit "$var=(\"\${_scrippo_picks[@]}\")"
+    else
+      compile_emit "$var=\$_scrippo_reply"
+    fi
   else
-    compile_emit "read -rp $prompt' ' $var"
+    macro_input_runtime_text
+    compile_emit "_scrippo_input $prompt"
+    compile_emit "$var=\$_scrippo_reply"
   fi
 }
 
-function macro_input_confirm {
-  local prompt=$1 var=$2
-  compile_emit "read -rp $prompt' [y/N] ' _scrippo_reply"
-  compile_emit "if [[ \$_scrippo_reply == [yY]* ]]; then"
-  compile_emit "  $var=true"
-  compile_emit "else"
-  compile_emit "  $var=false"
-  compile_emit "fi"
+function macro_input_runtime_answered {
+  compile_helper _scrippo_answered <<'EOF'
+function _scrippo_answered {
+  printf '\r\e[2K\e[32m✔\e[0m \e[1m%s\e[0m \e[2m·\e[0m \e[36m%s\e[0m\n' "$1" "$2" >&2
+}
+EOF
 }
 
-function macro_input_select {
-  local prompt=$1 var=$2
-  shift 2
-  compile_emit "PS3=$prompt' '"
-  compile_emit "select $var in $*; do"
-  compile_emit "  [[ -n \$$var ]] && break"
-  compile_emit "done"
+function macro_input_runtime_key {
+  compile_helper _scrippo_key <<'EOF'
+function _scrippo_key {
+  local key rest
+  IFS= read -rsn1 key
+  if [[ $key == $'\e' ]]; then
+    IFS= read -rsn2 -t 0.01 rest
+    key+=$rest
+  fi
+  case $key in
+    $'\e[A'|$'\eOA'|k) _scrippo_pressed=up ;;
+    $'\e[B'|$'\eOB'|j) _scrippo_pressed=down ;;
+    " ") _scrippo_pressed=space ;;
+    "") _scrippo_pressed=enter ;;
+    *) _scrippo_pressed=$key ;;
+  esac
+}
+EOF
 }
 
-function macro_input_multi {
-  local prompt=$1 var=$2
-  shift 2
-  compile_emit "_scrippo_options=($*)"
-  compile_emit "for _scrippo_i in \"\${!_scrippo_options[@]}\"; do"
-  compile_emit "  echo \"\$(( _scrippo_i + 1 ))) \${_scrippo_options[_scrippo_i]}\" >&2"
-  compile_emit "done"
-  compile_emit "IFS=', ' read -rp $prompt' ' -a _scrippo_picks"
-  compile_emit "$var=()"
-  compile_emit "for _scrippo_i in \"\${_scrippo_picks[@]}\"; do"
-  compile_emit "  if [[ \$_scrippo_i =~ ^[0-9]+\$ ]] && (( _scrippo_i >= 1 && _scrippo_i <= \${#_scrippo_options[@]} )); then"
-  compile_emit "    $var+=(\"\${_scrippo_options[_scrippo_i - 1]}\")"
-  compile_emit "  fi"
-  compile_emit "done"
+function macro_input_runtime_text {
+  compile_helper _scrippo_input <<'EOF'
+function _scrippo_input {
+  read -rep $'\001\e[36m\002?\001\e[0;1m\002 '"$1"$'\001\e[0;2m\002 ›\001\e[0m\002 ' _scrippo_reply
+  if [[ -t 0 && -t 2 ]]; then
+    printf '\e[1A' >&2
+    _scrippo_answered "$1" "$_scrippo_reply"
+  fi
+}
+EOF
+}
+
+function macro_input_runtime_confirm {
+  compile_helper _scrippo_confirm <<'EOF'
+function _scrippo_confirm {
+  local answer
+  _scrippo_reply=false
+  if [[ ! -t 0 || ! -t 2 ]]; then
+    read -r answer
+    [[ $answer == [yY]* ]] && _scrippo_reply=true
+    return 0
+  fi
+  printf '\e[36m?\e[0m \e[1m%s\e[0m \e[2m(y/N)\e[0m ' "$1" >&2
+  while true; do
+    _scrippo_key
+    case $_scrippo_pressed in
+      y|Y) _scrippo_reply=true; break ;;
+      n|N|enter) break ;;
+    esac
+  done
+  answer=No
+  [[ $_scrippo_reply == true ]] && answer=Yes
+  _scrippo_answered "$1" "$answer"
+}
+EOF
+}
+
+function macro_input_runtime_select {
+  compile_helper _scrippo_select <<'EOF'
+function _scrippo_select {
+  local prompt=$1 multi=$2 cursor=0 hint="↑↓ move · enter select" saved_trap line i
+  local -a options=("${@:3}") picked=()
+  local count=${#options[@]}
+  _scrippo_reply=""
+  _scrippo_picks=()
+  if [[ ! -t 0 || ! -t 2 ]]; then
+    _scrippo_select_plain "$@"
+    return
+  fi
+  if [[ $multi == true ]]; then
+    hint="↑↓ move · space toggle · a all · enter confirm"
+  fi
+  saved_trap=$(trap -p INT)
+  trap 'printf "\e[?25h\n" >&2; exit 130' INT
+  printf '\e[?25l\e[36m?\e[0m \e[1m%s\e[0m \e[2m%s\e[0m\n' "$prompt" "$hint" >&2
+  while true; do
+    for i in "${!options[@]}"; do
+      line="  "
+      if (( i == cursor )); then
+        line=$'\e[36m❯\e[0m '
+      fi
+      if [[ $multi == true && -n ${picked[i]} ]]; then
+        line+=$'\e[32m◉\e[0m '
+      elif [[ $multi == true ]]; then
+        line+=$'\e[2m◯\e[0m '
+      fi
+      if (( i == cursor )); then
+        line+=$'\e[36m'"${options[i]}"$'\e[0m'
+      else
+        line+=${options[i]}
+      fi
+      printf '\r\e[2K%s\n' "$line" >&2
+    done
+    _scrippo_key
+    case $_scrippo_pressed in
+      up) cursor=$(( (cursor + count - 1) % count )) ;;
+      down) cursor=$(( (cursor + 1) % count )) ;;
+      space)
+        if [[ -n ${picked[cursor]} ]]; then
+          unset 'picked[cursor]'
+        else
+          picked[cursor]=1
+        fi
+        ;;
+      a)
+        if (( ${#picked[@]} == count )); then
+          picked=()
+        else
+          for i in "${!options[@]}"; do
+            picked[i]=1
+          done
+        fi
+        ;;
+      enter) break ;;
+    esac
+    printf '\e[%dA' "$count" >&2
+  done
+  printf '\e[%dA\r\e[J\e[?25h' "$(( count + 1 ))" >&2
+  trap - INT
+  eval "$saved_trap"
+  if [[ $multi != true ]]; then
+    _scrippo_reply=${options[cursor]}
+    _scrippo_answered "$prompt" "$_scrippo_reply"
+    return 0
+  fi
+  for i in "${!options[@]}"; do
+    [[ -n ${picked[i]} ]] && _scrippo_picks+=("${options[i]}")
+  done
+  printf -v line '%s, ' "${_scrippo_picks[@]}"
+  _scrippo_answered "$prompt" "${line%, }"
+}
+
+function _scrippo_select_plain {
+  local prompt=$1 pick i
+  local -a options=("${@:3}") picks=()
+  for i in "${!options[@]}"; do
+    printf '%d) %s\n' "$(( i + 1 ))" "${options[i]}" >&2
+  done
+  printf '%s\n' "$prompt" >&2
+  IFS=', ' read -ra picks
+  for pick in "${picks[@]}"; do
+    if [[ $pick =~ ^[0-9]+$ ]] && (( pick >= 1 && pick <= ${#options[@]} )); then
+      _scrippo_picks+=("${options[pick - 1]}")
+    fi
+  done
+  _scrippo_reply=${_scrippo_picks[0]}
+}
+EOF
 }
 
 function macro_import_remember {
@@ -797,6 +940,8 @@ function macro_import_file {
 declare -gA _compile_types=()
 declare -gA _compile_imported=()
 declare -ga _compile_commands=()
+declare -gA _compile_helpers=()
+declare -ga _compile_prelude=()
 declare -g _compile_root=""
 declare -gA _compile_patterns=(
   [int]='^-?[0-9]+$'
@@ -880,6 +1025,8 @@ function compile {
   _compile_types=()
   _compile_imported=()
   _compile_commands=()
+  _compile_helpers=()
+  _compile_prelude=()
   _compile_root=""
   _compile_import_dir=${SCRIPPO_IMPORT_DIR:-$(dirname "$path")}
   macro_import_remember "$path"
@@ -890,7 +1037,7 @@ function compile {
     compile_node "$node"
   done
   compile_dispatch
-  printf '%s\n' "${_compile_output[@]}"
+  printf '%s\n' "${_compile_output[0]}" "${_compile_prelude[@]}" "${_compile_output[@]:1}"
 }
 
 function compile_error {
@@ -908,6 +1055,16 @@ function compile_emit {
   while IFS= read -r line; do
     _compile_output+=("$pad$line")
   done <<< "$1"
+}
+
+function compile_helper {
+  local name=$1 line
+  [[ -z ${_compile_helpers[$name]} ]] || return 0
+  _compile_helpers[$name]=1
+  while IFS= read -r line; do
+    _compile_prelude+=("$line")
+  done
+  _compile_prelude+=("")
 }
 
 function compile_indent {
@@ -1502,7 +1659,282 @@ if [[ ${0##*/} == compiler.bash ]]; then
   done
   compile "$@"
 fi
-function scrippo {
+
+_shell_name_re='^[a-zA-Z_][a-zA-Z0-9_.-]*$'
+
+function shell_config_read {
+  local file=$HOME/.scriptopotamus/config.json
+  if [[ -f $file ]]; then
+    jq -c '{autoload: 0, autocomplete: 0} + .' "$file"
+  else
+    echo '{"autoload":0,"autocomplete":0}'
+  fi
+}
+
+function shell_configure {
+  local autoload=$1 autocomplete=$2 dir=$HOME/.scriptopotamus config
+  config=$(shell_config_read) || return 1
+  if [[ -n $autoload ]]; then
+    config=$(jq -c --argjson value "$autoload" '.autoload = $value' <<< "$config")
+  fi
+  if [[ -n $autocomplete ]]; then
+    config=$(jq -c --argjson value "$autocomplete" '.autocomplete = $value' <<< "$config")
+  fi
+  mkdir -p "$dir"
+  jq . <<< "$config" > "$dir/config.json"
+  cat "$dir/config.json"
+  echo "restart your shell or run: source <(scrippo __source)" >&2
+}
+
+function shell_enabled {
+  [[ $(shell_config_read | jq -r ".$1") == 1 ]]
+}
+
+function shell_scope_dirs {
+  local start=${1:-$PWD} current
+  start=$(cd "$start" && pwd) || return 1
+  current=$start
+  _shell_dirs=()
+  while true; do
+    _shell_dirs+=("$current")
+    [[ -e $current/.git ]] && return 0
+    [[ $current == / || $current == "$HOME" ]] && break
+    current=$(dirname "$current")
+  done
+  _shell_dirs=("$start")
+}
+
+function shell_tree {
+  local -A visited=()
+  shell_tree_collect "$1" | jq -sc 'add // []'
+}
+
+function shell_tree_collect {
+  local file tree pattern match
+  [[ -f $1 ]] || return 0
+  file=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
+  [[ -z ${visited[$file]} ]] || return 0
+  visited[$file]=1
+  tree=$(ast "$file" 2>/dev/null) || return 0
+  jq -c '[.body[] | select(.type == "command")]' <<< "$tree"
+  while IFS= read -r pattern; do
+    pattern=${pattern#[\"\']}
+    pattern=${pattern%[\"\']}
+    [[ $pattern == /* ]] || pattern=$(dirname "$file")/$pattern
+    while IFS= read -r -d '' match; do
+      [[ $match == *.scrippo ]] && shell_tree_collect "$match"
+    done < <(
+      IFS=
+      shopt -s nullglob globstar
+      for match in $pattern; do
+        printf '%s\0' "$match"
+      done
+    )
+  done < <(jq -r '.body[] | select(.type == "macro" and .name == "import") | .args[0] // empty' <<< "$tree")
+}
+
+function shell_alias_add {
+  [[ $1 =~ $_shell_name_re && -z ${seen[$1]} ]] || return 0
+  seen[$1]=1
+  printf '%s\t%s\t%s\n' "$1" "$2" "$3"
+}
+
+function shell_aliases {
+  local dir file name
+  local -A seen=()
+  shell_scope_dirs "$1" || return 1
+  for dir in "${_shell_dirs[@]}"; do
+    for file in "$dir"/*.scrippo; do
+      [[ -f $file ]] || continue
+      name=${file##*/}
+      shell_alias_add "${name%.scrippo}" "$file" ""
+    done
+    file=$dir/.scrippo
+    [[ -f $file ]] || continue
+    while IFS= read -r name; do
+      shell_alias_add "$name" "$file" "$name"
+    done < <(shell_tree "$file" | jq -r '.[] | select(.name != "") | .name')
+  done
+}
+
+function shell_complete {
+  local file=$1 current="" node next word candidate descend=true
+  local -a words=() candidates=()
+  if (( $# >= 2 )); then
+    current=${!#}
+    words=("${@:2:$# - 2}")
+  fi
+
+  if [[ ! -f $file ]]; then
+    candidates=(configure)
+    for candidate in *.scrippo .scrippo; do
+      [[ -f $candidate ]] && candidates+=("$candidate")
+    done
+  else
+    node=$(shell_tree "$file" | jq -c '{body: ., params: [.[] | select(.name == "") | .params[]]}')
+    for word in "${words[@]}"; do
+      [[ $word == -* ]] && continue
+      next=$(jq -c --arg name "$word" 'first(.body[] | select(.type == "command" and .name == $name and $name != "")) // empty' <<< "$node")
+      if [[ -z $next ]]; then
+        descend=false
+        break
+      fi
+      node=$next
+    done
+    if [[ $current == -* ]]; then
+      mapfile -t candidates < <(jq -r "$_compile_param_jq"'.params | leaves | select(.kind == "opt") | .flag, (.aliases // [])[]' <<< "$node")
+    elif [[ $descend == true ]]; then
+      mapfile -t candidates < <(jq -r '.body[] | select(.type == "command" and .name != "") | .name' <<< "$node")
+    fi
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    [[ $candidate == "$current"* ]] && printf '%s\n' "$candidate"
+  done
+}
+
+function shell_source {
+  echo "_scrippo_alias_pwd="
+  if shell_enabled autocomplete; then
+    shell_snippet_autocomplete
+  fi
+  if shell_enabled autoload; then
+    shell_snippet_autoload
+  fi
+}
+
+function shell_snippet_autocomplete {
+  cat <<'EOF'
+_scrippo_autocomplete=1
+
+_scrippo_lookup() {
+  local entry name file command
+  _scrippo_file=
+  _scrippo_command=
+  for entry in "${_scrippo_aliases[@]}"; do
+    IFS=$'\t' read -r name file command <<< "$entry"
+    if [ "$name" = "$1" ]; then
+      _scrippo_file=$file
+      _scrippo_command=$command
+      return 0
+    fi
+  done
+  return 1
+}
+
+_scrippo_candidates() {
+  local line
+  _scrippo_found=()
+  while IFS= read -r line; do
+    [ -n "$line" ] && _scrippo_found+=("$line")
+  done < <(scrippo __complete -- "$@" 2>/dev/null)
+}
+
+_scrippo_complete_bash() {
+  local cur=${COMP_WORDS[COMP_CWORD]} file i=2
+  local -a args
+  if [ "$1" = scrippo ]; then
+    file=
+    [ "$COMP_CWORD" -gt 1 ] && file=${COMP_WORDS[1]}
+  else
+    _scrippo_lookup "$1" || return 0
+    file=$_scrippo_file
+    [ -n "$_scrippo_command" ] && args+=("$_scrippo_command")
+    i=1
+  fi
+  while [ "$i" -lt "$COMP_CWORD" ]; do
+    args+=("${COMP_WORDS[i]}")
+    i=$((i + 1))
+  done
+  _scrippo_candidates "$file" "${args[@]}" "$cur"
+  COMPREPLY=("${_scrippo_found[@]}")
+}
+
+_scrippo_complete_zsh() {
+  local file i=3
+  local -a args
+  if [ "${words[1]}" = scrippo ]; then
+    file=
+    [ "$CURRENT" -gt 2 ] && file=${(Q)words[2]}
+  else
+    _scrippo_lookup "${words[1]}" || return 1
+    file=$_scrippo_file
+    [ -n "$_scrippo_command" ] && args+=("$_scrippo_command")
+    i=2
+  fi
+  while [ "$i" -lt "$CURRENT" ]; do
+    args+=("${words[$i]}")
+    i=$((i + 1))
+  done
+  _scrippo_candidates "$file" "${args[@]}" "${words[$CURRENT]}"
+  if [ "${#_scrippo_found[@]}" -gt 0 ]; then
+    compadd -- "${_scrippo_found[@]}"
+  elif [ "$CURRENT" -eq 2 ]; then
+    _files
+  fi
+}
+
+_scrippo_complete_register() {
+  if [ -n "$ZSH_VERSION" ]; then
+    whence compdef >/dev/null 2>&1 && compdef _scrippo_complete_zsh "$1"
+  else
+    complete -o default -F _scrippo_complete_bash "$1"
+  fi
+}
+
+_scrippo_complete_register scrippo
+EOF
+}
+
+function shell_snippet_autoload {
+  cat <<'EOF'
+_scrippo_taken() {
+  if [ -n "$ZSH_VERSION" ]; then
+    case $(whence -w "$1") in
+      *": alias"|*": function") return 0 ;;
+    esac
+  else
+    case $(type -t "$1") in
+      alias|function) return 0 ;;
+    esac
+  fi
+  return 1
+}
+
+_scrippo_refresh() {
+  local entry name file command
+  [ "$PWD" = "$_scrippo_alias_pwd" ] && return 0
+  _scrippo_alias_pwd=$PWD
+  for entry in "${_scrippo_aliases[@]}"; do
+    IFS=$'\t' read -r name file command <<< "$entry"
+    unalias "$name" 2>/dev/null
+    [ -z "$ZSH_VERSION" ] && complete -r "$name" 2>/dev/null
+  done
+  _scrippo_aliases=()
+  while IFS=$'\t' read -r name file command; do
+    [ -n "$name" ] || continue
+    _scrippo_taken "$name" && continue
+    alias "$name=scrippo $(printf '%q' "$file")${command:+ $command}"
+    _scrippo_aliases+=("$name"$'\t'"$file"$'\t'"$command")
+    [ -n "$_scrippo_autocomplete" ] && _scrippo_complete_register "$name"
+  done < <(scrippo __aliases "$PWD" 2>/dev/null)
+  return 0
+}
+
+if [ -n "$ZSH_VERSION" ]; then
+  autoload -Uz add-zsh-hook
+  add-zsh-hook chpwd _scrippo_refresh
+else
+  case ";$PROMPT_COMMAND;" in
+    *";_scrippo_refresh;"*) ;;
+    *) PROMPT_COMMAND="_scrippo_refresh${PROMPT_COMMAND:+;$PROMPT_COMMAND}" ;;
+  esac
+fi
+
+_scrippo_refresh
+EOF
+}
+function _scrippo_root {
   local compile=false
   local noexec=false
   local verbose=false
@@ -1575,4 +2007,152 @@ function scrippo {
   fi
 }
 
-scrippo "$@"
+function configure {
+  local autoload
+  local autocomplete
+  local _scrippo_args=()
+  while (( $# > 0 )); do
+    case $1 in
+      --autoload)
+        if (( $# < 2 )); then
+          echo "configure: --autoload requires a value" >&2
+          exit 1
+        fi
+        autoload=$2
+        shift 2
+        ;;
+      --autocomplete)
+        if (( $# < 2 )); then
+          echo "configure: --autocomplete requires a value" >&2
+          exit 1
+        fi
+        autocomplete=$2
+        shift 2
+        ;;
+      --)
+        shift
+        _scrippo_args+=("$@")
+        break
+        ;;
+      -?*)
+        echo "configure: unknown option '$1'" >&2
+        exit 1
+        ;;
+      *)
+        _scrippo_args+=("$1")
+        shift
+        ;;
+    esac
+  done
+  if (( ${#_scrippo_args[@]} > 0 )); then
+    echo "configure: too many arguments" >&2
+    exit 1
+  fi
+  if [[ -n $autoload && $autoload != @(0|1) ]]; then
+    echo "configure: --autoload expected int (0 1), received '$autoload'" >&2
+    exit 1
+  fi
+  if [[ -n $autocomplete && $autocomplete != @(0|1) ]]; then
+    echo "configure: --autocomplete expected int (0 1), received '$autocomplete'" >&2
+    exit 1
+  fi
+  shell_configure "$autoload" "$autocomplete"
+}
+
+function __source {
+  shell_source
+}
+
+function __aliases {
+  local _scrippo_args=()
+  while (( $# > 0 )); do
+    case $1 in
+      --)
+        shift
+        _scrippo_args+=("$@")
+        break
+        ;;
+      -?*)
+        echo " aliases: unknown option '$1'" >&2
+        exit 1
+        ;;
+      *)
+        _scrippo_args+=("$1")
+        shift
+        ;;
+    esac
+  done
+  local dir=${_scrippo_args[0]}
+  if (( ${#_scrippo_args[@]} > 1 )); then
+    echo " aliases: too many arguments" >&2
+    exit 1
+  fi
+  shell_aliases "${dir:-$PWD}"
+}
+
+function __complete {
+  local -a words=()
+  local -a _scrippo_seq=()
+  local -a _scrippo_kind=()
+  local _scrippo_args=()
+  while (( $# > 0 )); do
+    case $1 in
+      --)
+        shift
+        while (( $# > 0 )); do
+          _scrippo_seq+=("$1")
+          _scrippo_kind+=(arg)
+          shift
+        done
+        ;;
+      -?*)
+        _scrippo_seq+=("$1")
+        _scrippo_kind+=(flag)
+        shift
+        ;;
+      *)
+        _scrippo_seq+=("$1")
+        _scrippo_kind+=(arg)
+        shift
+        ;;
+    esac
+  done
+  local _scrippo_i
+  for _scrippo_i in "${!_scrippo_seq[@]}"; do
+    if [[ ${_scrippo_kind[_scrippo_i]} == arg ]]; then
+      _scrippo_args+=("${_scrippo_seq[_scrippo_i]}")
+    fi
+  done
+  local file=${_scrippo_args[0]}
+  local _scrippo_seen=0
+  for _scrippo_i in "${!_scrippo_seq[@]}"; do
+    if [[ ${_scrippo_kind[_scrippo_i]} == arg ]] && (( _scrippo_seen < 1 )); then
+      _scrippo_seen=$(( _scrippo_seen + 1 ))
+      continue
+    fi
+    words+=("${_scrippo_seq[_scrippo_i]}")
+  done
+  shell_complete "$file" "${words[@]}"
+}
+
+case $1 in
+  configure)
+    shift
+    configure "$@"
+    ;;
+  __source)
+    shift
+    __source "$@"
+    ;;
+  __aliases)
+    shift
+    __aliases "$@"
+    ;;
+  __complete)
+    shift
+    __complete "$@"
+    ;;
+  *)
+    _scrippo_root "$@"
+    ;;
+esac

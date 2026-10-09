@@ -16,7 +16,7 @@ declare -gA _macro_prt_codes=(
 )
 
 function macro_prt {
-  local node=$1 flags="" style codes=() msg=()
+  local node=$1 flags="" join=" " text="" style="" piece codes=() pieces=()
   shift
   while (( $# > 0 )); do
     case $1 in
@@ -24,26 +24,40 @@ function macro_prt {
         if ! macro_prt_code "$2"; then
           compile_error "$node" "@prt: unknown style '$2'"
         fi
-        codes+=("$_compile_result")
+        codes=("$_compile_result")
         shift 2
         while (( $# > 0 )) && macro_prt_code "$1"; do
           codes+=("$_compile_result")
           shift
         done
+        printf -v style '%s;' "${codes[@]}"
+        ;;
+      -j|--join)
+        if (( $# < 2 )); then
+          compile_error "$node" "@prt: $1 requires a value"
+        fi
+        join=$2
+        shift 2
         ;;
       -n)
         flags=" -n"
         shift
         ;;
       *)
-        msg+=("$1")
+        macro_prt_style "${style%;}" "$1"
+        pieces+=("$_compile_result")
+        style=""
         shift
         ;;
     esac
   done
-  printf -v style '%s;' "${codes[@]}"
-  macro_prt_echo "$flags" "${style%;}" "${msg[@]}"
-  compile_emit "$_compile_result"
+  if [[ -n $style ]]; then
+    compile_error "$node" "@prt: -s expected a message after the style"
+  fi
+  for piece in "${pieces[@]}"; do
+    text+=${text:+$join}$piece
+  done
+  compile_emit "echo$flags${text:+ $text}"
 }
 
 function macro_prt_code {
@@ -53,12 +67,10 @@ function macro_prt_code {
   [[ -n $_compile_result ]]
 }
 
-function macro_prt_echo {
-  local flags=$1 codes=$2 text
-  shift 2
-  text="$*"
+function macro_prt_style {
+  local codes=$1 text=$2
   if [[ -n $codes ]]; then
     text="\$'\\e[${codes}m'$text\$'\\e[0m'"
   fi
-  _compile_result="echo$flags $text"
+  _compile_result=$text
 }

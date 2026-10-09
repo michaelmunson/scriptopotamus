@@ -1,14 +1,17 @@
 #!./scrippo
 
 .(
-  [--hello<str>]
-  [*rest]
+	[--hello<str>]
+	[*rest]
 )
-  -> "root command"
+	-> "root command"
 .test(
-  arg
-  [--flag<str>]
-  [*rest]
+	[arg<str>]
+	[--flag<str>]
+	[*rest]
 )
-  -> "arg: $arg"
-  -> "flag: $--flag"
+	.subcmd()
+		-> "subcmd"
+		
+	-> "arg: $arg"
+	-> "flag: $--flag"

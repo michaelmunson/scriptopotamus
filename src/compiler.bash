@@ -3,6 +3,8 @@
 declare -gA _compile_types=()
 declare -gA _compile_imported=()
 declare -ga _compile_commands=()
+declare -gA _compile_helpers=()
+declare -ga _compile_prelude=()
 declare -g _compile_root=""
 declare -gA _compile_patterns=(
   [int]='^-?[0-9]+$'
@@ -86,6 +88,8 @@ function compile {
   _compile_types=()
   _compile_imported=()
   _compile_commands=()
+  _compile_helpers=()
+  _compile_prelude=()
   _compile_root=""
   _compile_import_dir=${SCRIPPO_IMPORT_DIR:-$(dirname "$path")}
   macro_import_remember "$path"
@@ -96,7 +100,7 @@ function compile {
     compile_node "$node"
   done
   compile_dispatch
-  printf '%s\n' "${_compile_output[@]}"
+  printf '%s\n' "${_compile_output[0]}" "${_compile_prelude[@]}" "${_compile_output[@]:1}"
 }
 
 function compile_error {
@@ -114,6 +118,16 @@ function compile_emit {
   while IFS= read -r line; do
     _compile_output+=("$pad$line")
   done <<< "$1"
+}
+
+function compile_helper {
+  local name=$1 line
+  [[ -z ${_compile_helpers[$name]} ]] || return 0
+  _compile_helpers[$name]=1
+  while IFS= read -r line; do
+    _compile_prelude+=("$line")
+  done
+  _compile_prelude+=("")
 }
 
 function compile_indent {

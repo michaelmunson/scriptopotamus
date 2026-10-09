@@ -5,22 +5,55 @@
 @import "macros/input.bash"
 @import "macros/import.bash"
 @import "compiler.bash"
+@import "shell.bash"
 
-scrippo(
-  [path]
-  [-c | --compile]
-  [-n | --noexec]
-  [-v | --verbose]
-  [--version]
-  [*rest]
+# scrippo(
+#   [path]
+#   [-c | --compile]
+#   [-n | --noexec]
+#   [-v | --verbose]
+#   [--version]
+#   [*rest]
+# )
+#   if $--version
+#     -> $(jq -r '.version' <<< $(cat ./dev/vscode-ext/package.json))
+#   elif $--noexec
+#     bash -n <(compile "$path")
+#   elif $--compile
+#     compile "$path"
+#   else
+#     bash -c "$(compile "$path")" "$path" "${rest[@]}"
+
+# scrippo "$@"
+.(
+	[path]
+	[-c | --compile]
+	[-n | --noexec]
+	[-v | --verbose]
+	[--version]
+	[*rest]
 )
-  if $--version
-    -> $(jq -r '.version' <<< $(cat ./dev/vscode-ext/package.json))
-  elif $--noexec
-    bash -n <(compile "$path")
-  elif $--compile
-    compile "$path"
-  else
-    bash -c "$(compile "$path")" "$path" "${rest[@]}"
+	if $--version
+		-> $(jq -r '.version' <<< $(cat ./dev/vscode-ext/package.json))
+	elif $--noexec
+		bash -n <(compile "$path")
+	elif $--compile
+		compile "$path"
+	else
+		bash -c "$(compile "$path")" "$path" "${rest[@]}"
 
-scrippo "$@"
+.configure(
+	[--autoload<int(0 1)>]
+	[--autocomplete<int(0 1)>]
+)
+	shell_configure "$autoload" "$autocomplete"
+
+.__source()
+	shell_source
+
+.__aliases([dir])
+	shell_aliases "${dir:-$PWD}"
+
+.__complete([file] [*words])
+	shell_complete "$file" "${words[@]}"
+
