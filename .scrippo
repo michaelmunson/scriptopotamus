@@ -1,4 +1,5 @@
 #! /usr/bin/env scrippo
+@rootdir --enter
 
 .version(
 	[version<str {patch minor major}>]
@@ -18,7 +19,7 @@
 			version_parts[0]=$($version_parts[0] + 1)
 			version_parts[1]=0
 			version_parts[2]=0
-		*) @throw 1 "invalid version: $version"
+		*) -> "Version: $current_version"
 
 	new_version<str>="$version_parts[0].$version_parts[1].$version_parts[2]"
 
@@ -29,8 +30,11 @@
 	-> $(jq -r '.version' <<< $(cat ./dev/vscode-ext/package.json))
 
 .build()
-	cd ./dev/vscode-ext
+	make build
+	make install
 	for f in ./*.vsix
 		rm $f
 		-> "removed $f"
+	cd ./dev/vscode-ext
 	npm run build
+	mv ./*.vsix @rootdir/

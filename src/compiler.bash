@@ -182,6 +182,8 @@ function compile_expr {
   local operand='(\$\{?[a-zA-Z_][a-zA-Z0-9_]*(\[[^]]*\])?\}?|[0-9]*\.?[0-9]+)'
   local math_re='\$\(([[:space:]]*'"$operand"'([[:space:]]*[-+*/%^][[:space:]]*'"$operand"')+[[:space:]]*)\)'
 
+  macro_rootdir_expand "$text"
+  text=$_compile_result
   while [[ $text =~ $opt_re ]]; do
     replacement="\$${BASH_REMATCH[1]//-/_}"
     text=${text/"${BASH_REMATCH[0]}"/"$replacement"}

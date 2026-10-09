@@ -26,7 +26,7 @@ source <(scrippo __source)
 
 On bash 3.2 (the macOS default), use `eval "$(scrippo __source)"` instead.
 
-* **autoload**: on `cd`, scrippo looks at the current directory and its parents up to the git root
+* **autoload**: on `cd`, scrippo looks at the current directory and its parents, stopping at the git root, `$HOME`, or `/`
     * `app.scrippo` becomes the alias `app` -> `scrippo /path/to/app.scrippo`
     * a bare `.scrippo` file adds one alias per top-level command, e.g. `.build()` -> `build` -> `scrippo /path/to/.scrippo build`
     * aliases are removed when you leave the project, and existing aliases or functions with the same name are never overwritten

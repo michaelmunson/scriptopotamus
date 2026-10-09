@@ -37,6 +37,13 @@ check "aliases in subdirectory keep parent aliases" \
 
 check "no aliases outside the project" "" "$("$scrippo" __aliases "$scratch")"
 
+cp -R "$root/tests/fixtures/shell/project" "$scratch/plain"
+plain=$(cd "$scratch/plain" && pwd)
+check "aliases in subdirectory without git keep parent aliases" \
+  "$(printf 'test\t%s\t\napp\t%s\t\nbuild\t%s\tbuild' "$plain/tests/test.scrippo" "$plain/app.scrippo" "$plain/.scrippo")" \
+  "$("$scrippo" __aliases "$plain/tests")"
+rm -rf "$scratch/plain"
+
 check "complete top-level command" "run" "$(complete_in "$project" app.scrippo r)"
 check "complete nested command" "dev" "$(complete_in "$project" app.scrippo run d)"
 check "complete nested command from empty word" "dev" "$(complete_in "$project" app.scrippo run "")"

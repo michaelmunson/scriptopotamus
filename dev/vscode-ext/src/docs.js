@@ -13,6 +13,10 @@ const BUILTINS = {
     signature: 'input(\n  prompt\n  -v<str>\n  [\n    --select<str>...\n    [--multi]\n  ] | [\n    --confirm\n  ]\n)',
     description: 'Interactive, styled prompt for text, an arrow-key selection from options (checkboxes with `--multi`), or a y/n confirmation, storing the answer in `-v`.',
   },
+  rootdir: {
+    signature: 'rootdir([--enter])',
+    description: 'The absolute directory containing the running scrippo file, regardless of the working directory. Usable alone (prints it, or `cd`s into it with `--enter`) or inside any expression, e.g. `cd @rootdir/dev`.',
+  },
   len: {
     signature: 'len(name)',
     description: 'Prints the number of items in a list or dict.',
