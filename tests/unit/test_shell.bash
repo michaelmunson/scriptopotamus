@@ -7,7 +7,7 @@ scrippo=$root/scrippo
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 cp -R "$root/tests/fixtures/shell/project" "$scratch/project"
-mkdir "$scratch/project/.git" "$scratch/home"
+mkdir "$scratch/home"
 project=$(cd "$scratch/project" && pwd)
 failures=0
 
@@ -35,14 +35,13 @@ check "aliases in subdirectory keep parent aliases" \
   "$(printf 'test\t%s\t\napp\t%s\t\nbuild\t%s\tbuild' "$project/tests/test.scrippo" "$project/app.scrippo" "$project/.scrippo")" \
   "$("$scrippo" __aliases "$project/tests")"
 
-check "no aliases outside the project" "" "$("$scrippo" __aliases "$scratch")"
+check "no aliases above the project" "" "$("$scrippo" __aliases "$scratch")"
 
-cp -R "$root/tests/fixtures/shell/project" "$scratch/plain"
-plain=$(cd "$scratch/plain" && pwd)
-check "aliases in subdirectory without git keep parent aliases" \
-  "$(printf 'test\t%s\t\napp\t%s\t\nbuild\t%s\tbuild' "$plain/tests/test.scrippo" "$plain/app.scrippo" "$plain/.scrippo")" \
-  "$("$scrippo" __aliases "$plain/tests")"
-rm -rf "$scratch/plain"
+mkdir "$project/tests/.git"
+check "aliases continue past a git root" \
+  "$(printf 'test\t%s\t\napp\t%s\t\nbuild\t%s\tbuild' "$project/tests/test.scrippo" "$project/app.scrippo" "$project/.scrippo")" \
+  "$("$scrippo" __aliases "$project/tests")"
+rmdir "$project/tests/.git"
 
 check "complete top-level command" "run" "$(complete_in "$project" app.scrippo r)"
 check "complete nested command" "dev" "$(complete_in "$project" app.scrippo run d)"

@@ -6,6 +6,7 @@ const path = require('path');
 const vscode = require('vscode');
 const { analyze, describeParam } = require('./analyzer');
 const compiler = require('./compiler');
+const completion = require('./completion');
 const docs = require('./docs');
 
 const LANGUAGE_ID = 'scriptopotamus';
@@ -29,6 +30,18 @@ const SYMBOL_KIND = {
   constant: vscode.SymbolKind.Constant,
   arg: vscode.SymbolKind.Variable,
   opt: vscode.SymbolKind.Property,
+};
+
+const COMPLETION_KIND = {
+  keyword: vscode.CompletionItemKind.Keyword,
+  function: vscode.CompletionItemKind.Function,
+  command: vscode.CompletionItemKind.Module,
+  macro: vscode.CompletionItemKind.Function,
+  variable: vscode.CompletionItemKind.Variable,
+  constant: vscode.CompletionItemKind.Constant,
+  param: vscode.CompletionItemKind.Variable,
+  flag: vscode.CompletionItemKind.Property,
+  type: vscode.CompletionItemKind.TypeParameter,
 };
 
 function toRange(r) {
@@ -334,6 +347,24 @@ function activate(context) {
     },
   };
 
+  const completionProvider = {
+    provideCompletionItems(doc, pos) {
+      const found = completion.complete(analysisFor(doc), doc.lineAt(pos.line).text, pos.line, pos.character);
+      if (!found) return null;
+      const range = new vscode.Range(pos.line, found.from, pos.line, pos.character);
+      return found.items.map((entry) => {
+        const item = new vscode.CompletionItem(entry.label, COMPLETION_KIND[entry.kind]);
+        item.range = range;
+        if (entry.detail) item.detail = entry.detail;
+        if (entry.documentation) item.documentation = new vscode.MarkdownString(entry.documentation);
+        if (entry.insertText) item.insertText = entry.snippet ? new vscode.SnippetString(entry.insertText) : entry.insertText;
+        if (entry.filterText) item.filterText = entry.filterText;
+        if (entry.sortText) item.sortText = entry.sortText;
+        return item;
+      });
+    },
+  };
+
   const symbolProvider = {
     provideDocumentSymbols(doc) {
       const toSymbol = (s) => {
@@ -419,6 +450,7 @@ function activate(context) {
     compilerCollection,
     vscode.languages.registerHoverProvider(selector, hoverProvider),
     vscode.languages.registerDefinitionProvider(selector, definitionProvider),
+    vscode.languages.registerCompletionItemProvider(selector, completionProvider, '@', '$', '-', '<'),
     vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
     vscode.languages.registerCodeActionsProvider(selector, codeActionProvider, {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],

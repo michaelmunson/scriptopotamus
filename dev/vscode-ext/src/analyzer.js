@@ -726,6 +726,7 @@ class Analyzer {
         break;
       case 'for':
         this.checkCondition(node.line, node.col, node.items, scope, 'for');
+        this.defineVariable({ name: node.var, line: node.line, nameRange: node.varRange });
         this.checkBody(node, 'for', scope);
         break;
       case 'while':
@@ -1157,6 +1158,7 @@ function analyze(source) {
     diagnostics: analyzer.diagnostics,
     symbols: buildSymbols(analyzer, analyzer.body),
     functions: analyzer.functions,
+    callable: [...analyzer.callable.values()].filter((fn) => fn.name),
     variables: analyzer.variables,
     findFunction(name) {
       return analyzer.callable.get(name) || analyzer.functions.find((fn) => fn.name === name) || null;

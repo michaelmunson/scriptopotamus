@@ -1,6 +1,5 @@
 #! /usr/bin/env scrippo
 @rootdir --enter
-
 .version(
 	[version<str {patch minor major}>]
 )

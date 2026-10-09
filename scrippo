@@ -1727,7 +1727,7 @@ function shell_scope_dirs {
   _shell_dirs=()
   while true; do
     _shell_dirs+=("$current")
-    [[ -e $current/.git || $current == / || $current == "$HOME" ]] && return 0
+    [[ $current == / || $current == "$HOME" ]] && return 0
     current=$(dirname "$current")
   done
 }
