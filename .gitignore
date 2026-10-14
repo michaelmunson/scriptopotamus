@@ -1,3 +1,8 @@
 .cursor
 .vscode
 *.local*
+
+
+# Added by cargo
+
+/target

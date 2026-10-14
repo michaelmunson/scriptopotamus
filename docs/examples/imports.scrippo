@@ -1,6 +1,0 @@
-#!/usr/bin/env scrippo
-
-@import ./* # imports all files
-
-
--> $(circumference --diameter 10)
