@@ -1,9 +1,7 @@
 mod utils;
 mod ast;
-use ast::{ast, types};
+use ast::ast::parse;
 
 fn main() {
     println!("Hello, world!");
 }
-
-const t: types::Type = types::Type::Array(Box::new(types::Type::Integer));
