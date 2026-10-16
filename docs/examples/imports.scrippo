@@ -1,0 +1,4 @@
+@import scrippo/std
+
+prt -s green "hello from stdlib"
+throw 0 "done"

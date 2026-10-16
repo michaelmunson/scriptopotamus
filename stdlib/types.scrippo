@@ -1,0 +1,41 @@
+list(
+  array<list>
+  [--join<str>]
+  [--length]
+)
+  if $--length
+    -> ${#array[@]}
+  elif -n $join
+    local IFS=$join
+    -> "${array[*]}"
+  else
+    -> "${array[@]}"
+
+dict(
+  dict<dict>
+  [--keys]
+  [--values]
+  [--length]
+)
+  if $--keys
+    -> "${!dict[@]}"
+  elif $--values
+    -> "${dict[@]}"
+  elif $--length
+    -> ${#dict[@]}
+  else
+    -> "${dict[@]}"
+
+str(
+  string<str>
+  [--length]
+  [--split<str>]
+)
+  if $--length
+    -> ${#string}
+  elif -n $split
+    local IFS=$split
+    read -ra _scrippo_parts <<< "$string"
+    -> "${_scrippo_parts[@]}"
+  else
+    -> $string

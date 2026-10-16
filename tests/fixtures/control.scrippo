@@ -1,0 +1,21 @@
+flag<bool>=true
+
+if $flag
+  -> "yes"
+else
+  -> "no"
+
+if $flag; -> "inline-yes"; else -> "inline-no"
+
+items<list>=(a b c)
+for i in $items
+  -> $i
+
+n<int>=0
+while $n -lt 1
+  -> "once"
+  n=1
+
+case hello
+  hello | hi) -> "Hi"
+  *) -> "?"

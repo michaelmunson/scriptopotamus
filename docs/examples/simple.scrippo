@@ -1,0 +1,6 @@
+PI<const float>=3.14
+
+circumference(diameter<float>)
+  -> $PI * $diameter
+
+-> "$(circumference 10)"

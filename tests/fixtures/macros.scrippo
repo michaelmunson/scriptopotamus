@@ -1,0 +1,7 @@
+@say_hi()
+  -> "hi"
+
+@say_hi
+risky || {
+  @say_hi
+}

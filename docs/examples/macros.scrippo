@@ -1,0 +1,8 @@
+@say_hi()
+  -> "hi from macro"
+
+@say_hi
+
+risky || {
+  @say_hi
+}

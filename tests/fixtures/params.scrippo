@@ -1,0 +1,17 @@
+choose(
+  path
+  [optional_arg<int>]
+  -v<str>
+  [
+    -s | --select
+    --options<str>...
+    [--multi]
+  ] | [
+    --confirm
+  ]
+)
+  if $select
+    for i in $options
+      -> $i
+  else
+    -> "nope"

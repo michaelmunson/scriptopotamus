@@ -1,0 +1,37 @@
+throw(
+  code<int>
+  msg...
+)
+  printf '\e[31m%s\e[0m\n' "${msg[*]}" >&2
+  exit "$code"
+
+prt(
+  msg...
+  [-s|--style]
+  [-j|--join<str>]
+  [-n]
+)
+  _scrippo_prt "$@"
+
+input(
+  prompt
+  -v<str>
+  [
+    --select<str>...
+    [--multi]
+  ] | [
+    --confirm
+  ]
+)
+  if $confirm
+    _scrippo_confirm "$prompt"
+    eval "$v=\$_scrippo_reply"
+  elif ${#select[@]} -gt 0
+    _scrippo_select "$prompt" "$multi" "${select[@]}"
+    if $multi
+      eval "$v=(\"\${_scrippo_picks[@]}\")"
+    else
+      eval "$v=\$_scrippo_reply"
+  else
+    _scrippo_input "$prompt"
+    eval "$v=\$_scrippo_reply"

@@ -1,21 +1,23 @@
-.PHONY: build build-extension
+.PHONY: build build-release test run install version build-extension
 
 build:
 	cargo build
+
 build-release:
 	cargo build --release
+
 test:
 	cargo test
+
 run:
-	./target/debug/scriptopotamus
-run-release:
-	./target/release/scriptopotamus
+	cargo run --bin scrippo
+
+install: build-release
+	install -m 755 target/release/scrippo /usr/local/bin/scrippo
+	ln -sf /usr/local/bin/scrippo /usr/local/bin/scriptopotamus
 
 version:
-	./scrippo dev/package.scrippo version $(word 2)
+	cargo run --bin scrippo -- --version
 
 build-extension:
 	cd dev/vscode-ext && npm run build
-
-install:
-	./install.sh
