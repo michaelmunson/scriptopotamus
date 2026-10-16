@@ -22,10 +22,27 @@ function codes(lines) {
   return lint(lines).map((d) => `${d.line}:${d.code}`);
 }
 
-test('vision example has no errors', () => {
-  const source = fs.readFileSync(path.join(REPO, 'tests', 'vision.local.scrippo'), 'utf8');
-  const errors = analyze(source).diagnostics.filter((d) => d.severity === 'error');
-  assert.deepEqual(errors, []);
+test('examples and fixtures have no errors', () => {
+  const files = [
+    'docs/examples/simple.scrippo',
+    'docs/examples/commands.scrippo',
+    'docs/examples/macros.scrippo',
+    'docs/examples/imports.scrippo',
+    'tests/fixtures/simple.scrippo',
+    'tests/fixtures/commands.scrippo',
+    'tests/fixtures/control.scrippo',
+    'tests/fixtures/macros.scrippo',
+    'tests/fixtures/imports.scrippo',
+    'tests/fixtures/params.scrippo',
+    'stdlib/io.scrippo',
+    'stdlib/types.scrippo',
+    'stdlib/path.scrippo',
+  ];
+  for (const file of files) {
+    const source = fs.readFileSync(path.join(REPO, file), 'utf8');
+    const errors = analyze(source).diagnostics.filter((d) => d.severity === 'error');
+    assert.deepEqual(errors, [], file);
+  }
 });
 
 test('simple example is clean', () => {
@@ -92,13 +109,15 @@ test('empty blocks are flagged', () => {
 });
 
 test('unknown and malformed types', () => {
-  assert.deepEqual(codes(['x<integer>=1']), ['1:type']);
+  assert.deepEqual(codes(['x<integer>=1', 'y<string>=a', 'z<array>=(1)', 'w<const>=1', 'v<any>=1']), []);
   assert.deepEqual(codes(['x<int const>=1']), ['1:type']);
-  assert.deepEqual(codes(['x<const>=1']), ['1:type']);
   assert.deepEqual(codes(['x<int str>=1']), ['1:type']);
   assert.deepEqual(codes(['x<list list>']), ['1:type']);
+  assert.deepEqual(codes(['x<list int>']), ['1:type']);
+  assert.deepEqual(codes(['x<dict int str>=(a=1)']), ['1:type']);
   assert.deepEqual(codes(['x<int (1 2 x)>']), ['1:type']);
-  assert.deepEqual(codes(['x<dict int str>=(a=1)', 'y<list int>', 'z<const upper>=HI']), []);
+  assert.deepEqual(codes(['x<upper>=HI']), ['1:type']);
+  assert.deepEqual(codes(['x<dict>=(a=1)', 'y<list>=(1 2)', 'z<const str>=HI', 'n<int {1 2 3}>=2']), []);
 });
 
 test('literal assignments are type checked like the compiler does', () => {
@@ -112,8 +131,8 @@ test('literal assignments are type checked like the compiler does', () => {
 
 test('collection values must match collection types', () => {
   assert.deepEqual(codes(['n<int>=(1 2)']), ['1:type-mismatch']);
-  assert.deepEqual(codes(['l<list int>=(1 two 3)']), ['1:type-mismatch']);
-  assert.deepEqual(codes(['d<dict int str>=(1 2)']), ['1:type-mismatch']);
+  assert.deepEqual(codes(['l<list>=(1 two 3)']), []);
+  assert.deepEqual(codes(['d<dict>=(1 2)']), ['1:type-mismatch']);
 });
 
 test('const variables cannot be reassigned', () => {
@@ -147,9 +166,9 @@ test('multi-line parameters with comments parse like the compiler', () => {
   const source = [
     'f(',
     '  path # the path',
-    '  [-s|--style <str>...]...',
+    '  [-s|--style<str>...]...',
     '  [--name<str="mike">]',
-    '  [--mode<str (a b)>]',
+    '  [--mode<str {a b}>]',
     ')',
     '  echo $path $--style $--name',
   ];
@@ -159,12 +178,12 @@ test('multi-line parameters with comments parse like the compiler', () => {
     fn.leaves.map((l) => [l.kind, l.name, l.flag, l.datatype.description, l.effectiveOptional, l.repeat, l.array, l.default]),
     [
       ['arg', 'path', null, 'str', false, false, false, null],
-      ['opt', 's', '-s', 'bool', true, false, false, null],
-      ['opt', 'style', '--style', 'str', true, true, true, null],
+      ['opt', 's', '-s', 'str', true, true, true, null],
       ['opt', 'name', '--name', 'str', true, false, false, '"mike"'],
-      ['opt', 'mode', '--mode', 'str (a b)', true, false, false, null],
+      ['opt', 'mode', '--mode', 'str {a b}', true, false, false, null],
     ],
   );
+  assert.deepEqual(fn.leaves[1].flags, ['-s', '--style']);
 });
 
 test('option references must match a parameter', () => {
@@ -223,14 +242,19 @@ test('unterminated quotes are flagged', () => {
 });
 
 test('symbols outline functions, commands, params, and variables', () => {
-  const source = fs.readFileSync(path.join(REPO, 'tests', 'vision.local.scrippo'), 'utf8');
-  const { symbols } = analyze(source);
-  const cmd = symbols.find((s) => s.name === '.my_cmd');
-  assert.equal(cmd.kind, 'command');
-  assert.deepEqual(cmd.children.map((c) => c.name), ['arg1', '--opt1', '.my_subcmd']);
-  const pi = symbols.find((s) => s.name === 'PI');
+  const commands = fs.readFileSync(path.join(REPO, 'docs/examples/commands.scrippo'), 'utf8');
+  const { symbols } = analyze(commands);
+  const greet = symbols.find((s) => s.name === '.greet');
+  assert.equal(greet.kind, 'command');
+  assert.deepEqual(greet.children.map((c) => c.name), ['name', '--loud']);
+  const math = symbols.find((s) => s.name === '.math');
+  assert.deepEqual(math.children.map((c) => c.name), ['.add', '.mul']);
+  const simple = analyze(fs.readFileSync(path.join(REPO, 'docs/examples/simple.scrippo'), 'utf8'));
+  const pi = simple.symbols.find((s) => s.name === 'PI');
   assert.equal(pi.kind, 'constant');
   assert.equal(pi.detail, '<const float>');
+  const macros = analyze('@say_hi()\n  -> "hi"\n').symbols;
+  assert.equal(macros.find((s) => s.name === '@say_hi').kind, 'macro');
 });
 
 test('functionChainAt finds enclosing functions', () => {

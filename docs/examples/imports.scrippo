@@ -1,4 +1,8 @@
 @import scrippo/std
 
-prt -s green "hello from stdlib"
-throw 0 "done"
+prt -s green "hello from stdlib" -s red "hello from imports"
+# throw 0 "done"
+
+myls<list>=(1 2 3 4)
+
+list (1 2 3 4) --join "."

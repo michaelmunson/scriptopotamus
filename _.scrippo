@@ -1,10 +1,10 @@
 #! /usr/bin/env scrippo
-@rootdir --enter
+@import scrippo/std
 .version(
 	[version<str {patch minor major}>]
 )
 	current_version<str>=$(jq -r '.version' <<< $(cat ./dev/vscode-ext/package.json))
-	version_parts<list int>=()
+	version_parts<list>=()
 	for part in ${current_version//./" "}
 		version_parts+=($part)
 
@@ -18,7 +18,8 @@
 			version_parts[0]=$($version_parts[0] + 1)
 			version_parts[1]=0
 			version_parts[2]=0
-		*) -> "Version: $current_version"
+		*)
+
 
 	new_version<str>="$version_parts[0].$version_parts[1].$version_parts[2]"
 

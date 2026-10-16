@@ -1,13 +1,17 @@
 'use strict';
 
-const SCALARS = ['int', 'float', 'str', 'upper', 'lower', 'bool'];
+const TYPE_ALIASES = { string: 'str', integer: 'int', boolean: 'bool', array: 'list' };
+const SCALARS = ['int', 'float', 'str', 'bool'];
 const COLLECTIONS = ['list', 'dict'];
-const TYPE_WORDS = new Set([...SCALARS, ...COLLECTIONS, 'const']);
+const TYPE_NAMES = [...SCALARS, ...COLLECTIONS, 'any'];
+const TYPE_WORDS = new Set([...TYPE_NAMES, ...Object.keys(TYPE_ALIASES), 'const']);
 const PATTERNS = {
   int: /^-?[0-9]+$/,
   float: /^-?[0-9]*\.?[0-9]+$/,
   bool: /^(true|false)$/,
 };
+const FLAG_NAME = /^--?[A-Za-z_][A-Za-z0-9_-]*$/;
+const PARAM_NAME = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 const PARAM_PUNCTUATION = new Set(['[', ']', '|']);
 const NAME = '[A-Za-z_][A-Za-z0-9_]*';
 const FUNCTION_NAME = '[A-Za-z_][A-Za-z0-9_-]*';
@@ -26,7 +30,7 @@ const RE = {
   declaration: new RegExp(`^(${NAME})(<([^>]*)>)$`, 'd'),
   typedAssignment: new RegExp(`^(${NAME})(<([^>]*)>)\\s*=\\s*(.*)$`, 'd'),
   assignment: new RegExp(`^(${NAME})=(.*)$`, 'd'),
-  param: /^(\*|-{0,2})([A-Za-z_][A-Za-z0-9_-]*)(?:<([^>]*)>)?(\.\.\.)?$/,
+  macro: /^@([A-Za-z_][A-Za-z0-9_]*)(?:\(([^)]*)\))?(\s+.*)?$/,
   literals: /^([^({]*)[({](.*)[)}]$/,
   list: /^\((.*)\)$/,
   math: /^[^"'()]+\s[-+*/%]\s[^"'()]+$/,
@@ -153,21 +157,47 @@ function scanShell(text) {
   return { mask: mask.join(''), comments, unterminated: open || null };
 }
 
-function parseType(raw) {
-  let typePart = raw;
-  let literals = null;
-  const m = RE.literals.exec(raw);
-  if (m) {
-    typePart = m[1];
-    literals = splitWords(m[2]);
+function canonicalType(word) {
+  return TYPE_ALIASES[word] || word;
+}
+
+function flagVar(flag) {
+  return flag.replace(/^-+/, '').replace(/-/g, '_');
+}
+
+function paramNames(leaf) {
+  return leaf.names && leaf.names.length ? leaf.names : [leaf.name];
+}
+
+function splitTypeDefault(text) {
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '{' || c === '(') depth++;
+    else if (c === '}' || c === ')') depth--;
+    else if (c === '=' && depth === 0) return [text.slice(0, i), text.slice(i + 1)];
   }
-  const datatype = typePart.split(/\s+/).filter(Boolean);
-  const description = datatype.join(' ') + (literals ? ` (${literals.join(' ')})` : '');
+  return null;
+}
+
+function parseType(raw) {
+  let typePart = raw.trim();
+  let literals = null;
+  let literalText = '';
+  const m = RE.literals.exec(typePart);
+  if (m) {
+    typePart = m[1].trim();
+    literals = splitWords(m[2]);
+    literalText = raw.includes('{') ? ` {${literals.join(' ')}}` : ` (${literals.join(' ')})`;
+  }
+  const datatype = typePart.split(/\s+/).filter(Boolean).map(canonicalType);
+  const base = datatype.find((w) => w !== 'const') || (datatype.includes('const') ? 'any' : '');
+  const description = `${datatype.includes('const') ? 'const ' : ''}${base}${literalText}`.trim();
   return {
     raw,
     datatype,
     literals,
-    base: datatype.find((w) => w !== 'const') || '',
+    base,
     isConst: datatype.includes('const'),
     description,
   };
@@ -208,7 +238,7 @@ function leavesOf(params, groupRepeat = false, groupOptional = false, out = []) 
     } else if (p.kind === 'exclusive') {
       leavesOf(p.options, groupRepeat, groupOptional, out);
     } else if (p.kind === 'arg' || p.kind === 'opt' || p.kind === 'rest') {
-      const isBool = p.datatype.datatype.length === 1 && p.datatype.datatype[0] === 'bool';
+      const isBool = p.datatype.base === 'bool';
       p.array = p.kind === 'rest' || ((p.repeat || groupRepeat) && !isBool);
       p.effectiveOptional = p.optional || groupOptional;
       out.push(p);
@@ -226,6 +256,7 @@ class Analyzer {
     this.idx = 0;
     this.diagnostics = [];
     this.functions = [];
+    this.macros = [];
     this.callable = new Map();
     this.variables = new Map();
     this.types = new Map();
@@ -234,6 +265,9 @@ class Analyzer {
 
   run() {
     this.body = this.parseBlock(-1);
+    this.imports = this.body
+      .filter((node) => node.kind === 'macro-call' && node.name === 'import')
+      .map((node) => node.args);
     this.collectFunctions(this.body, []);
     this.checkWhitespace();
     this.check(this.body, { fnChain: [], inBlock: false });
@@ -298,6 +332,10 @@ class Analyzer {
     if ((m = RE.echo.exec(t))) {
       this.idx++;
       return { kind: 'echo', line: i, value: m[1], col: line.indent + m.indices[1][0] };
+    }
+    if (t.startsWith('@')) {
+      const macro = this.parseMacro();
+      if (macro) return macro;
     }
     if (RE.function.test(t)) return this.parseFunction();
     if ((m = RE.declaration.exec(t))) {
@@ -534,7 +572,7 @@ class Analyzer {
           : `Unexpected '${tail}' after ${name}(...): only '-> <value>' may follow the parameters`;
         this.report('error', span(lineIdx, tailCol, tailCol + tail.length), message, 'function-tail');
       }
-      const tokens = this.tokenizeParams(chars);
+      const tokens = this.mergeFlagAliases(this.tokenizeParams(chars));
       const state = { pos: 0 };
       params = this.parseParamSequence(tokens, state);
       if (state.pos < tokens.length) {
@@ -551,6 +589,84 @@ class Analyzer {
       .map((l) => l.raw.slice(Math.min(indent, l.indent)).trimEnd())
       .join('\n');
     return { kind, name, line: start, indent, closeLine: lineIdx, nameRange, params, leaves: leavesOf(params), body, header };
+  }
+
+  parseMacro() {
+    const i = this.idx;
+    const line = this.lines[i];
+    const m = RE.macro.exec(line.text);
+    if (!m) return null;
+    const name = m[1];
+    const trailing = m[3];
+    const nameRange = span(i, line.indent + 1, line.indent + 1 + name.length);
+    const header = line.raw.trimEnd();
+    const defines = !trailing && name !== 'import' && this.followingIndented(i, line.indent);
+    if (!defines) {
+      this.idx++;
+      return { kind: 'macro-call', name, line: i, indent: line.indent, nameRange, args: (trailing || '').trim(), header };
+    }
+    this.idx++;
+    const body = this.parseBlock(line.indent);
+    const node = { kind: 'macro', name, line: i, indent: line.indent, closeLine: i, nameRange, body, header };
+    this.macros.push(node);
+    return node;
+  }
+
+  followingIndented(index, indent) {
+    for (let i = index + 1; i < this.lines.length; i++) {
+      const line = this.lines[i];
+      if (!line.text || line.text.startsWith('#')) continue;
+      return line.indent > indent;
+    }
+    return false;
+  }
+
+  mergeFlagAliases(tokens) {
+    const out = [];
+    const isFlag = (token) => token && token.text.startsWith('-');
+    let i = 0;
+    while (i < tokens.length) {
+      if (isFlag(tokens[i]) && tokens[i + 1] && tokens[i + 1].text === '|' && isFlag(tokens[i + 2])) {
+        const aliases = [tokens[i]];
+        i += 2;
+        while (isFlag(tokens[i])) {
+          aliases.push(tokens[i]);
+          if (tokens[i + 1] && tokens[i + 1].text === '|' && isFlag(tokens[i + 2])) {
+            i += 2;
+            continue;
+          }
+          break;
+        }
+        const names = [];
+        let suffix = '';
+        aliases.forEach((alias, idx) => {
+          const typeAt = alias.text.indexOf('<');
+          if (typeAt >= 0) {
+            names.push(alias.text.slice(0, typeAt));
+            if (idx === aliases.length - 1) suffix = alias.text.slice(typeAt);
+          } else {
+            const eq = alias.text.indexOf('=');
+            const dots = alias.text.endsWith('...');
+            const bare = alias.text.replace(/\.\.\.$/, '');
+            if (eq >= 0) {
+              names.push(bare.slice(0, eq));
+              if (idx === aliases.length - 1) suffix = bare.slice(eq) + (dots ? '...' : '');
+            } else {
+              names.push(bare);
+              if (dots && idx === aliases.length - 1) suffix = '...';
+            }
+          }
+        });
+        const first = aliases[0];
+        const last = aliases[aliases.length - 1];
+        out.push({ text: names.join('|') + suffix, line: first.line, col: first.col, end: last.end, endLine: last.endLine });
+        i += 1;
+        continue;
+      }
+      out.push(tokens[i]);
+      i += 1;
+    }
+    return out;
   }
 
   tokenizeParams(chars) {
@@ -635,32 +751,56 @@ class Analyzer {
   }
 
   parseParam(token) {
-    const m = RE.param.exec(token.text);
-    if (!m) {
+    let text = token.text;
+    const repeat = text.endsWith('...');
+    if (repeat) text = text.slice(0, -3);
+    let typeText = '';
+    const typeAt = text.indexOf('<');
+    if (typeAt >= 0) {
+      const typeEnd = text.lastIndexOf('>');
+      if (typeEnd > typeAt) {
+        typeText = text.slice(typeAt + 1, typeEnd);
+        text = text.slice(0, typeAt) + text.slice(typeEnd + 1);
+      }
+    }
+    let defaultValue = null;
+    const typedDefault = splitTypeDefault(typeText);
+    if (typedDefault) {
+      typeText = typedDefault[0];
+      defaultValue = typedDefault[1];
+    }
+    const eq = text.indexOf('=');
+    if (eq >= 0) {
+      defaultValue = text.slice(eq + 1);
+      text = text.slice(0, eq);
+    }
+    const isRest = text.startsWith('*');
+    if (isRest) text = text.slice(1);
+    const flags = text.split('|').filter(Boolean);
+    const isOpt = Boolean(flags.length) && flags[0].startsWith('-');
+    const valid = isRest
+      ? flags.length === 1 && PARAM_NAME.test(text)
+      : isOpt
+        ? flags.every((flag) => FLAG_NAME.test(flag))
+        : flags.length === 1 && PARAM_NAME.test(text);
+    if (!valid) {
       const message =
         token.text === '|' || token.text === ']'
           ? `Expected a parameter before '${token.text}'`
-          : `Invalid parameter '${token.text}': expected name, -f, --flag, or *name, optionally followed by <type> and ...`;
+          : `Invalid parameter '${token.text}': expected name, -f, --flag, -s|--long, or *name, optionally followed by <type> and ...`;
       this.report('error', tokenRange(token), message, 'param');
       return { kind: 'invalid', token };
     }
-    const [, prefix, rawName, rawType, dots] = m;
-    const isOpt = prefix.startsWith('-');
-    const isRest = prefix === '*';
-    let typeText = rawType || '';
-    let defaultValue = null;
-    const eq = typeText.indexOf('=');
-    if (eq >= 0) {
-      defaultValue = typeText.slice(eq + 1);
-      typeText = typeText.slice(0, eq);
-    }
+    const name = (isOpt ? flags[0] : text).replace(/^-+/, '').replace(/-/g, '_');
     return {
       kind: isRest ? 'rest' : isOpt ? 'opt' : 'arg',
-      name: rawName.replace(/-/g, '_'),
-      flag: isOpt ? prefix + rawName : null,
+      name,
+      names: isOpt ? flags.map(flagVar) : [name],
+      flag: isOpt ? flags[0] : null,
+      flags: isOpt ? flags : [],
       optional: false,
-      repeat: Boolean(dots),
-      datatype: parseType(typeText.trim() ? typeText : isOpt ? 'bool' : 'str'),
+      repeat,
+      datatype: parseType(typeText.trim() ? typeText : isRest ? 'any' : isOpt ? 'bool' : 'str'),
       default: defaultValue,
       token,
     };
@@ -673,6 +813,8 @@ class Analyzer {
         this.functions.push(node);
         if (node.kind === 'function' || !chain.length) this.callable.set(node.name, node);
         this.collectFunctions(node.body, [...chain, node]);
+      } else if (node.kind === 'macro') {
+        this.collectFunctions(node.body, chain);
       } else {
         for (const child of childBlocks(node)) this.collectFunctions(child, chain);
       }
@@ -755,6 +897,9 @@ class Analyzer {
       case 'command':
         this.checkFunction(node, scope);
         break;
+      case 'macro':
+        this.check(node.body, scope);
+        break;
       case 'bash':
         this.checkBash(node, scope);
         break;
@@ -811,8 +956,6 @@ class Analyzer {
         this.report('warning', valueRange, `Key=value pairs are assigned to '${node.name}', which is declared as a list`, 'type-mismatch');
       } else if (info.base === 'dict' && value.kind === 'list' && value.items.length) {
         this.report('warning', valueRange, `Dict values must be key=value pairs, e.g. (a=1 b=2)`, 'type-mismatch');
-      } else if (info.base === 'list' && value.kind === 'list') {
-        this.checkListItems(node, info);
       } else if (value.kind === 'scalar' && hasTypeTest(info)) {
         const literal = literalValue(node.value);
         if (literal !== null && !accepts(literal, info)) {
@@ -821,20 +964,6 @@ class Analyzer {
       }
     }
     this.checkText([{ line: node.line, col: node.valueCol, text: node.value }], scope, { calls: 'substitution' });
-  }
-
-  checkListItems(node, info) {
-    const element = info.datatype.filter((w) => w !== 'const')[1];
-    const pattern = PATTERNS[element];
-    if (!pattern) return;
-    const inner = node.value.slice(1, -1);
-    for (const item of words(inner)) {
-      const literal = literalValue(item.text);
-      if (literal !== null && !pattern.test(literal)) {
-        const start = node.valueCol + 1 + item.index;
-        this.report('warning', span(node.line, start, start + item.text.length), `'${item.text}' is not a valid ${element}`, 'type-mismatch');
-      }
-    }
   }
 
   checkFunction(node, scope) {
@@ -976,7 +1105,7 @@ class Analyzer {
         if (dashes === '--') this.report('warning', range, `'${full}' refers to an option, but is used outside of a function`, 'unknown-option-ref');
         continue;
       }
-      const known = scope.fnChain.some((fn) => fn.leaves.some((leaf) => leaf.name === name));
+      const known = scope.fnChain.some((fn) => fn.leaves.some((leaf) => paramNames(leaf).includes(name)));
       if (!known) {
         const fn = scope.fnChain[scope.fnChain.length - 1];
         this.report('warning', range, `'${full}' does not match any parameter of '${fn.name}'`, 'unknown-option-ref');
@@ -1007,7 +1136,10 @@ class Analyzer {
 
   checkCallArgs(fn, text, start, end, rangeAt) {
     const flags = new Map();
-    for (const leaf of fn.leaves) if (leaf.kind === 'opt') flags.set(leaf.flag, leaf);
+    for (const leaf of fn.leaves) {
+      if (leaf.kind !== 'opt') continue;
+      for (const flag of leaf.flags.length ? leaf.flags : [leaf.flag]) flags.set(flag, leaf);
+    }
     const args = words(text.slice(start, end)).map((w) => ({ text: w.text, index: start + w.index }));
     for (let k = 0; k < args.length; k++) {
       const arg = args[k];
@@ -1037,32 +1169,27 @@ class Analyzer {
   validateType(info, range) {
     const words = info.datatype;
     if (!words.length) return this.report('error', range, 'Missing type', 'type');
-    const unknown = words.find((w) => !TYPE_WORDS.has(w));
+    const unknown = words.find((w) => !TYPE_WORDS.has(canonicalType(w)) && !TYPE_NAMES.includes(w));
     if (unknown) {
       return this.report(
         'error',
         range,
-        `Unknown type '${unknown}': expected ${[...SCALARS, ...COLLECTIONS].join(', ')}, optionally prefixed with const`,
+        `Unknown type '${unknown}': expected ${TYPE_NAMES.join(', ')}, optionally prefixed with const`,
         'type',
       );
     }
     const rest = words[0] === 'const' ? words.slice(1) : words;
     const [base, ...args] = rest;
     if (rest.includes('const')) return this.report('error', range, "'const' must come first, e.g. <const int>", 'type');
-    if (!base) return this.report('error', range, "'const' needs a type, e.g. <const str>", 'type');
-    if (SCALARS.includes(base) && args.length) return this.report('error', range, `'${base}' does not take type arguments`, 'type');
-    if (base === 'list' && args.length > 1) return this.report('error', range, "'list' takes one element type, e.g. <list int>", 'type');
-    if (base === 'dict' && args.length > 2) return this.report('error', range, "'dict' takes at most two types, e.g. <dict int str>", 'type');
-    const nested = args.find((a) => !SCALARS.includes(a));
-    if (nested) return this.report('error', range, `'${nested}' cannot be used as an element type: use a primitive type`, 'type');
+    if (args.length) return this.report('error', range, `'${base}' does not take type arguments, e.g. <${base}>`, 'type');
     if (!info.literals) return;
-    if (!SCALARS.includes(base)) return this.report('error', range, 'Allowed values can only be listed for primitive types', 'type');
+    if (!SCALARS.includes(info.base)) return this.report('error', range, 'Allowed values can only be listed for str, int, float, and bool', 'type');
     if (!info.literals.length) return this.report('warning', range, 'Empty list of allowed values', 'type');
-    const pattern = PATTERNS[base];
+    const pattern = PATTERNS[info.base];
     if (!pattern) return;
     for (const literal of info.literals) {
       const value = literalValue(literal) ?? literal;
-      if (!pattern.test(value)) this.report('error', range, `Allowed value '${literal}' is not a valid ${base}`, 'type');
+      if (!pattern.test(value)) this.report('error', range, `Allowed value '${literal}' is not a valid ${info.base}`, 'type');
     }
   }
 
@@ -1079,7 +1206,7 @@ class Analyzer {
 
 function childBlocks(node) {
   if (node.kind === 'if') return [...node.branches.map((b) => b.body), ...(node.else ? [node.else.body] : [])];
-  if (node.kind === 'for' || node.kind === 'while' || node.kind === 'orphan') return [node.body];
+  if (node.kind === 'for' || node.kind === 'while' || node.kind === 'orphan' || node.kind === 'macro') return [node.body];
   if (node.kind === 'case') return node.arms.map((arm) => arm.body);
   return [];
 }
@@ -1087,7 +1214,7 @@ function childBlocks(node) {
 function endLine(node) {
   let last = node.kind === 'bash' ? node.lines[node.lines.length - 1] : node.closeLine ?? node.line;
   if (node.kind === 'case') for (const arm of node.arms) last = Math.max(last, arm.line);
-  const blocks = node.kind === 'function' || node.kind === 'command' ? [node.body] : childBlocks(node);
+  const blocks = node.kind === 'function' || node.kind === 'command' || node.kind === 'macro' ? [node.body] : childBlocks(node);
   for (const block of blocks) {
     if (block.length) last = Math.max(last, endLine(block[block.length - 1]));
   }
@@ -1100,8 +1227,9 @@ function functionLabel(node) {
 }
 
 function describeParam(leaf) {
-  let text = leaf.kind === 'rest' ? `*${leaf.name}` : leaf.flag || leaf.name;
-  if (leaf.kind === 'arg' ? leaf.datatype.raw !== 'str' : leaf.datatype.raw !== 'bool') text += `<${leaf.datatype.description}>`;
+  let text = leaf.kind === 'rest' ? `*${leaf.name}` : leaf.flags && leaf.flags.length ? leaf.flags.join('|') : leaf.flag || leaf.name;
+  const bare = leaf.kind === 'opt' ? 'bool' : leaf.kind === 'rest' ? 'any' : 'str';
+  if (leaf.datatype.description !== bare) text += `<${leaf.datatype.description}>`;
   if (leaf.repeat) text += '...';
   return leaf.optional ? `[${text}]` : text;
 }
@@ -1117,7 +1245,7 @@ function buildSymbols(analyzer, nodes) {
     for (const node of list) {
       if (node.kind === 'function' || node.kind === 'command') {
         const params = node.leaves.map((leaf) => ({
-          name: leaf.kind === 'rest' ? `*${leaf.name}` : leaf.flag || leaf.name,
+          name: leaf.kind === 'rest' ? `*${leaf.name}` : leaf.flags && leaf.flags.length > 1 ? leaf.flags.join('|') : leaf.flag || leaf.name,
           detail: leaf.datatype.description,
           kind: leaf.kind,
           range: tokenRange(leaf.token),
@@ -1131,6 +1259,15 @@ function buildSymbols(analyzer, nodes) {
           range: fullRange(node),
           selectionRange: node.nameRange,
           children: [...params, ...buildSymbols(analyzer, node.body)],
+        });
+      } else if (node.kind === 'macro') {
+        symbols.push({
+          name: `@${node.name}`,
+          detail: 'macro',
+          kind: 'macro',
+          range: fullRange(node),
+          selectionRange: node.nameRange,
+          children: buildSymbols(analyzer, node.body),
         });
       } else if ((node.kind === 'declaration' || node.kind === 'assignment') && !seen.has(node.name)) {
         seen.add(node.name);
@@ -1158,6 +1295,8 @@ function analyze(source) {
     diagnostics: analyzer.diagnostics,
     symbols: buildSymbols(analyzer, analyzer.body),
     functions: analyzer.functions,
+    macros: analyzer.macros,
+    imports: analyzer.imports,
     callable: [...analyzer.callable.values()].filter((fn) => fn.name),
     variables: analyzer.variables,
     findFunction(name) {
@@ -1172,4 +1311,4 @@ function analyze(source) {
   };
 }
 
-module.exports = { analyze, describeParam, scanShell, splitWords, SCALARS, COLLECTIONS };
+module.exports = { analyze, describeParam, scanShell, splitWords, paramNames, SCALARS, COLLECTIONS, TYPE_NAMES };

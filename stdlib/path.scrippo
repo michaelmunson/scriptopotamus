@@ -1,0 +1,38 @@
+here(
+  [--file]
+  [--rel]
+)
+  local src=${_SCRIPPO_FILE:-${BASH_SOURCE[0]}}
+  src=$(realpath "$src")
+  local target
+  if $file
+    target=$src
+  else
+    target=${src%/*}
+  if ! $rel
+    -> "$target"
+  else
+    local from
+    from=$(realpath "$PWD")
+    local -a fp tp
+    local IFS=/
+    fp=($from)
+    tp=($target)
+    IFS=$' \t\n'
+    local i=0
+    while (( i < ${#fp[@]} && i < ${#tp[@]} )) && [[ ${fp[i]} == "${tp[i]}" ]]
+      i=$((i + 1))
+    local -a out=()
+    local j=$i
+    while (( j < ${#fp[@]} ))
+      [[ -n ${fp[j]} ]] && out+=("..")
+      j=$((j + 1))
+    j=$i
+    while (( j < ${#tp[@]} ))
+      [[ -n ${tp[j]} ]] && out+=("${tp[j]}")
+      j=$((j + 1))
+    if (( ${#out[@]} == 0 ))
+      -> .
+    else
+      local IFS=/
+      -> "${out[*]}"

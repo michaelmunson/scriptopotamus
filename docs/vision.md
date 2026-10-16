@@ -240,10 +240,14 @@ function my_func {
         * a glob such as `@import ./*` imports every matching file in sorted order; directories are skipped
         * each file is only imported once, so repeated, circular, and self imports are skipped
         * top-level commands in an imported `.scrippo` file are added to the script's commands, and defining the same command twice is a compile error
+        * bare names (`@import mylib`) resolve to `.scrippo/lib/mylib.scrippo` in the project, then `~/.scrippo/lib/mylib.scrippo`
+        * paths and globs still resolve relative to the importing file
 ```bash
 @import lib/utils.bash # these always resolve relative to the file, not the current working directory
 @import scrippo/*
 @import scrippo/io
+@import scrippo/path
+@import mylib          # project .scrippo/lib/mylib.scrippo or ~/.scrippo/lib/mylib.scrippo
 @import script.scrippo
 ```
 ##### Defining Macros
@@ -337,3 +341,20 @@ dict --keys $my_dict # -> "a b c"
 dict --values $my_dict # -> "1 2 3"
 dict --length $my_dict # -> 3
 ```
+
+###### `scrippo/std/path`
+* imported with `@import scrippo/std/path`
+```bash
+here(
+  [--file]
+  [--rel]
+)
+
+# usage (script at /proj/app.scrippo, called from /proj/sub)
+here              # -> /proj
+here --rel        # -> ..
+here --file       # -> /proj/app.scrippo
+here --file --rel # -> ../app.scrippo
+```
+* `here` is the script directory; `--file` is the script path; `--rel` makes either relative to the calling directory (`$PWD`)
+* when run via `scrippo`, the original `.scrippo` path is used; when a compiled bash script is run directly, `$0` / `BASH_SOURCE` is used

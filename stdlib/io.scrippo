@@ -7,7 +7,7 @@ throw(
 
 prt(
   msg...
-  [-s|--style]
+  [-s|--style<str>...]
   [-j|--join<str>]
   [-n]
 )

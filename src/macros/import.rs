@@ -1,11 +1,13 @@
 use crate::ast::*;
 use crate::error::{CompileError, Result};
 use crate::parse;
+use crate::paths;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 const STD_IO: &str = include_str!("../../stdlib/io.scrippo");
 const STD_TYPES: &str = include_str!("../../stdlib/types.scrippo");
+const STD_PATH: &str = include_str!("../../stdlib/path.scrippo");
 const STD_ALL: &str = include_str!("../../stdlib/std.scrippo");
 
 pub struct ImportContext {
@@ -99,6 +101,20 @@ fn import_pattern(
         return Ok(());
     }
 
+    if paths::is_package_name(&pattern) {
+        if let Some(pkg) = paths::resolve_package(&pattern, &ctx.source_path) {
+            import_file(ctx, body, &pkg, line)?;
+            return Ok(());
+        }
+        return Err(CompileError::at(
+            &ctx.source_path,
+            line,
+            format!(
+                "@import: package not found: {pattern} (looked in .scrippo/lib and ~/.scrippo/lib)"
+            ),
+        ));
+    }
+
     let path = if Path::new(&pattern).is_absolute() {
         PathBuf::from(&pattern)
     } else {
@@ -120,8 +136,10 @@ fn resolve_stdlib(pattern: &str) -> Result<Option<Vec<Stmt>>> {
             let mut all = Vec::new();
             let io = parse::parse_source(virtual_path, STD_IO)?;
             let types = parse::parse_source(virtual_path, STD_TYPES)?;
+            let path = parse::parse_source(virtual_path, STD_PATH)?;
             all.extend(io.body);
             all.extend(types.body);
+            all.extend(path.body);
             let _ = STD_ALL;
             Ok(Some(all))
         }
@@ -130,6 +148,9 @@ fn resolve_stdlib(pattern: &str) -> Result<Option<Vec<Stmt>>> {
         }
         "scrippo/std/types" | "scrippo/types" | "scrippo/std/types.scrippo" => {
             Ok(Some(parse::parse_source(virtual_path, STD_TYPES)?.body))
+        }
+        "scrippo/std/path" | "scrippo/path" | "scrippo/std/path.scrippo" => {
+            Ok(Some(parse::parse_source(virtual_path, STD_PATH)?.body))
         }
         _ => Ok(None),
     }

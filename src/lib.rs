@@ -1,9 +1,12 @@
 pub mod ast;
 pub mod check;
+pub mod config;
 pub mod emit;
 pub mod error;
 pub mod macros;
 pub mod parse;
+pub mod paths;
+pub mod shell;
 
 use crate::error::Result;
 use std::path::Path;

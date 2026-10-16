@@ -2,43 +2,60 @@
 
 const BUILTINS = {
   throw: {
-    signature: 'throw(code<int> msg)',
-    description: 'Exits with `code`, printing `msg` as a red error message.',
-    macro: true,
+    signature: 'throw(code<int> msg...)',
+    description: 'Exits with `code`, printing `msg` as a red error message. From `@import scrippo/std/io`.',
     snippet: 'throw ${1:1} "${2:message}"',
     flags: [],
+    pkg: 'io',
   },
   prt: {
-    signature: 'prt(\n  msg...\n  [-s|--style <str>...]...\n  [-j|--join <str>]\n  [-n]\n)',
-    description: 'Echo with style. Each `-s` styles only the msg that follows it; msgs are joined by a space, or by `-j`.',
-    macro: true,
+    signature: 'prt(\n  msg...\n  [-s|--style<str>...]\n  [-j|--join<str>]\n  [-n]\n)',
+    description: 'Echo with style. Each `-s` styles only the message that follows it. Messages are joined by a space, or by `-j`. From `@import scrippo/std/io`.',
     snippet: 'prt "${1:message}"',
     flags: ['-s', '--style', '-j', '--join', '-n'],
+    pkg: 'io',
   },
   input: {
     signature: 'input(\n  prompt\n  -v<str>\n  [\n    --select<str>...\n    [--multi]\n  ] | [\n    --confirm\n  ]\n)',
-    description: 'Interactive, styled prompt for text, an arrow-key selection from options (checkboxes with `--multi`), or a y/n confirmation, storing the answer in `-v`.',
-    macro: true,
+    description: 'Styled prompt for text, an arrow-key selection (`--multi` for checkboxes), or a y/n confirmation. Stores the answer in `-v`. From `@import scrippo/std/io`.',
     snippet: 'input "${1:prompt}" -v ${2:answer}',
-    flags: ['-v', '-s', '--select', '--multi', '--confirm'],
+    flags: ['-v', '--select', '--multi', '--confirm'],
+    pkg: 'io',
   },
-  rootdir: {
-    signature: 'rootdir([--enter])',
-    description: 'The absolute directory containing the running scrippo file, regardless of the working directory. Usable alone (prints it, or `cd`s into it with `--enter`) or inside any expression, e.g. `cd @rootdir/dev`.',
-    macro: true,
-    snippet: 'rootdir',
-    flags: ['--enter'],
+  list: {
+    signature: 'list(\n  array<list>\n  [--join<str>]\n  [--length]\n)',
+    description: 'Prints a list, joins it with `--join`, or prints its length. From `@import scrippo/std/types`.',
+    snippet: 'list $${1:array}',
+    flags: ['--join', '--length'],
+    pkg: 'types',
+  },
+  dict: {
+    signature: 'dict(\n  dict<dict>\n  [--keys]\n  [--values]\n  [--length]\n)',
+    description: 'Prints a dict, or its keys, values, or length. From `@import scrippo/std/types`.',
+    snippet: 'dict $${1:dict}',
+    flags: ['--keys', '--values', '--length'],
+    pkg: 'types',
+  },
+  str: {
+    signature: 'str(\n  string<str>\n  [--length]\n  [--split<str>]\n)',
+    description: 'Prints a string, its length, or the parts from splitting on `--split`. From `@import scrippo/std/types`.',
+    snippet: 'str "${1:text}"',
+    flags: ['--length', '--split'],
+    pkg: 'types',
+  },
+  here: {
+    signature: 'here(\n  [--file]\n  [--rel]\n)',
+    description: 'Script directory, or script path with `--file`. With `--rel`, the result is relative to the calling directory. From `@import scrippo/std/path`.',
+    snippet: 'here',
+    flags: ['--file', '--rel'],
+    pkg: 'path',
   },
   import: {
-    signature: 'import(pattern)',
-    description: 'Inlines another scrippo or bash file. Relative paths and globs resolve from the importing file, e.g. `@import ./lib/*`.',
+    signature: '@import path',
+    description: 'Inlines another scrippo or bash file, or a standard library (`scrippo/std`, `scrippo/std/io`, `scrippo/std/types`, `scrippo/std/path`). Relative paths and globs resolve from the importing file. Each file is imported once.',
     macro: true,
-    snippet: 'import "${1:file}"',
+    snippet: 'import ${1:scrippo/std}',
     flags: [],
-  },
-  len: {
-    signature: 'len(name)',
-    description: 'Prints the number of items in a list or dict.',
   },
 };
 
@@ -49,19 +66,74 @@ const KEYWORDS = {
   else: 'Fallback branch of an `if`. Must be alone on its line.',
   for: '`for <name> in <items>` runs the indented block once per item. A single `$list` item iterates over the whole list.',
   while: 'Runs the indented block while the condition holds.',
-  case: '`case <value>` matches the value against the indented `pattern)` arms. There is no `in` or `esac`.',
+  case: '`case <value>` matches the value against the indented `pattern)` arms. `in` and `;;` are optional. There is no `esac`.',
 };
 
 const TYPES = {
-  int: 'Integer. Assignments are checked against `^-?[0-9]+$`; arithmetic uses `$(( ))`.',
-  float: 'Floating point number. Assignments are checked against `^-?[0-9]*\\.?[0-9]+$`; arithmetic uses `bc`.',
-  str: 'String. The default type for function arguments.',
-  upper: 'String that is converted to upper case on assignment (`declare -u`).',
-  lower: 'String that is converted to lower case on assignment (`declare -l`).',
-  bool: '`true` or `false`. The default type for function options.',
-  list: '`<list T>`: an indexed array, e.g. `nums<list int>=(1 2 3)`.',
-  dict: '`<dict K T>`: an associative array, e.g. `ages<dict int str>=(a=1 b=2)`.',
-  const: '`<const T>`: read-only (`declare -r`). Reassigning it is a compile error.',
+  int: 'Integer. Assignments are checked against `^-?[0-9]+$`. `integer` is an alias. Literals: `<int {1 2 3}>`.',
+  integer: 'Alias of `int`.',
+  float: 'Floating point number. Assignments are checked against `^-?[0-9]*\\.?[0-9]+$`. Arithmetic uses `bc`.',
+  str: 'String. The default type for function arguments. `string` is an alias. Literals: `<str {a b c}>`.',
+  string: 'Alias of `str`.',
+  bool: '`true` or `false`. The default type for function options. `boolean` is an alias.',
+  boolean: 'Alias of `bool`.',
+  list: 'Indexed array, e.g. `nums<list>=(1 2 3)`. `array` is an alias.',
+  array: 'Alias of `list`.',
+  dict: 'Associative array, e.g. `ages<dict>=(a=1 b=2)`.',
+  any: 'Any value. `<const>` with no other type is `<const any>`.',
+  const: '`<const T>` is read-only. Reassigning it is a compile error. `<const>` alone means `<const any>`.',
 };
 
-module.exports = { BUILTINS, KEYWORDS, TYPES };
+const PACKAGES = [
+  { path: 'scrippo/std', detail: 'io, types, path', description: 'The whole standard library.' },
+  { path: 'scrippo/std/io', detail: 'throw, prt, input', description: 'Styled printing, prompts, and throw.' },
+  { path: 'scrippo/std/types', detail: 'list, dict, str', description: 'List, dict, and string helpers.' },
+  { path: 'scrippo/std/path', detail: 'here', description: 'The running script directory or file.' },
+  { path: 'scrippo/io', detail: 'scrippo/std/io', description: 'Alias of `scrippo/std/io`.' },
+  { path: 'scrippo/types', detail: 'scrippo/std/types', description: 'Alias of `scrippo/std/types`.' },
+  { path: 'scrippo/path', detail: 'scrippo/std/path', description: 'Alias of `scrippo/std/path`.' },
+  { path: 'scrippo/*', detail: 'io, types, path', description: 'Every standard library module.' },
+];
+
+const PACKAGE_MODULES = {
+  'scrippo/std': ['io', 'types', 'path'],
+  'scrippo/std.scrippo': ['io', 'types', 'path'],
+  'scrippo/*': ['io', 'types', 'path'],
+  'scrippo/std/*': ['io', 'types', 'path'],
+  'scrippo/std/io': ['io'],
+  'scrippo/io': ['io'],
+  'scrippo/std/io.scrippo': ['io'],
+  'scrippo/std/types': ['types'],
+  'scrippo/types': ['types'],
+  'scrippo/std/types.scrippo': ['types'],
+  'scrippo/std/path': ['path'],
+  'scrippo/path': ['path'],
+  'scrippo/std/path.scrippo': ['path'],
+};
+
+function importPath(raw) {
+  let quote = '';
+  let text = '';
+  for (const c of raw) {
+    if (quote) {
+      text += c;
+      if (c === quote) quote = '';
+    } else if (c === '"' || c === "'") {
+      text += c;
+      quote = c;
+    } else if (c === '#') {
+      break;
+    } else {
+      text += c;
+    }
+  }
+  const word = text.trim().split(/\s+/)[0] || '';
+  if ((word.startsWith('"') && word.endsWith('"')) || (word.startsWith("'") && word.endsWith("'"))) return word.slice(1, -1);
+  return word;
+}
+
+function modulesForImport(raw) {
+  return PACKAGE_MODULES[importPath(raw)] || [];
+}
+
+module.exports = { BUILTINS, KEYWORDS, TYPES, PACKAGES, importPath, modulesForImport };

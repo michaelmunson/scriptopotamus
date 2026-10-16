@@ -7,6 +7,7 @@
     { "include": "#shebang" },
     { "include": "#comment" },
     { "include": "#command-definition" },
+    { "include": "#macro-definition" },
     { "include": "#function-definition" },
     { "include": "#typed-variable" },
     { "include": "#assignment" },
@@ -46,6 +47,21 @@
       "contentName": "meta.function.parameters.scriptopotamus",
       "patterns": [{ "include": "#parameters" }]
     },
+    "macro-definition": {
+      "name": "meta.function.macro.scriptopotamus",
+      "begin": "^\\s*(@)([A-Za-z_][A-Za-z0-9_]*)(\\()",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.macro.scriptopotamus" },
+        "2": { "name": "entity.name.function.macro.scriptopotamus" },
+        "3": { "name": "punctuation.definition.parameters.begin.scriptopotamus" }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.parameters.end.scriptopotamus" }
+      },
+      "contentName": "meta.function.parameters.scriptopotamus",
+      "patterns": [{ "include": "#parameters" }]
+    },
     "function-definition": {
       "name": "meta.function.scriptopotamus",
       "begin": "^\\s*([A-Za-z_][A-Za-z0-9_-]*)(\\()",
@@ -67,6 +83,10 @@
         {
           "match": "\\.\\.\\.",
           "name": "keyword.operator.repeat.scriptopotamus"
+        },
+        {
+          "match": "(?<![\\w-])((?:--?[A-Za-z_][A-Za-z0-9_-]*)(?:\\s*\\|\\s*--?[A-Za-z_][A-Za-z0-9_-]*)+)",
+          "name": "variable.parameter.option.scriptopotamus"
         },
         {
           "match": "\\|",
@@ -116,11 +136,11 @@
           "name": "storage.modifier.const.scriptopotamus"
         },
         {
-          "match": "\\b(?:int|float|str|upper|lower|bool)\\b",
+          "match": "\\b(?:int|integer|float|str|string|bool|boolean|any)\\b",
           "name": "support.type.primitive.scriptopotamus"
         },
         {
-          "match": "\\b(?:list|dict)\\b",
+          "match": "\\b(?:list|dict|array)\\b",
           "name": "support.type.collection.scriptopotamus"
         },
         {
@@ -284,7 +304,7 @@
       }
     },
     "command-call": {
-      "match": "^\\s*(?!(?:if|elif|else|for|while|case|fi|done|then|do|esac|true|false|len|echo|printf|read|cd|source|shift|local|declare|export|readonly|unset|set|eval|exec|test|trap|wait|mapfile|let|return|exit|break|continue)(?![\\w-]))([A-Za-z_][A-Za-z0-9_-]*)(?=\\s|$|;)",
+      "match": "^\\s*(?!(?:if|elif|else|for|while|case|fi|done|then|do|esac|true|false|echo|printf|read|cd|source|shift|local|declare|export|readonly|unset|set|eval|exec|test|trap|wait|mapfile|let|return|exit|break|continue)(?![\\w-]))([A-Za-z_][A-Za-z0-9_-]*)(?=\\s|$|;)",
       "captures": {
         "1": { "name": "entity.name.function.call.scriptopotamus" }
       }
@@ -388,7 +408,7 @@
       },
       "patterns": [
         {
-          "match": "\\G\\s*(?!(?:true|false|len|echo|printf|read|cd|source|shift|local|declare|export|unset|set|eval|exec|test)(?![\\w-]))([A-Za-z_][A-Za-z0-9_-]*)(?=\\s|\\))",
+          "match": "\\G\\s*(?!(?:true|false|echo|printf|read|cd|source|shift|local|declare|export|unset|set|eval|exec|test)(?![\\w-]))([A-Za-z_][A-Za-z0-9_-]*)(?=\\s|\\))",
           "captures": {
             "1": { "name": "entity.name.function.call.scriptopotamus" }
           }
@@ -506,10 +526,6 @@
     },
     "builtin": {
       "patterns": [
-        {
-          "match": "(?<![\\w$.-])(?:len)(?![\\w-])",
-          "name": "support.function.builtin.scriptopotamus"
-        },
         {
           "match": "(?<![\\w$./-])(?:echo|printf|read|cd|source|shift|local|declare|export|readonly|unset|set|eval|exec|test|trap|wait|mapfile|let)(?![\\w-])",
           "name": "support.function.builtin.shell.scriptopotamus"

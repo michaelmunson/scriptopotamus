@@ -2,7 +2,7 @@
   "name": "scriptopotamus",
   "displayName": "Scriptopotamus",
   "description": "Syntax highlighting, autocomplete, linting, and compiler diagnostics for Scriptopotamus (.scrippo) scripts",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "publisher": "michaelmunson",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -35,10 +35,9 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "The Scriptopotamus compiler runs bash scripts from the workspace, so compiler diagnostics are only available in trusted workspaces.",
+      "description": "Compiler diagnostics run the scrippo binary on workspace files, so they are only available in trusted workspaces.",
       "restrictedConfigurations": [
-        "scriptopotamus.compiler.path",
-        "scriptopotamus.compiler.bashPath"
+        "scriptopotamus.compiler.path"
       ]
     }
   },
@@ -121,13 +120,7 @@
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "Path to compiler.bash. Supports ${workspaceFolder} and ~. When empty, src/compiler.bash is looked up in the workspace."
-        },
-        "scriptopotamus.compiler.bashPath": {
-          "type": "string",
-          "default": "bash",
-          "scope": "machine-overridable",
-          "description": "Bash 4+ executable used to run the compiler."
+          "description": "Path to the scrippo binary. Supports ${workspaceFolder} and ~. When empty, target/debug/scrippo or target/release/scrippo is looked up in the workspace."
         }
       }
     },

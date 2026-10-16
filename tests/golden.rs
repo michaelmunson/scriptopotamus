@@ -66,7 +66,9 @@ fn compile_imports() {
     let bash = compile_file(&fixture("imports.scrippo")).unwrap();
     assert!(bash.contains("function throw"));
     assert!(bash.contains("function prt"));
+    assert!(bash.contains("function here"));
     assert!(bash.contains("_scrippo_prt"));
+    assert!(bash.contains("_SCRIPPO_FILE"));
     assert_bash_n(&bash);
 }
 

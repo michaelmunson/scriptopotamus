@@ -98,6 +98,9 @@ pub fn emit_function_params(em: &mut Emitter, fn_label: &str, params: &[Param]) 
         return Ok(());
     }
 
+    // Param binding shifts "$@"; restore it so bodies can forward the original argv.
+    em.emit_line("local -a _scrippo_argv=(\"$@\")");
+
     let mut catchall: Option<String> = None;
     for (i, leaf) in leaves.iter().enumerate() {
         if leaf.kind == LeafKind::Rest {
@@ -192,6 +195,7 @@ pub fn emit_function_params(em: &mut Emitter, fn_label: &str, params: &[Param]) 
 
     emit_assign_args(em, fn_label, &leaves, catchall.as_deref())?;
     emit_checks(em, fn_label, params, &leaves)?;
+    em.emit_line("set -- \"${_scrippo_argv[@]}\"");
     Ok(())
 }
 

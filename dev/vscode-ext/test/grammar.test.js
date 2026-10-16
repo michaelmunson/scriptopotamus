@@ -20,15 +20,29 @@ test('typed declarations', async () => {
 });
 
 test('literal types', async () => {
-  const src = 'mode<str (fast slow)>';
+  const src = 'mode<str {fast slow}>\nchoice<any>';
   assert.match(await scopeOf(src, 'fast'), /constant\.other\.literal/);
+  assert.match(await scopeOf(src, 'any'), /support\.type\.primitive/);
+});
+
+test('flag aliases are one option', async () => {
+  const src = 'f(\n  [-s|--style<str>]\n  [-a | --all]\n)\n  echo';
+  assert.match(await scopeOf(src, '-s|--style'), /variable\.parameter\.option/);
+  assert.match(await scopeOf(src, '-a | --all'), /variable\.parameter\.option/);
+  assert.doesNotMatch(await scopeOf(src, '-s|--style'), /keyword\.operator\.exclusive/);
+});
+
+test('macro definitions', async () => {
+  const src = '@say_hi()\n  -> "hi"\n@say_hi';
+  assert.match(await scopeOf(src, 'say_hi'), /entity\.name\.function\.macro/);
+  assert.match(await scopeOf(src, '@', 1), /entity\.name\.function\.macro/);
 });
 
 test('function definitions with multi-line parameters', async () => {
-  const src = ['my_func(', '  path', '  [-s | --select<str>...]', '  --name<str="mike"> # note', ')', '  echo $path'].join('\n');
+  const src = ['my_func(', '  path', '  [-s | --select<str>...]', '  [--yes] | [--no]', '  --name<str="mike"> # note', ')', '  echo $path'].join('\n');
   assert.match(await scopeOf(src, 'my_func'), /entity\.name\.function/);
   assert.match(await scopeOf(src, 'path'), /variable\.parameter/);
-  assert.match(await scopeOf(src, '--select'), /variable\.parameter\.option/);
+  assert.match(await scopeOf(src, '-s | --select'), /variable\.parameter\.option/);
   assert.match(await scopeOf(src, '...'), /keyword\.operator\.repeat/);
   const starred = ['f(', '  [*rest]', ')', '  echo'].join('\n');
   assert.match(await scopeOf(starred, '*'), /keyword\.operator\.rest/);

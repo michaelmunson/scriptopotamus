@@ -30,12 +30,13 @@ function labels(lines, text, after) {
 }
 
 test('macros complete after @', () => {
-  const found = at(SOURCE, '  @pr');
+  const found = at(SOURCE, '  @im');
   assert.equal(found.from, 3);
-  assert.deepEqual(found.items.map((i) => i.label), ['throw', 'prt', 'input', 'rootdir', 'import']);
-  assert.equal(found.items.find((i) => i.label === 'prt').insertText, 'prt "${1:message}"');
-  assert.deepEqual(labels(SOURCE, 'cd @'), ['throw', 'prt', 'input', 'rootdir', 'import']);
-  assert.notDeepEqual(labels(SOURCE, 'user@ho'), ['throw', 'prt', 'input', 'rootdir', 'import']);
+  assert.deepEqual(found.items.map((i) => i.label), ['import']);
+  assert.equal(found.items[0].insertText, 'import ${1:scrippo/std}');
+  const defined = ['@say()', '  -> "hi"', '@'];
+  assert.deepEqual(labels(defined.slice(0, 2), defined[2]), ['import', 'say']);
+  assert.notDeepEqual(labels(SOURCE, 'user@ho'), ['import']);
 });
 
 test('variables and params complete after $', () => {
@@ -57,11 +58,10 @@ test('option references complete after $-', () => {
 });
 
 test('types complete inside annotations', () => {
-  assert.deepEqual(labels([], 'x<'), ['const', 'int', 'float', 'str', 'upper', 'lower', 'bool', 'list', 'dict']);
+  assert.deepEqual(labels([], 'x<'), ['const', 'int', 'float', 'str', 'bool', 'list', 'dict', 'any']);
   assert.ok(!labels([], 'x<const ').includes('const'));
-  assert.deepEqual(labels([], 'x<list '), ['int', 'float', 'str', 'upper', 'lower', 'bool']);
-  assert.deepEqual(labels([], 'x<list int '), []);
-  assert.equal(at([], 'x<dict int fl').from, 'x<dict int '.length);
+  assert.deepEqual(labels([], 'x<const '), ['int', 'float', 'str', 'bool', 'list', 'dict', 'any']);
+  assert.deepEqual(labels([], 'x<list '), []);
   assert.deepEqual(labels(['f('], '  --opt<', [')', '  echo']), labels([], 'x<'));
   assert.deepEqual(labels(['f(', '  [--opt<str>]', ')'], '  echo a<'), null);
   assert.equal(at([], 'x<str {a b'), null);
@@ -71,20 +71,53 @@ test('types complete inside annotations', () => {
 test('function flags complete after a call', () => {
   assert.deepEqual(labels(SOURCE, 'circumference --'), ['--diameter', '--radius', '--verbose']);
   assert.deepEqual(labels(SOURCE, 'x=$(circumference --verbose -'), ['--diameter', '--radius']);
-  assert.deepEqual(labels(SOURCE, '@input "Pick" --'), ['-v', '-s', '--select', '--multi', '--confirm']);
+  assert.deepEqual(labels(SOURCE, 'input "Pick" --'), []);
+  assert.deepEqual(labels(['@import scrippo/std/io'], 'input "Pick" --'), ['-v', '--select', '--multi', '--confirm']);
+  assert.deepEqual(labels(['@import scrippo/io'], 'prt -'), ['-s', '--style', '-j', '--join', '-n']);
   assert.deepEqual(labels(SOURCE, 'unknown --'), []);
   assert.equal(at(SOURCE, 'circumference 3'), null);
 });
 
 test('statements complete keywords, functions, and variables', () => {
   const items = labels(SOURCE, 'ci');
-  assert.ok(items.includes('circumference') && items.includes('build') && items.includes('@prt'));
+  assert.ok(items.includes('circumference') && items.includes('build') && items.includes('@import'));
   assert.ok(items.includes('if') && items.includes('for') && items.includes('PI'));
-  assert.ok(items.includes('len'));
+  assert.ok(!items.includes('prt') && !items.includes('list') && !items.includes('here'));
   const nested = labels(SOURCE, 'if ci');
   assert.ok(nested.includes('circumference') && !nested.includes('if') && !nested.includes('PI'));
   assert.ok(labels(SOURCE, 'echo a | ').includes('circumference'));
   assert.equal(at(SOURCE, 'if').items.find((i) => i.label === 'if').insertText, 'if ${1:condition}\n\t$0');
+});
+
+test('stdlib functions complete only after their package is imported', () => {
+  assert.ok(!labels(SOURCE, 'pr').includes('prt'));
+  const all = labels(['@import scrippo/std'], 'pr');
+  assert.ok(all.includes('prt') && all.includes('throw') && all.includes('input'));
+  assert.ok(all.includes('list') && all.includes('dict') && all.includes('str') && all.includes('here'));
+  const io = labels(['@import scrippo/std/io'], 't');
+  assert.ok(io.includes('throw') && io.includes('prt') && !io.includes('list') && !io.includes('here'));
+  const types = labels(['@import "scrippo/types" # types only'], 'l');
+  assert.ok(types.includes('list') && !types.includes('prt') && !types.includes('here'));
+  const nested = labels(['f()', '  @import scrippo/std'], '  pr');
+  assert.ok(!nested.includes('prt'));
+});
+
+test('packages complete after @import', () => {
+  const found = at(SOURCE, '@import ');
+  assert.equal(found.from, '@import '.length);
+  assert.deepEqual(found.items.map((item) => item.label), [
+    'scrippo/std',
+    'scrippo/std/io',
+    'scrippo/std/types',
+    'scrippo/std/path',
+    'scrippo/io',
+    'scrippo/types',
+    'scrippo/path',
+    'scrippo/*',
+  ]);
+  assert.equal(at(SOURCE, '@import scrippo/std/').from, '@import '.length);
+  assert.equal(at(SOURCE, '@import "scrippo/io').items.find((item) => item.label === 'scrippo/io').insertText, 'scrippo/io"');
+  assert.equal(at(SOURCE, '@import ./'), null);
 });
 
 test('nothing completes in comments or single quotes', () => {

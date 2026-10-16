@@ -1,6 +1,6 @@
 'use strict';
 
-const { describeParam, scanShell, SCALARS, COLLECTIONS } = require('./analyzer');
+const { describeParam, paramNames, scanShell, TYPE_NAMES } = require('./analyzer');
 const docs = require('./docs');
 
 const KEYWORD_SNIPPETS = {
@@ -31,21 +31,49 @@ function result(prefix, typed, items) {
   return { from: prefix.length - (typed || '').length, items };
 }
 
-function macroItems(withAt) {
-  return Object.entries(docs.BUILTINS)
+function macroItems(analysis, withAt) {
+  const items = Object.entries(docs.BUILTINS)
     .filter(([, builtin]) => builtin.macro)
-    .map(([name, builtin]) => ({
-      label: withAt ? `@${name}` : name,
-      kind: 'macro',
-      detail: `@${name}`,
-      documentation: `${codeblock(builtin.signature)}\n\n${builtin.description}`,
-      insertText: withAt ? `@${builtin.snippet}` : builtin.snippet,
-      snippet: true,
-      filterText: name,
-    }));
+    .map(([name, builtin]) => macroItem(name, builtin, withAt));
+  for (const macro of analysis.macros || []) {
+    if (items.some((item) => item.filterText === macro.name)) continue;
+    items.push(
+      macroItem(
+        macro.name,
+        {
+          signature: `@${macro.name}()`,
+          description: `Macro defined on line ${macro.line + 1}`,
+          snippet: macro.name,
+        },
+        withAt,
+      ),
+    );
+  }
+  return items;
+}
+
+function macroItem(name, builtin, withAt) {
+  return {
+    label: withAt ? `@${name}` : name,
+    kind: 'macro',
+    detail: `@${name}`,
+    documentation: `${codeblock(builtin.signature)}\n\n${builtin.description}`,
+    insertText: withAt ? `@${builtin.snippet}` : builtin.snippet,
+    snippet: true,
+    filterText: name,
+  };
+}
+
+function importedModules(analysis) {
+  const modules = new Set();
+  for (const raw of analysis.imports || []) {
+    for (const name of docs.modulesForImport(raw)) modules.add(name);
+  }
+  return modules;
 }
 
 function functionItems(analysis) {
+  const imported = importedModules(analysis);
   const items = analysis.callable.map((fn) => ({
     label: fn.name,
     kind: fn.kind,
@@ -53,8 +81,8 @@ function functionItems(analysis) {
     documentation: `${codeblock(fn.header)}\n\n${fn.kind === 'command' ? 'Command' : 'Function'} defined on line ${fn.line + 1}`,
   }));
   for (const [name, builtin] of Object.entries(docs.BUILTINS)) {
-    if (builtin.macro || analysis.callable.some((fn) => fn.name === name)) continue;
-    items.push({ label: name, kind: 'function', detail: 'builtin', documentation: `${codeblock(builtin.signature)}\n\n${builtin.description}` });
+    if (builtin.macro || !imported.has(builtin.pkg) || analysis.callable.some((fn) => fn.name === name)) continue;
+    items.push({ label: name, kind: 'function', detail: `scrippo/std/${builtin.pkg}`, documentation: `${codeblock(builtin.signature)}\n\n${builtin.description}` });
   }
   return items;
 }
@@ -73,15 +101,17 @@ function variableItems(analysis, line) {
   const items = new Map();
   for (const fn of analysis.functionChainAt(line)) {
     for (const leaf of fn.leaves) {
-      if (items.has(leaf.name)) continue;
       const role = leaf.kind === 'opt' ? 'option' : 'argument';
-      items.set(leaf.name, {
-        label: leaf.name,
-        kind: 'param',
-        detail: describeParam(leaf),
-        documentation: `${leaf.effectiveOptional ? 'Optional' : 'Required'} ${role} of \`${fn.name || '.()'}\``,
-        sortText: `0${leaf.name}`,
-      });
+      for (const name of paramNames(leaf)) {
+        if (items.has(name)) continue;
+        items.set(name, {
+          label: name,
+          kind: 'param',
+          detail: describeParam(leaf),
+          documentation: `${leaf.effectiveOptional ? 'Optional' : 'Required'} ${role} of \`${fn.name || '.()'}\``,
+          sortText: `0${name}`,
+        });
+      }
     }
   }
   for (const [name, variable] of analysis.variables) {
@@ -102,13 +132,16 @@ function optionRefItems(analysis, line) {
   const items = new Map();
   for (const fn of analysis.functionChainAt(line)) {
     for (const leaf of fn.leaves) {
-      if (leaf.kind !== 'opt' || items.has(leaf.flag)) continue;
-      items.set(leaf.flag, {
-        label: leaf.flag,
-        kind: 'flag',
-        detail: describeParam(leaf),
-        documentation: `Option of \`${fn.name || '.()'}\`, also available as \`$${leaf.name}\``,
-      });
+      if (leaf.kind !== 'opt') continue;
+      for (const flag of leaf.flags.length ? leaf.flags : [leaf.flag]) {
+        if (items.has(flag)) continue;
+        items.set(flag, {
+          label: flag,
+          kind: 'flag',
+          detail: describeParam(leaf),
+          documentation: `Option of \`${fn.name || '.()'}\`, also available as \`$${flag.replace(/^-+/, '').replace(/-/g, '_')}\``,
+        });
+      }
     }
   }
   return [...items.values()];
@@ -116,10 +149,8 @@ function optionRefItems(analysis, line) {
 
 function typeItems(before) {
   const words = before.filter((w) => w !== 'const');
-  const [base, ...args] = words;
-  let names = [];
-  if (!base) names = [...(before.includes('const') ? [] : ['const']), ...SCALARS, ...COLLECTIONS];
-  else if ((base === 'list' && !args.length) || (base === 'dict' && args.length < 2)) names = SCALARS;
+  if (words.length) return [];
+  const names = [...(before.includes('const') ? [] : ['const']), ...TYPE_NAMES];
   return names.map((name) => ({ label: name, kind: 'type', documentation: docs.TYPES[name] }));
 }
 
@@ -133,21 +164,43 @@ function typeCompletion(analysis, prefix, line) {
 }
 
 function flagItems(analysis, command, used) {
-  if (command.startsWith('@')) {
-    const builtin = docs.BUILTINS[command.slice(1)];
-    if (!builtin || !builtin.macro) return [];
-    return builtin.flags.map((flag) => ({ label: flag, kind: 'flag', detail: command }));
-  }
   const fn = analysis.callable.find((f) => f.name === command);
-  if (!fn) return [];
-  return fn.leaves
-    .filter((leaf) => leaf.kind === 'opt' && (leaf.repeat || !used.includes(leaf.flag)))
-    .map((leaf) => ({
-      label: leaf.flag,
-      kind: 'flag',
-      detail: describeParam(leaf),
-      documentation: `${leaf.effectiveOptional ? 'Optional' : 'Required'} option of \`${fn.name}\``,
-    }));
+  if (fn) {
+    return fn.leaves
+      .filter((leaf) => leaf.kind === 'opt')
+      .flatMap((leaf) => {
+        const flags = leaf.flags.length ? leaf.flags : [leaf.flag];
+        if (!leaf.repeat && flags.some((flag) => used.includes(flag))) return [];
+        return flags
+          .filter((flag) => leaf.repeat || !used.includes(flag))
+          .map((flag) => ({
+            label: flag,
+            kind: 'flag',
+            detail: describeParam(leaf),
+            documentation: `${leaf.effectiveOptional ? 'Optional' : 'Required'} option of \`${fn.name}\``,
+          }));
+      });
+  }
+  const builtin = docs.BUILTINS[command];
+  if (!builtin || builtin.macro || !importedModules(analysis).has(builtin.pkg)) return [];
+  return builtin.flags.filter((flag) => !used.includes(flag)).map((flag) => ({ label: flag, kind: 'flag', detail: command }));
+}
+
+function importCompletion(prefix) {
+  const m = /@import\s+(['"]?)([^\s'"]*)$/.exec(prefix);
+  if (!m) return null;
+  const quote = m[1];
+  const typed = m[2];
+  if (typed && !typed.startsWith('scrippo') && !'scrippo'.startsWith(typed)) return null;
+  const items = docs.PACKAGES.map((pkg, index) => ({
+    label: pkg.path,
+    kind: 'module',
+    detail: pkg.detail,
+    documentation: pkg.description,
+    insertText: quote ? `${pkg.path}${quote}` : pkg.path,
+    sortText: String(index).padStart(2, '0'),
+  }));
+  return result(prefix, typed, items);
 }
 
 function commandCompletion(analysis, prefix, mask) {
@@ -158,7 +211,7 @@ function commandCompletion(analysis, prefix, mask) {
   const current = words.pop();
   if (!words.length) {
     if (current && !RE.name.test(current)) return null;
-    const items = [...functionItems(analysis), ...macroItems(true)];
+    const items = [...functionItems(analysis), ...macroItems(analysis, true)];
     if (cut < 0 && !lead) items.push(...keywordItems(), ...variableItems(analysis, -1));
     return result(prefix, current, items);
   }
@@ -171,10 +224,10 @@ function complete(analysis, lineText, line, character) {
   const scanned = scanShell(prefix);
   if (scanned.comments.length || (scanned.unterminated && scanned.unterminated.kind === 'sq')) return null;
   let m;
-  if ((m = RE.macro.exec(prefix))) return result(prefix, m[1], macroItems(false));
+  if ((m = RE.macro.exec(prefix))) return result(prefix, m[1], macroItems(analysis, false));
   if ((m = RE.optionRef.exec(prefix))) return result(prefix, m[1], optionRefItems(analysis, line));
   if ((m = RE.variable.exec(prefix))) return result(prefix, m[1], variableItems(analysis, line));
-  return typeCompletion(analysis, prefix, line) || commandCompletion(analysis, prefix, scanned.mask);
+  return importCompletion(prefix) || typeCompletion(analysis, prefix, line) || commandCompletion(analysis, prefix, scanned.mask);
 }
 
 module.exports = { complete };

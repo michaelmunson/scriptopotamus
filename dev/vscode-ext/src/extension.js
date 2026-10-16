@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const vscode = require('vscode');
-const { analyze, describeParam } = require('./analyzer');
+const { analyze, describeParam, paramNames } = require('./analyzer');
 const compiler = require('./compiler');
 const completion = require('./completion');
 const docs = require('./docs');
@@ -26,6 +26,7 @@ const SEVERITY = {
 const SYMBOL_KIND = {
   function: vscode.SymbolKind.Function,
   command: vscode.SymbolKind.Module,
+  macro: vscode.SymbolKind.Function,
   variable: vscode.SymbolKind.Variable,
   constant: vscode.SymbolKind.Constant,
   arg: vscode.SymbolKind.Variable,
@@ -42,6 +43,7 @@ const COMPLETION_KIND = {
   param: vscode.CompletionItemKind.Variable,
   flag: vscode.CompletionItemKind.Property,
   type: vscode.CompletionItemKind.TypeParameter,
+  module: vscode.CompletionItemKind.Module,
 };
 
 function toRange(r) {
@@ -75,7 +77,6 @@ function activate(context) {
   const analyses = new Map();
   const timers = new Map();
   const jobs = new Map();
-  const bashVersions = new Map();
   const warned = new Set();
 
   function analysisFor(doc) {
@@ -141,7 +142,7 @@ function activate(context) {
     }
     const resolved = resolveCompilerPath(doc);
     if (!resolved) {
-      const message = `Could not find the Scriptopotamus compiler (${compiler.COMPILER_RELATIVE_PATH}) in this workspace. Set scriptopotamus.compiler.path to use it.`;
+      const message = `Could not find the scrippo binary (${compiler.COMPILER_CANDIDATES.join(' or ')}) in this workspace. Set scriptopotamus.compiler.path to use it.`;
       if (interactive) notify(message, 'missing-compiler', true);
       else output.appendLine(message);
       return null;
@@ -150,17 +151,7 @@ function activate(context) {
       notify(`Scriptopotamus compiler not found at ${resolved.path}`, `missing:${resolved.path}`, interactive);
       return null;
     }
-    const bash = settings(doc).get('compiler.bashPath', 'bash').trim() || 'bash';
-    if (!bashVersions.has(bash)) bashVersions.set(bash, compiler.bashMajorVersion(bash));
-    const major = await bashVersions.get(bash);
-    if (!major || major < 4) {
-      const message = major
-        ? `The Scriptopotamus compiler needs bash 4 or newer, but '${bash}' is bash ${major}. Set scriptopotamus.compiler.bashPath to a newer bash.`
-        : `Could not run '${bash}'. Set scriptopotamus.compiler.bashPath to a bash 4+ executable.`;
-      notify(message, `bash:${bash}`, interactive);
-      return null;
-    }
-    return { bash, compilerPath: resolved.path };
+    return { compilerPath: resolved.path };
   }
 
   function publishCompilerResult(doc, result) {
@@ -261,10 +252,12 @@ function activate(context) {
     const bare = word.replace(/^\$/, '');
     for (const fn of chain) {
       for (const leaf of fn.leaves) {
+        const names = paramNames(leaf);
         if (bare.startsWith('-')) {
           const asName = bare.replace(/^-+/, '').replace(/-/g, '_');
-          if (leaf.flag === bare || (word.startsWith('$') && leaf.name === asName)) return { fn, leaf };
-        } else if (leaf.name === bare) {
+          const flags = leaf.flags && leaf.flags.length ? leaf.flags : [leaf.flag];
+          if (flags.includes(bare) || (word.startsWith('$') && names.includes(asName))) return { fn, leaf };
+        } else if (names.includes(bare)) {
           return { fn, leaf };
         }
       }
@@ -306,6 +299,11 @@ function activate(context) {
         return md.appendMarkdown(`${fn.kind === 'command' ? 'Command' : 'Function'} defined on line ${fn.line + 1}`);
       }
     }
+    const macro = !word.startsWith('$') && analysis.macros.find((item) => item.name === bare);
+    if (macro) {
+      md.appendCodeblock(macro.header, LANGUAGE_ID);
+      return md.appendMarkdown(`Macro defined on line ${macro.line + 1}`);
+    }
     const variable = analysis.variables.get(bare);
     if (variable) {
       md.appendCodeblock(variable.datatype ? `${bare}<${variable.datatype.description}>` : bare, LANGUAGE_ID);
@@ -314,7 +312,8 @@ function activate(context) {
     if (word.startsWith('$')) return null;
     if (docs.BUILTINS[word]) {
       md.appendCodeblock(docs.BUILTINS[word].signature, LANGUAGE_ID);
-      return md.appendMarkdown(`Builtin: ${docs.BUILTINS[word].description}`);
+      const kind = docs.BUILTINS[word].macro ? 'Macro' : 'Standard library';
+      return md.appendMarkdown(`${kind}: ${docs.BUILTINS[word].description}`);
     }
     if (docs.KEYWORDS[word] && doc.lineAt(pos.line).firstNonWhitespaceCharacterIndex === range.start.character) {
       return md.appendMarkdown(docs.KEYWORDS[word]);
@@ -341,6 +340,8 @@ function activate(context) {
       const bare = found.word.replace(/^\$/, '');
       const fn = !found.word.startsWith('$') && analysis.findFunction(bare);
       if (fn) return new vscode.Location(doc.uri, toRange(fn.nameRange));
+      const macro = !found.word.startsWith('$') && analysis.macros.find((item) => item.name === bare);
+      if (macro) return new vscode.Location(doc.uri, toRange(macro.nameRange));
       const variable = analysis.variables.get(bare);
       if (variable) return new vscode.Location(doc.uri, toRange(variable.range));
       return null;
@@ -450,7 +451,7 @@ function activate(context) {
     compilerCollection,
     vscode.languages.registerHoverProvider(selector, hoverProvider),
     vscode.languages.registerDefinitionProvider(selector, definitionProvider),
-    vscode.languages.registerCompletionItemProvider(selector, completionProvider, '@', '$', '-', '<'),
+    vscode.languages.registerCompletionItemProvider(selector, completionProvider, '@', '$', '-', '<', '/'),
     vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
     vscode.languages.registerCodeActionsProvider(selector, codeActionProvider, {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],
@@ -471,7 +472,6 @@ function activate(context) {
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (!event.affectsConfiguration('scriptopotamus')) return;
-      bashVersions.clear();
       warned.clear();
       vscode.workspace.textDocuments.forEach(refresh);
     }),
