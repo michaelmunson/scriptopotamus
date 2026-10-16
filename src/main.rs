@@ -1,7 +1,8 @@
 mod utils;
 mod ast;
+use ast::nodes::statements::Block;
 use ast::ast::parse;
 
 fn main() {
-    println!("Hello, world!");
+    parse(".scrippo");
 }

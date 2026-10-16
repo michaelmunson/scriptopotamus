@@ -6,3 +6,8 @@ pub mod operators;
 pub mod loops;
 pub mod conditional;
 pub mod variables;
+pub mod commands;
+
+pub fn test() -> &'static str {
+    &"asd"
+}
