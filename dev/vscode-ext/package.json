@@ -2,7 +2,7 @@
   "name": "scriptopotamus",
   "displayName": "Scriptopotamus",
   "description": "Syntax highlighting, autocomplete, linting, and compiler diagnostics for Scriptopotamus (.scrippo) scripts",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "publisher": "michaelmunson",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -124,6 +124,16 @@
         }
       }
     },
+    "semanticTokenScopes": [
+      {
+        "language": "scriptopotamus",
+        "scopes": {
+          "function": [
+            "entity.name.function.call.scriptopotamus"
+          ]
+        }
+      }
+    ],
     "configurationDefaults": {
       "[scriptopotamus]": {
         "editor.insertSpaces": true,

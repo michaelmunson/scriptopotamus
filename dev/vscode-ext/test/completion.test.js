@@ -1,6 +1,9 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const test = require('node:test');
 const { analyze } = require('../src/analyzer');
 const { complete } = require('../src/completion');
@@ -19,13 +22,23 @@ const SOURCE = [
   '  echo $target',
 ];
 
-function at(lines, text, after = []) {
+const NESTED = [
+  '.version()',
+  '  .get()',
+  '    -> 1',
+  '  .bump(version [--dry])',
+  '    -> $version',
+  '  .demo()',
+  '    version get',
+];
+
+function at(lines, text, after = [], options = {}) {
   const source = [...lines, text, ...after];
-  return complete(analyze(source.join('\n')), text, lines.length, text.length);
+  return complete(analyze(source.join('\n')), text, lines.length, text.length, options);
 }
 
-function labels(lines, text, after) {
-  const found = at(lines, text, after);
+function labels(lines, text, after, options) {
+  const found = at(lines, text, after, options);
   return found ? found.items.map((item) => item.label) : null;
 }
 
@@ -105,19 +118,50 @@ test('stdlib functions complete only after their package is imported', () => {
 test('packages complete after @import', () => {
   const found = at(SOURCE, '@import ');
   assert.equal(found.from, '@import '.length);
-  assert.deepEqual(found.items.map((item) => item.label), [
-    'scrippo/std',
-    'scrippo/std/io',
-    'scrippo/std/types',
-    'scrippo/std/path',
-    'scrippo/io',
-    'scrippo/types',
-    'scrippo/path',
-    'scrippo/*',
-  ]);
+  assert.deepEqual(
+    found.items.filter((item) => item.detail !== 'local file').map((item) => item.label),
+    [
+      'scrippo/std',
+      'scrippo/std/io',
+      'scrippo/std/types',
+      'scrippo/std/path',
+      'scrippo/io',
+      'scrippo/types',
+      'scrippo/path',
+      'scrippo/*',
+    ],
+  );
   assert.equal(at(SOURCE, '@import scrippo/std/').from, '@import '.length);
   assert.equal(at(SOURCE, '@import "scrippo/io').items.find((item) => item.label === 'scrippo/io').insertText, 'scrippo/io"');
-  assert.equal(at(SOURCE, '@import ./'), null);
+});
+
+test('nested commands complete after their parent', () => {
+  assert.deepEqual(labels(NESTED, 'version '), ['get', 'bump', 'demo']);
+  const partial = at(NESTED, 'version g');
+  assert.equal(partial.from, 'version '.length);
+  assert.deepEqual(partial.items.map((i) => i.label), ['get', 'bump', 'demo']);
+  assert.ok(!labels(NESTED, 'ver').includes('get'));
+  assert.deepEqual(labels(NESTED, 'version bump --'), ['--dry']);
+  assert.equal(at(NESTED, 'version get '), null);
+});
+
+test('local .scrippo files complete after @import', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'scrippo-import-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'util.scrippo'), '-> 1\n');
+    fs.mkdirSync(path.join(dir, 'lib'));
+    fs.writeFileSync(path.join(dir, 'lib', 'helper.scrippo'), '-> 2\n');
+    const found = at([], '@import ./', [], { importDir: dir });
+    assert.deepEqual(
+      found.items.map((item) => item.label),
+      ['./lib/helper.scrippo', './util.scrippo'],
+    );
+    assert.deepEqual(labels([], '@import util', [], { importDir: dir }), ['./util.scrippo']);
+    assert.ok(labels([], '@import ', [], { importDir: dir }).includes('./util.scrippo'));
+    assert.ok(labels([], '@import ', [], { importDir: dir }).includes('scrippo/std'));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('nothing completes in comments or single quotes', () => {

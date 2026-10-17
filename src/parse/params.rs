@@ -131,36 +131,36 @@ fn parse_param_list_with_exclusive(
     optional_context: bool,
 ) -> Result<Vec<Param>> {
     let tokens = merge_flag_aliases(tokens);
-    if !tokens.iter().any(|t| t == "|") {
-        let mut params = Vec::new();
-        let mut i = 0;
-        while i < tokens.len() {
-            let (param, next) = parse_one(path, line, tokens.as_slice(), i, optional_context)?;
-            params.push(param);
-            i = next;
-        }
-        return Ok(params);
-    }
-
-    let mut options = Vec::new();
-    let mut current = Vec::new();
+    let mut params = Vec::new();
     let mut i = 0;
     while i < tokens.len() {
         if tokens[i] == "|" {
-            if !current.is_empty() {
-                options.push(wrap_option(std::mem::take(&mut current)));
-            }
-            i += 1;
-            continue;
+            return Err(CompileError::at(path, line, "unexpected '|' in parameters"));
         }
         let (param, next) = parse_one(path, line, tokens.as_slice(), i, optional_context)?;
-        current.push(param);
         i = next;
+        if i < tokens.len() && tokens[i] == "|" {
+            let mut options = vec![param];
+            while i < tokens.len() && tokens[i] == "|" {
+                i += 1;
+                if i >= tokens.len() || tokens[i] == "|" {
+                    return Err(CompileError::at(
+                        path,
+                        line,
+                        "expected a parameter after '|'",
+                    ));
+                }
+                let (next_param, next_i) =
+                    parse_one(path, line, tokens.as_slice(), i, optional_context)?;
+                options.push(next_param);
+                i = next_i;
+            }
+            params.push(Param::Exclusive { options });
+        } else {
+            params.push(param);
+        }
     }
-    if !current.is_empty() {
-        options.push(wrap_option(current));
-    }
-    Ok(vec![Param::Exclusive { options }])
+    Ok(params)
 }
 
 /// Merge `-s | --select` into a single token `-s|--select` when both sides are flags.
@@ -214,17 +214,6 @@ fn merge_flag_aliases(tokens: &[String]) -> Vec<String> {
         i += 1;
     }
     out
-}
-
-fn wrap_option(params: Vec<Param>) -> Param {
-    if params.len() == 1 {
-        params.into_iter().next().unwrap()
-    } else {
-        Param::Group {
-            optional: false,
-            params,
-        }
-    }
 }
 
 fn parse_leaf(path: &Path, line: usize, token: &str, optional_context: bool) -> Result<Param> {

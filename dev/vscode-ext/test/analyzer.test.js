@@ -263,3 +263,19 @@ test('functionChainAt finds enclosing functions', () => {
   assert.deepEqual(analysis.functionChainAt(3).map((f) => f.name), ['a']);
   assert.deepEqual(analysis.functionChainAt(4), []);
 });
+
+test('nested command calls resolve paths and highlight segments', () => {
+  const source = ['.version()', '  .get()', '    -> 1', '  .bump(v [--dry])', '    -> $v', 'version get', 'version bump --nope x'].join('\n');
+  const analysis = analyze(source);
+  assert.deepEqual(
+    analysis.callSegments.filter((s) => s.line === 5 || s.line === 6).map((s) => [s.line, s.name]),
+    [
+      [5, 'version'],
+      [5, 'get'],
+      [6, 'version'],
+      [6, 'bump'],
+    ],
+  );
+  assert.equal(analysis.resolveCommandPath(['version', 'get']).node.name, 'get');
+  assert.deepEqual(codes(['.version()', '  .bump(v [--dry])', '    -> $v', 'version bump --nope']), ['4:unknown-option']);
+});

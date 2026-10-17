@@ -261,6 +261,7 @@ class Analyzer {
     this.variables = new Map();
     this.types = new Map();
     this.definedFunctions = new Map();
+    this.callSegments = [];
   }
 
   run() {
@@ -810,6 +811,8 @@ class Analyzer {
     for (const node of nodes) {
       if (node.kind === 'function' || node.kind === 'command') {
         node.parent = chain[chain.length - 1] || null;
+        node.children = [];
+        if (node.parent) node.parent.children.push(node);
         this.functions.push(node);
         if (node.kind === 'function' || !chain.length) this.callable.set(node.name, node);
         this.collectFunctions(node.body, [...chain, node]);
@@ -819,6 +822,24 @@ class Analyzer {
         for (const child of childBlocks(node)) this.collectFunctions(child, chain);
       }
     }
+  }
+
+  commandChild(parent, name) {
+    return (parent.children || []).find((child) => child.kind === 'command' && child.name === name) || null;
+  }
+
+  resolveCommandPath(segments) {
+    if (!segments.length) return null;
+    let node = this.callable.get(segments[0]);
+    if (!node) return null;
+    let depth = 1;
+    while (depth < segments.length) {
+      const child = this.commandChild(node, segments[depth]);
+      if (!child) break;
+      node = child;
+      depth++;
+    }
+    return { node, depth };
   }
 
   checkWhitespace() {
@@ -1117,8 +1138,8 @@ class Analyzer {
 
   checkCalls(text, mask, rangeAt, allowStart) {
     for (const m of mask.matchAll(new RegExp(FUNCTION_NAME, 'g'))) {
-      const fn = this.callable.get(m[0]);
-      if (!fn || !fn.leaves.length) continue;
+      const root = this.callable.get(m[0]);
+      if (!root) continue;
       const before = mask[m.index - 1];
       if (before !== undefined && /[\w$.\-{/]/.test(before)) continue;
       const after = mask[m.index + m[0].length];
@@ -1127,10 +1148,42 @@ class Analyzer {
       const prevChar = prev[prev.length - 1];
       const commandPosition = prevChar === undefined ? allowStart : /[;&|(`\n]/.test(prevChar);
       if (!commandPosition) continue;
-      const argsStart = m.index + m[0].length;
-      const term = mask.slice(argsStart).search(/[;&|)`\n]/);
-      const argsEnd = term < 0 ? mask.length : argsStart + term;
-      this.checkCallArgs(fn, text, argsStart, argsEnd, rangeAt);
+
+      const start = m.index;
+      const term = mask.slice(start).search(/[;&|)`\n]/);
+      const end = term < 0 ? mask.length : start + term;
+      const callText = text.slice(start, end);
+      const callMask = mask.slice(start, end);
+      const parts = words(callMask);
+      if (!parts.length || parts[0].text !== m[0]) continue;
+
+      let fn = root;
+      let depth = 1;
+      const segments = [{ name: root.name, index: start + parts[0].index, length: parts[0].text.length }];
+      while (depth < parts.length) {
+        const part = parts[depth];
+        if (part.text.startsWith('-')) break;
+        const child = this.commandChild(fn, part.text);
+        if (!child) break;
+        segments.push({ name: child.name, index: start + part.index, length: part.text.length });
+        fn = child;
+        depth++;
+      }
+
+      for (const segment of segments) {
+        const range = rangeAt(segment.index, segment.index + segment.length);
+        this.callSegments.push({
+          name: segment.name,
+          range,
+          line: range.start.line,
+          start: range.start.character,
+          length: segment.length,
+        });
+      }
+
+      if (!fn.leaves.length) continue;
+      const argsStart = start + parts[depth - 1].index + parts[depth - 1].text.length;
+      this.checkCallArgs(fn, text, argsStart, end, rangeAt);
     }
   }
 
@@ -1299,8 +1352,15 @@ function analyze(source) {
     imports: analyzer.imports,
     callable: [...analyzer.callable.values()].filter((fn) => fn.name),
     variables: analyzer.variables,
+    callSegments: analyzer.callSegments,
     findFunction(name) {
       return analyzer.callable.get(name) || analyzer.functions.find((fn) => fn.name === name) || null;
+    },
+    resolveCommandPath(segments) {
+      return analyzer.resolveCommandPath(segments);
+    },
+    commandChild(parent, name) {
+      return analyzer.commandChild(parent, name);
     },
     functionChainAt(line) {
       return functions

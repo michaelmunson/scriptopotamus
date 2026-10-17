@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { describeParam, paramNames, scanShell, TYPE_NAMES } = require('./analyzer');
 const docs = require('./docs');
 
@@ -22,6 +24,8 @@ const RE = {
   separator: /[;&|(`]/g,
   name: /^[A-Za-z_][\w-]*$/,
 };
+
+const SKIP_DIRS = new Set(['.git', 'node_modules', 'target', 'dist', '.scrippo']);
 
 function codeblock(code) {
   return `\`\`\`scriptopotamus\n${code}\n\`\`\``;
@@ -72,14 +76,18 @@ function importedModules(analysis) {
   return modules;
 }
 
-function functionItems(analysis) {
-  const imported = importedModules(analysis);
-  const items = analysis.callable.map((fn) => ({
+function callableItem(fn) {
+  return {
     label: fn.name,
     kind: fn.kind,
     detail: fn.leaves.map(describeParam).join(' '),
     documentation: `${codeblock(fn.header)}\n\n${fn.kind === 'command' ? 'Command' : 'Function'} defined on line ${fn.line + 1}`,
-  }));
+  };
+}
+
+function functionItems(analysis) {
+  const imported = importedModules(analysis);
+  const items = analysis.callable.map(callableItem);
   for (const [name, builtin] of Object.entries(docs.BUILTINS)) {
     if (builtin.macro || !imported.has(builtin.pkg) || analysis.callable.some((fn) => fn.name === name)) continue;
     items.push({ label: name, kind: 'function', detail: `scrippo/std/${builtin.pkg}`, documentation: `${codeblock(builtin.signature)}\n\n${builtin.description}` });
@@ -163,43 +171,98 @@ function typeCompletion(analysis, prefix, line) {
   return result(prefix, current, typeItems(words.filter(Boolean)));
 }
 
+function flagItemsFor(fn, used) {
+  if (!fn) return [];
+  return fn.leaves
+    .filter((leaf) => leaf.kind === 'opt')
+    .flatMap((leaf) => {
+      const flags = leaf.flags.length ? leaf.flags : [leaf.flag];
+      if (!leaf.repeat && flags.some((flag) => used.includes(flag))) return [];
+      return flags
+        .filter((flag) => leaf.repeat || !used.includes(flag))
+        .map((flag) => ({
+          label: flag,
+          kind: 'flag',
+          detail: describeParam(leaf),
+          documentation: `${leaf.effectiveOptional ? 'Optional' : 'Required'} option of \`${fn.name}\``,
+        }));
+    });
+}
+
 function flagItems(analysis, command, used) {
-  const fn = analysis.callable.find((f) => f.name === command);
-  if (fn) {
-    return fn.leaves
-      .filter((leaf) => leaf.kind === 'opt')
-      .flatMap((leaf) => {
-        const flags = leaf.flags.length ? leaf.flags : [leaf.flag];
-        if (!leaf.repeat && flags.some((flag) => used.includes(flag))) return [];
-        return flags
-          .filter((flag) => leaf.repeat || !used.includes(flag))
-          .map((flag) => ({
-            label: flag,
-            kind: 'flag',
-            detail: describeParam(leaf),
-            documentation: `${leaf.effectiveOptional ? 'Optional' : 'Required'} option of \`${fn.name}\``,
-          }));
-      });
-  }
+  const resolved = analysis.resolveCommandPath([command]);
+  if (resolved) return flagItemsFor(resolved.node, used);
   const builtin = docs.BUILTINS[command];
   if (!builtin || builtin.macro || !importedModules(analysis).has(builtin.pkg)) return [];
   return builtin.flags.filter((flag) => !used.includes(flag)).map((flag) => ({ label: flag, kind: 'flag', detail: command }));
 }
 
-function importCompletion(prefix) {
+function walkScrippoFiles(root) {
+  const out = [];
+  const visit = (dir, rel) => {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') && entry.name !== '.') continue;
+      if (entry.isDirectory()) {
+        if (SKIP_DIRS.has(entry.name)) continue;
+        visit(path.join(dir, entry.name), rel ? `${rel}/${entry.name}` : entry.name);
+      } else if (entry.isFile() && entry.name.endsWith('.scrippo')) {
+        const fileRel = rel ? `${rel}/${entry.name}` : entry.name;
+        out.push(`./${fileRel}`);
+      }
+    }
+  };
+  visit(root, '');
+  return out.sort();
+}
+
+function matchesImportTyped(candidate, typed) {
+  if (!typed) return true;
+  if (candidate.startsWith(typed)) return true;
+  if (typed.startsWith('./')) return candidate.startsWith(typed);
+  return candidate.slice(2).startsWith(typed) || candidate.includes(`/${typed}`);
+}
+
+function localImportItems(importDir, typed, quote) {
+  if (!importDir) return [];
+  return walkScrippoFiles(importDir)
+    .filter((file) => matchesImportTyped(file, typed))
+    .map((file, index) => ({
+      label: file,
+      kind: 'module',
+      detail: 'local file',
+      documentation: `Import \`${file}\` relative to this script.`,
+      insertText: quote ? `${file}${quote}` : file,
+      sortText: `1${String(index).padStart(4, '0')}`,
+    }));
+}
+
+function importCompletion(prefix, { importDir } = {}) {
   const m = /@import\s+(['"]?)([^\s'"]*)$/.exec(prefix);
   if (!m) return null;
   const quote = m[1];
   const typed = m[2];
-  if (typed && !typed.startsWith('scrippo') && !'scrippo'.startsWith(typed)) return null;
-  const items = docs.PACKAGES.map((pkg, index) => ({
-    label: pkg.path,
-    kind: 'module',
-    detail: pkg.detail,
-    documentation: pkg.description,
-    insertText: quote ? `${pkg.path}${quote}` : pkg.path,
-    sortText: String(index).padStart(2, '0'),
-  }));
+  const items = [];
+  const showPackages = !typed || typed.startsWith('scrippo') || 'scrippo'.startsWith(typed);
+  if (showPackages) {
+    for (const [index, pkg] of docs.PACKAGES.entries()) {
+      items.push({
+        label: pkg.path,
+        kind: 'module',
+        detail: pkg.detail,
+        documentation: pkg.description,
+        insertText: quote ? `${pkg.path}${quote}` : pkg.path,
+        sortText: `0${String(index).padStart(2, '0')}`,
+      });
+    }
+  }
+  items.push(...localImportItems(importDir, typed, quote));
+  if (!items.length) return null;
   return result(prefix, typed, items);
 }
 
@@ -215,11 +278,25 @@ function commandCompletion(analysis, prefix, mask) {
     if (cut < 0 && !lead) items.push(...keywordItems(), ...variableItems(analysis, -1));
     return result(prefix, current, items);
   }
+
+  const pathInfo = analysis.resolveCommandPath(words);
+  if (pathInfo) {
+    const used = words.slice(pathInfo.depth);
+    if (current.startsWith('-')) {
+      return result(prefix, current, flagItemsFor(pathInfo.node, used));
+    }
+    if (pathInfo.depth === words.length) {
+      const children = (pathInfo.node.children || []).filter((child) => child.kind === 'command' && child.name);
+      if (children.length) return result(prefix, current, children.map(callableItem));
+    }
+    return null;
+  }
+
   if (!current.startsWith('-')) return null;
   return result(prefix, current, flagItems(analysis, words[0], words.slice(1)));
 }
 
-function complete(analysis, lineText, line, character) {
+function complete(analysis, lineText, line, character, options = {}) {
   const prefix = lineText.slice(0, character);
   const scanned = scanShell(prefix);
   if (scanned.comments.length || (scanned.unterminated && scanned.unterminated.kind === 'sq')) return null;
@@ -227,7 +304,7 @@ function complete(analysis, lineText, line, character) {
   if ((m = RE.macro.exec(prefix))) return result(prefix, m[1], macroItems(analysis, false));
   if ((m = RE.optionRef.exec(prefix))) return result(prefix, m[1], optionRefItems(analysis, line));
   if ((m = RE.variable.exec(prefix))) return result(prefix, m[1], variableItems(analysis, line));
-  return importCompletion(prefix) || typeCompletion(analysis, prefix, line) || commandCompletion(analysis, prefix, scanned.mask);
+  return importCompletion(prefix, options) || typeCompletion(analysis, prefix, line) || commandCompletion(analysis, prefix, scanned.mask);
 }
 
 module.exports = { complete };

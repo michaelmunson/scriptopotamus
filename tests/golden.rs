@@ -78,8 +78,52 @@ fn compile_params() {
     assert!(bash.contains("-s|--select)"));
     assert!(bash.contains("--options)"));
     assert!(bash.contains("--confirm)"));
-    assert!(bash.contains("mutually exclusive"));
+    assert!(bash.contains("[-s --options --multi] and --confirm are mutually exclusive"));
+    assert!(!bash.contains("<path> and"));
+    assert!(!bash.contains("-v and"));
     assert_bash_n(&bash);
+}
+
+#[test]
+fn exclusive_binds_only_neighbors() {
+    let bash = scriptopotamus::compile_source(
+        Path::new("input.scrippo"),
+        r#"input(
+  prompt
+  [-v<str>]
+  [
+    --select<str>...
+    [--multi]
+  ] | [
+    --confirm
+  ]
+)
+  -> "ok"
+"#,
+    )
+    .unwrap();
+    assert!(bash.contains("[--select --multi] and --confirm are mutually exclusive"));
+    assert!(!bash.contains("-v and"));
+    assert!(!bash.contains("<prompt> and"));
+    assert_bash_n(&bash);
+
+    let allow = format!("{bash}\ninput hello -v name --confirm\n");
+    let allow_out = Command::new("bash").arg("-c").arg(&allow).output().unwrap();
+    assert!(
+        allow_out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&allow_out.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&allow_out.stdout).trim(), "ok");
+
+    let deny = format!("{bash}\ninput hello -v name --select a --confirm\n");
+    let deny_out = Command::new("bash").arg("-c").arg(&deny).output().unwrap();
+    assert!(!deny_out.status.success());
+    let err = String::from_utf8_lossy(&deny_out.stderr);
+    assert!(
+        err.contains("[--select --multi] and --confirm are mutually exclusive"),
+        "{err}"
+    );
 }
 
 #[test]

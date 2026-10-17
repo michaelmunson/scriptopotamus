@@ -20,4 +20,4 @@ version:
 	cargo run --bin scrippo -- --version
 
 build-extension:
-	cd dev/vscode-ext && npm run build
+	cd ./dev/vscode-ext && rm -f ./*.vsix && npm run build

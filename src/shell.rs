@@ -1,5 +1,6 @@
 use crate::ast::{Param, Program, Stmt};
 use crate::config::Config;
+use crate::macros;
 use crate::parse;
 use crate::paths;
 use anyhow::{Context, Result};
@@ -97,9 +98,9 @@ pub fn emit_env() -> Result<()> {
 }
 
 pub fn emit_completions(file: &Path, words: &[String]) -> Result<()> {
-    let program = match parse::parse_file(file) {
-        Ok(p) => p,
-        Err(_) => return Ok(()),
+    let program = match program_for_completion(file) {
+        Some(p) => p,
+        None => return Ok(()),
     };
     for c in complete_candidates(&program, words) {
         println!("{c}");
@@ -110,6 +111,23 @@ pub fn emit_completions(file: &Path, words: &[String]) -> Result<()> {
 #[doc(hidden)]
 pub fn completion_candidates_for_test(program: &Program, words: &[String]) -> Vec<String> {
     complete_candidates(program, words)
+}
+
+#[doc(hidden)]
+pub fn completion_candidates_from_file(file: &Path, words: &[String]) -> Vec<String> {
+    match program_for_completion(file) {
+        Some(program) => complete_candidates(&program, words),
+        None => Vec::new(),
+    }
+}
+
+/// Parse a scrippo file and expand `@import`s so completion sees imported commands.
+fn program_for_completion(file: &Path) -> Option<Program> {
+    let program = parse::parse_file(file).ok()?;
+    match macros::expand_program(file, program.clone()) {
+        Ok(expanded) => Some(expanded.program),
+        Err(_) => Some(program),
+    }
 }
 
 fn discover_aliases(dir: &Path) -> Result<Vec<AliasEntry>> {

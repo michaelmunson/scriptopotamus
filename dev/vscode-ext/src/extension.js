@@ -350,7 +350,9 @@ function activate(context) {
 
   const completionProvider = {
     provideCompletionItems(doc, pos) {
-      const found = completion.complete(analysisFor(doc), doc.lineAt(pos.line).text, pos.line, pos.character);
+      const found = completion.complete(analysisFor(doc), doc.lineAt(pos.line).text, pos.line, pos.character, {
+        importDir: importDirOf(doc),
+      });
       if (!found) return null;
       const range = new vscode.Range(pos.line, found.from, pos.line, pos.character);
       return found.items.map((entry) => {
@@ -363,6 +365,17 @@ function activate(context) {
         if (entry.sortText) item.sortText = entry.sortText;
         return item;
       });
+    },
+  };
+
+  const semanticTokensLegend = new vscode.SemanticTokensLegend(['function'], []);
+  const semanticTokensProvider = {
+    provideDocumentSemanticTokens(doc) {
+      const builder = new vscode.SemanticTokensBuilder(semanticTokensLegend);
+      for (const segment of analysisFor(doc).callSegments) {
+        builder.push(segment.line, segment.start, segment.length, 0, 0);
+      }
+      return builder.build();
     },
   };
 
@@ -451,7 +464,8 @@ function activate(context) {
     compilerCollection,
     vscode.languages.registerHoverProvider(selector, hoverProvider),
     vscode.languages.registerDefinitionProvider(selector, definitionProvider),
-    vscode.languages.registerCompletionItemProvider(selector, completionProvider, '@', '$', '-', '<', '/'),
+    vscode.languages.registerCompletionItemProvider(selector, completionProvider, '@', '$', '-', '<', '/', ' '),
+    vscode.languages.registerDocumentSemanticTokensProvider(selector, semanticTokensProvider, semanticTokensLegend),
     vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
     vscode.languages.registerCodeActionsProvider(selector, codeActionProvider, {
       providedCodeActionKinds: [vscode.CodeActionKind.QuickFix],

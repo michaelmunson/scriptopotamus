@@ -1,40 +1,36 @@
 #! /usr/bin/env scrippo
 @import scrippo/std
-.version(
-	[version<str {patch minor major}>]
-)
-	current_version<str>=$(jq -r '.version' <<< $(cat ./dev/vscode-ext/package.json))
-	version_parts<list>=()
-	for part in ${current_version//./" "}
-		version_parts+=($part)
-
-	case $version
-		patch)
-			version_parts[2]=$((version_parts[2] + 1))
-		minor)
-			version_parts[1]=$($version_parts[1] + 1)
-			version_parts[2]=0
-		major)
-			version_parts[0]=$($version_parts[0] + 1)
-			version_parts[1]=0
-			version_parts[2]=0
-		*)
-
-
-	new_version<str>="$version_parts[0].$version_parts[1].$version_parts[2]"
-
-	jq -r '.version = "'"$new_version"'"' <<< $(cat ./dev/vscode-ext/package.json) > ./dev/vscode-ext/package.json.tmp
-
-	mv ./dev/vscode-ext/package.json.tmp ./dev/vscode-ext/package.json
-
-	-> $(jq -r '.version' <<< $(cat ./dev/vscode-ext/package.json))
+.version()
+	.get()
+		cargo pkgid | sed -E 's/.*#([^:]+).*/\1/'
+	.bump(bump<str {patch minor major}> [message<str="Bump Version">])
+		prt "Current Version:" -s yellow "$(version get)"
+		prt "Bump:" -s green "$bump"
+		input --confirm "Bump Version?" -v answer
+		if ! $answer
+			throw 1 "Bump Version Aborted"
+		cargo set-version --bump $bump
+		new_version<str>="$(version get)"
+		jq -r '.version = "'"$new_version"'"' <<< $(cat ./dev/vscode-ext/package.json) > ./dev/vscode-ext/package.json.tmp
+		mv ./dev/vscode-ext/package.json.tmp ./dev/vscode-ext/package.json
+		[[ -n $message ]] || message="$new_version / $bump"
+		git status
+		input "Commit: $message" --confirm  -v answer
+		if ! $answer
+			throw 1 "Commit Aborted"
+		git add .
+		git commit -m "$message"
+		input --confirm "Push <$(git branch --show-current)>?" -v answer
+		if ! $answer
+			throw 1 "Push Aborted"
+		git push
+	.set(version<str>)
+		if $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$
+			cargo set-version $version
+		else
+			throw 1 "Invalid version: $version"
 
 .build()
 	make build
 	make install
-	for f in ./*.vsix
-		rm $f
-		-> "removed $f"
-	cd ./dev/vscode-ext
-	npm run build
-	mv ./*.vsix @rootdir/
+	make build-extension

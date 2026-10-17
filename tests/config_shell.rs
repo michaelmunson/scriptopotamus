@@ -52,6 +52,21 @@ fn complete_commands_and_flags() {
 }
 
 #[test]
+fn complete_includes_imported_commands() {
+    let dir = tempfile_dir();
+    std::fs::write(dir.join("cmd.scrippo"), ".cmd()\n  -> \"hi\"\n").unwrap();
+    std::fs::write(
+        dir.join("demo.scrippo"),
+        "@import cmd.scrippo\n\n.demo()\n  -> \"hello\"\n",
+    )
+    .unwrap();
+    let demo = dir.join("demo.scrippo");
+    let top = shell::completion_candidates_from_file(&demo, &[]);
+    assert!(top.iter().any(|c| c == "cmd"), "{top:?}");
+    assert!(top.iter().any(|c| c == "demo"), "{top:?}");
+}
+
+#[test]
 fn env_emits_aliases_for_dot_scrippo_and_package() {
     let dir = tempfile_dir();
     std::fs::write(
