@@ -12,7 +12,7 @@ const PATTERNS = {
 };
 const FLAG_NAME = /^--?[A-Za-z_][A-Za-z0-9_-]*$/;
 const PARAM_NAME = /^[A-Za-z_][A-Za-z0-9_-]*$/;
-const PARAM_PUNCTUATION = new Set(['[', ']', '|']);
+const PARAM_PUNCTUATION = new Set(['[', ']', '|', '/']);
 const NAME = '[A-Za-z_][A-Za-z0-9_]*';
 const FUNCTION_NAME = '[A-Za-z_][A-Za-z0-9_-]*';
 
@@ -627,12 +627,12 @@ class Analyzer {
     const isFlag = (token) => token && token.text.startsWith('-');
     let i = 0;
     while (i < tokens.length) {
-      if (isFlag(tokens[i]) && tokens[i + 1] && tokens[i + 1].text === '|' && isFlag(tokens[i + 2])) {
+      if (isFlag(tokens[i]) && tokens[i + 1] && tokens[i + 1].text === '/' && isFlag(tokens[i + 2])) {
         const aliases = [tokens[i]];
         i += 2;
         while (isFlag(tokens[i])) {
           aliases.push(tokens[i]);
-          if (tokens[i + 1] && tokens[i + 1].text === '|' && isFlag(tokens[i + 2])) {
+          if (tokens[i + 1] && tokens[i + 1].text === '/' && isFlag(tokens[i + 2])) {
             i += 2;
             continue;
           }
@@ -753,6 +753,7 @@ class Analyzer {
 
   parseParam(token) {
     let text = token.text;
+    if (text === '@inherit') return { kind: 'inherit', token };
     const repeat = text.endsWith('...');
     if (repeat) text = text.slice(0, -3);
     let typeText = '';
@@ -788,7 +789,7 @@ class Analyzer {
       const message =
         token.text === '|' || token.text === ']'
           ? `Expected a parameter before '${token.text}'`
-          : `Invalid parameter '${token.text}': expected name, -f, --flag, -s|--long, or *name, optionally followed by <type> and ...`;
+          : `Invalid parameter '${token.text}': expected name, -f, --flag, -s/--long, or *name, optionally followed by <type> and ...`;
       this.report('error', tokenRange(token), message, 'param');
       return { kind: 'invalid', token };
     }
@@ -812,6 +813,13 @@ class Analyzer {
       if (node.kind === 'function' || node.kind === 'command') {
         node.parent = chain[chain.length - 1] || null;
         node.children = [];
+        node.params = node.params.flatMap((param) => {
+          if (param.kind !== 'inherit') return [param];
+          if (node.parent) return node.parent.params;
+          this.report('error', tokenRange(param.token), '@inherit requires a parent command or function', 'param');
+          return [];
+        });
+        node.leaves = leavesOf(node.params);
         if (node.parent) node.parent.children.push(node);
         this.functions.push(node);
         if (node.kind === 'function' || !chain.length) this.callable.set(node.name, node);

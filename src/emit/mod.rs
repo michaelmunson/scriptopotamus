@@ -1,5 +1,6 @@
 mod params;
 mod stmt;
+mod usage;
 
 use crate::ast::*;
 use crate::error::Result;
@@ -55,7 +56,8 @@ impl Emitter {
 
     pub fn add_helper(&mut self, name: &str, body: &str) {
         if self.helpers.insert(name.to_string()) {
-            self.helper_bodies.insert(name.to_string(), body.to_string());
+            self.helper_bodies
+                .insert(name.to_string(), body.to_string());
         }
     }
 
@@ -73,6 +75,34 @@ impl Emitter {
 
 pub fn emit_program(program: &Program) -> Result<String> {
     let mut em = Emitter::new();
+    em.add_helper(
+        "usage",
+        r#"_scrippo_usage() {
+  if [[ -t 1 && -z ${NO_COLOR+x} ]]; then
+    printf '%s\n' "$_scrippo_usage_color"
+  else
+    printf '%s\n' "$_scrippo_usage_text"
+  fi
+}"#,
+    );
+    let root = program.body.iter().find_map(|s| match s {
+        Stmt::Function {
+            name,
+            params,
+            docs,
+            body,
+            ..
+        } if name.is_empty() => Some((params, docs, body)),
+        _ => None,
+    });
+    if let Some((params, docs, body)) = root {
+        usage::bind(&mut em, "script", params, docs, body, false);
+    } else {
+        usage::bind(&mut em, "", &[], &[], &program.body, false);
+    }
+    if !root.is_some_and(|(params, _, _)| usage::has_help(params)) {
+        em.emit_line("if [[ ${1-} == --help ]]; then _scrippo_usage; exit 0; fi");
+    }
     for stmt in &program.body {
         stmt::emit_stmt(&mut em, stmt)?;
     }
@@ -94,6 +124,7 @@ fn emit_dispatch(em: &mut Emitter) {
                 "  echo \"commands: {}\" >&2",
                 em.commands.join(" ")
             ));
+            em.emit_line("  _scrippo_usage >&2");
             em.emit_line("  exit 1");
             em.emit_line("  ;;");
         }
@@ -121,6 +152,7 @@ fn emit_dispatch(em: &mut Emitter) {
                 em.commands.join(" ")
             ));
         }
+        em.emit_line("  _scrippo_usage >&2");
         em.emit_line("  exit 1");
     }
     em.emit_line("  ;;");
@@ -171,7 +203,8 @@ pub fn rewrite_refs(s: &str) -> String {
             let start = i + 1;
             let mut j = start;
             if j < chars.len() && chars[j] == '-' {
-                while j < chars.len() && (chars[j] == '-' || chars[j].is_alphanumeric() || chars[j] == '_')
+                while j < chars.len()
+                    && (chars[j] == '-' || chars[j].is_alphanumeric() || chars[j] == '_')
                 {
                     j += 1;
                 }

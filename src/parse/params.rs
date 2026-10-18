@@ -38,11 +38,11 @@ fn tokenize_params(input: &str) -> Vec<String> {
                 }
                 tokens.push("]".to_string());
             }
-            '|' => {
+            '|' | '/' => {
                 if !word.is_empty() {
                     tokens.push(std::mem::take(&mut word));
                 }
-                tokens.push("|".to_string());
+                tokens.push(c.to_string());
             }
             c if c.is_whitespace() => {
                 if !word.is_empty() {
@@ -115,13 +115,7 @@ fn parse_group(
         }
         return Ok((p, i));
     }
-    Ok((
-        Param::Group {
-            optional,
-            params,
-        },
-        i,
-    ))
+    Ok((Param::Group { optional, params }, i))
 }
 
 fn parse_param_list_with_exclusive(
@@ -163,17 +157,17 @@ fn parse_param_list_with_exclusive(
     Ok(params)
 }
 
-/// Merge `-s | --select` into a single token `-s|--select` when both sides are flags.
+/// Merge `-s / --select` into a single token `-s|--select` when both sides are flags.
 fn merge_flag_aliases(tokens: &[String]) -> Vec<String> {
     let mut out = Vec::new();
     let mut i = 0;
     while i < tokens.len() {
         if i + 2 < tokens.len()
-            && tokens[i + 1] == "|"
+            && tokens[i + 1] == "/"
             && tokens[i].starts_with('-')
             && !tokens[i].starts_with("[")
             && tokens[i + 2].starts_with('-')
-            && tokens[i + 2] != "|"
+            && tokens[i + 2] != "/"
         {
             let mut aliases = vec![tokens[i].clone()];
             i += 2;
@@ -182,7 +176,11 @@ fn merge_flag_aliases(tokens: &[String]) -> Vec<String> {
                 let part = tokens[i].clone();
                 // If this token has <type>, attach to combined
                 aliases.push(part);
-                if i + 1 < tokens.len() && tokens[i + 1] == "|" && i + 2 < tokens.len() && tokens[i + 2].starts_with('-') {
+                if i + 1 < tokens.len()
+                    && tokens[i + 1] == "/"
+                    && i + 2 < tokens.len()
+                    && tokens[i + 2].starts_with('-')
+                {
                     i += 2;
                     continue;
                 }
@@ -191,17 +189,13 @@ fn merge_flag_aliases(tokens: &[String]) -> Vec<String> {
             // Combine: first flag names without types + type from last if any
             let mut names = Vec::new();
             let mut suffix = String::new();
-            for (idx, a) in aliases.iter().enumerate() {
+            for a in &aliases {
                 if let Some(pos) = a.find('<') {
                     names.push(a[..pos].to_string());
-                    if idx == aliases.len() - 1 {
-                        suffix = a[pos..].to_string();
-                    }
+                    suffix = a[pos..].to_string();
                 } else if let Some((n, d)) = a.split_once('=') {
                     names.push(n.to_string());
-                    if idx == aliases.len() - 1 {
-                        suffix = format!("={d}");
-                    }
+                    suffix = format!("={d}");
                 } else {
                     names.push(a.clone());
                 }
@@ -218,6 +212,13 @@ fn merge_flag_aliases(tokens: &[String]) -> Vec<String> {
 
 fn parse_leaf(path: &Path, line: usize, token: &str, optional_context: bool) -> Result<Param> {
     let token = token.trim();
+    if matches!(token, "/" | "|" | "]") {
+        return Err(CompileError::at(
+            path,
+            line,
+            format!("unexpected '{token}' in parameters"),
+        ));
+    }
     if token.is_empty() {
         return Err(CompileError::at(path, line, "empty parameter"));
     }
@@ -337,7 +338,10 @@ fn unquote(s: &str) -> String {
 }
 
 fn split_flag_aliases(name: &str) -> Vec<String> {
-    name.split('|').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
+    name.split('|')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 fn flag_to_name(flag: &str) -> String {

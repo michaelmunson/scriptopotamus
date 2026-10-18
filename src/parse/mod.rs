@@ -10,9 +10,8 @@ use std::path::Path;
 use types::*;
 
 pub fn parse_file(path: &Path) -> Result<Program> {
-    let text = std::fs::read_to_string(path).map_err(|e| {
-        CompileError::at(path, 0, format!("unable to read file: {e}"))
-    })?;
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| CompileError::at(path, 0, format!("unable to read file: {e}")))?;
     parse_source(path, &text)
 }
 
@@ -213,70 +212,66 @@ fn assemble_inline_if(
     let first = iter.next().unwrap();
 
     match first {
-            Stmt::If {
-                mut branches,
-                ..
-            } if !branches.is_empty() => {
-                let mut body = Vec::new();
-                while let Some(peek) = iter.peek() {
-                    match peek {
-                        Stmt::If {
-                            branches: b,
-                            else_body: e,
-                            ..
-                        } if (b.len() == 1 && e.is_none()) || (b.is_empty() && e.is_some()) =>
-                        {
-                            break;
-                        }
-                        _ => body.push(iter.next().unwrap()),
+        Stmt::If { mut branches, .. } if !branches.is_empty() => {
+            let mut body = Vec::new();
+            while let Some(peek) = iter.peek() {
+                match peek {
+                    Stmt::If {
+                        branches: b,
+                        else_body: e,
+                        ..
+                    } if (b.len() == 1 && e.is_none()) || (b.is_empty() && e.is_some()) => {
+                        break;
                     }
+                    _ => body.push(iter.next().unwrap()),
                 }
-                branches[0].body = body;
-
-                while let Some(next) = iter.next() {
-                    match next {
-                        Stmt::If {
-                            branches: b,
-                            else_body: None,
-                            ..
-                        } if b.len() == 1 => {
-                            let mut branch = b.into_iter().next().unwrap();
-                            let mut body = Vec::new();
-                            while let Some(peek) = iter.peek() {
-                                match peek {
-                                    Stmt::If {
-                                        branches: bb,
-                                        else_body: e,
-                                        ..
-                                    } if (bb.len() == 1 && e.is_none())
-                                        || (bb.is_empty() && e.is_some()) =>
-                                    {
-                                        break;
-                                    }
-                                    _ => body.push(iter.next().unwrap()),
-                                }
-                            }
-                            branch.body = body;
-                            branches.push(branch);
-                        }
-                        Stmt::If {
-                            branches: b,
-                            else_body: Some(mut eb),
-                            ..
-                        } if b.is_empty() => {
-                            eb.extend(iter);
-                            let else_body = Some(eb);
-                            return finish_if(src, indent, line, branches, else_body);
-                        }
-                        other => {
-                            if let Some(br) = branches.last_mut() {
-                                br.body.push(other);
-                            }
-                        }
-                    }
-                }
-                finish_if(src, indent, line, branches, None)
             }
+            branches[0].body = body;
+
+            while let Some(next) = iter.next() {
+                match next {
+                    Stmt::If {
+                        branches: b,
+                        else_body: None,
+                        ..
+                    } if b.len() == 1 => {
+                        let mut branch = b.into_iter().next().unwrap();
+                        let mut body = Vec::new();
+                        while let Some(peek) = iter.peek() {
+                            match peek {
+                                Stmt::If {
+                                    branches: bb,
+                                    else_body: e,
+                                    ..
+                                } if (bb.len() == 1 && e.is_none())
+                                    || (bb.is_empty() && e.is_some()) =>
+                                {
+                                    break;
+                                }
+                                _ => body.push(iter.next().unwrap()),
+                            }
+                        }
+                        branch.body = body;
+                        branches.push(branch);
+                    }
+                    Stmt::If {
+                        branches: b,
+                        else_body: Some(mut eb),
+                        ..
+                    } if b.is_empty() => {
+                        eb.extend(iter);
+                        let else_body = Some(eb);
+                        return finish_if(src, indent, line, branches, else_body);
+                    }
+                    other => {
+                        if let Some(br) = branches.last_mut() {
+                            br.body.push(other);
+                        }
+                    }
+                }
+            }
+            finish_if(src, indent, line, branches, None)
+        }
         Stmt::While {
             condition,
             mut body,
@@ -515,7 +510,11 @@ fn parse_case_arm(src: &mut Source) -> Result<CaseArm> {
         }
     }
     let end = end.ok_or_else(|| {
-        CompileError::at(&path, line, format!("expected 'pattern)' in case, got '{text}'"))
+        CompileError::at(
+            &path,
+            line,
+            format!("expected 'pattern)' in case, got '{text}'"),
+        )
     })?;
     if pattern.is_empty() {
         return Err(CompileError::at(
@@ -584,7 +583,7 @@ fn parse_macro(src: &mut Source, text: &str) -> Result<Stmt> {
                 line,
             });
         }
-        // Call with () 
+        // Call with ()
         return Ok(Stmt::MacroCall {
             name,
             args: Vec::new(),
@@ -615,9 +614,9 @@ fn parse_macro(src: &mut Source, text: &str) -> Result<Stmt> {
 
 fn parse_macro_text(line: usize, text: &str) -> Result<Stmt> {
     let re = regex::Regex::new(r"^@([A-Za-z_][A-Za-z0-9_]*)(\((.*)\))?(\s+(.*))?$").unwrap();
-    let caps = re.captures(text).ok_or_else(|| {
-        CompileError::new("<inline>", line, format!("invalid macro '{text}'"))
-    })?;
+    let caps = re
+        .captures(text)
+        .ok_or_else(|| CompileError::new("<inline>", line, format!("invalid macro '{text}'")))?;
     let name = caps[1].to_string();
     let args = if let Some(m) = caps.get(5) {
         split_words(m.as_str())
@@ -642,6 +641,12 @@ fn parse_function(src: &mut Source) -> Result<Stmt> {
         name = name[1..].to_string();
     }
 
+    let mut docs: Vec<(String, String)> = src
+        .usage_comments()
+        .into_iter()
+        .map(|s| (String::new(), s))
+        .collect();
+    let mut pending_docs = Vec::new();
     let mut params_raw = String::new();
     let mut depth = 0i32;
     let mut started = false;
@@ -655,6 +660,33 @@ fn parse_function(src: &mut Source) -> Result<Stmt> {
             break;
         };
         let mut comment_stripped = cur.clone();
+        let preceding = if src.line_number() != line {
+            src.usage_comments()
+        } else {
+            Vec::new()
+        };
+        pending_docs.extend(preceding);
+        if let Some(idx) = find_comment(&cur) {
+            if let Some(comment) = cur[idx..].strip_prefix("#?") {
+                pending_docs.push(comment.trim().to_string());
+            }
+        }
+        if !pending_docs.is_empty() {
+            let key = if src.line_number() == line || cur.trim_start().starts_with(')') {
+                String::new()
+            } else {
+                cur.trim_start()
+                    .trim_start_matches('[')
+                    .trim_start()
+                    .split(|c: char| c.is_whitespace() || "<>] /|".contains(c))
+                    .next()
+                    .unwrap_or("")
+                    .to_string()
+            };
+            for comment in pending_docs.drain(..) {
+                docs.push((key.clone(), comment));
+            }
+        }
         if let Some(idx) = find_comment(&comment_stripped) {
             comment_stripped = comment_stripped[..idx].trim_end().to_string();
         }
@@ -720,6 +752,7 @@ fn parse_function(src: &mut Source) -> Result<Stmt> {
     Ok(Stmt::Function {
         name,
         is_command,
+        docs,
         params,
         body,
         line,
@@ -743,10 +776,7 @@ fn find_comment(s: &str) -> Option<usize> {
 }
 
 fn try_assignment(line: usize, path: &Path, text: &str) -> Result<Option<Stmt>> {
-    let typed = regex::Regex::new(
-        r"^([A-Za-z_][A-Za-z0-9_]*)<([^>]*)>\s*=\s*(.*)$",
-    )
-    .unwrap();
+    let typed = regex::Regex::new(r"^([A-Za-z_][A-Za-z0-9_]*)<([^>]*)>\s*=\s*(.*)$").unwrap();
     if let Some(caps) = typed.captures(text) {
         let name = caps[1].to_string();
         let ty = parse_type(path, line, &caps[2])?;

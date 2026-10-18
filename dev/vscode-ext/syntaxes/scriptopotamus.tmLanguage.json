@@ -5,6 +5,10 @@
   "fileTypes": ["scrippo", "scriptopotamus"],
   "patterns": [
     { "include": "#shebang" },
+    { "match": "(#\\?).*$", "name": "comment.line.documentation.scriptopotamus", "captures": { "1": { "name": "punctuation.definition.comment.scriptopotamus" } } },
+    { "match": "(--as)\\s+(\\.)([A-Za-z_][A-Za-z0-9_-]*)", "captures": { "1": { "name": "keyword.control.import.scriptopotamus" }, "2": { "name": "punctuation.definition.command.scriptopotamus" }, "3": { "name": "entity.name.function.command.scriptopotamus" } } },
+    { "match": "(--as)\\s+([A-Za-z_][A-Za-z0-9_-]*)", "captures": { "1": { "name": "keyword.control.import.scriptopotamus" }, "2": { "name": "entity.name.function.scriptopotamus" } } },
+    { "match": "(?<=\\s)--as\\b", "name": "keyword.control.import.scriptopotamus" },
     { "include": "#comment" },
     { "include": "#command-definition" },
     { "include": "#macro-definition" },
@@ -78,6 +82,8 @@
     },
     "parameters": {
       "patterns": [
+        { "include": "#macro" },
+        { "match": "/", "name": "keyword.operator.alias.scriptopotamus" },
         { "include": "#comment" },
         { "include": "#type-annotation" },
         {
@@ -85,7 +91,7 @@
           "name": "keyword.operator.repeat.scriptopotamus"
         },
         {
-          "match": "(?<![\\w-])((?:--?[A-Za-z_][A-Za-z0-9_-]*)(?:\\s*\\|\\s*--?[A-Za-z_][A-Za-z0-9_-]*)+)",
+          "match": "(?<![\\w-])((?:--?[A-Za-z_][A-Za-z0-9_-]*)(?:\\s*/\\s*--?[A-Za-z_][A-Za-z0-9_-]*)+)",
           "name": "variable.parameter.option.scriptopotamus"
         },
         {

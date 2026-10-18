@@ -166,7 +166,7 @@ test('multi-line parameters with comments parse like the compiler', () => {
   const source = [
     'f(',
     '  path # the path',
-    '  [-s|--style<str>...]...',
+    '  [-s / --style<str>...]...',
     '  [--name<str="mike">]',
     '  [--mode<str {a b}>]',
     ')',
@@ -278,4 +278,18 @@ test('nested command calls resolve paths and highlight segments', () => {
   );
   assert.equal(analysis.resolveCommandPath(['version', 'get']).node.name, 'get');
   assert.deepEqual(codes(['.version()', '  .bump(v [--dry])', '    -> $v', 'version bump --nope']), ['4:unknown-option']);
+});
+
+test('slash aliases and pipe alternatives have separate semantics', () => {
+  const result = analyze('.cmd([-ls / --list | -rm/--remove])\n  -> $--list\n');
+  assert.deepEqual(result.diagnostics.filter((d) => d.severity === 'error'), []);
+  assert.equal(result.functions[0].params[0].params[0].kind, 'exclusive');
+  assert.deepEqual(result.functions[0].leaves.map((leaf) => leaf.flags), [['-ls', '--list'], ['-rm', '--remove']]);
+});
+
+test('inherit resolves parent params for checking and completion', () => {
+  const result = analyze('.path(path [--absolute])\n  .child(@inherit)\n    -> $path $--absolute\n');
+  assert.deepEqual(result.diagnostics.filter((d) => d.severity === 'error'), []);
+  assert.deepEqual(result.functions[1].leaves.map((leaf) => leaf.name), ['path', 'absolute']);
+  assert.ok(analyze('.root(@inherit)\n').diagnostics.some((d) => d.message.includes('requires a parent')));
 });

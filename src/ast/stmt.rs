@@ -45,6 +45,7 @@ pub enum Stmt {
     Function {
         name: String,
         is_command: bool,
+        docs: Vec<(String, String)>,
         params: Vec<Param>,
         body: Block,
         line: usize,

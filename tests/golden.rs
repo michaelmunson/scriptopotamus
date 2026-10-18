@@ -128,11 +128,8 @@ fn exclusive_binds_only_neighbors() {
 
 #[test]
 fn reject_orphan_else() {
-    let err = scriptopotamus::compile_source(
-        Path::new("t.scrippo"),
-        "else\n  -> \"no\"\n",
-    )
-    .unwrap_err();
+    let err =
+        scriptopotamus::compile_source(Path::new("t.scrippo"), "else\n  -> \"no\"\n").unwrap_err();
     assert!(err.message.contains("without matching 'if'"));
 }
 
@@ -144,13 +141,11 @@ fn reject_fi() {
 
 #[test]
 fn inline_if_compiles() {
-    let bash = scriptopotamus::compile_source(
-        Path::new("t.scrippo"),
-        "if $x; -> \"a\"; else -> \"b\"\n",
-    )
-    .unwrap();
+    let bash =
+        scriptopotamus::compile_source(Path::new("t.scrippo"), "if $x; -> \"a\"; else -> \"b\"\n")
+            .unwrap();
     assert!(bash.contains("echo \"a\""));
     assert!(bash.contains("echo \"b\""));
-    assert_eq!(bash.matches("fi").count(), 1);
+    assert!(bash.contains("if [[ $x == true ]]; then\n  echo \"a\"\nelse\n  echo \"b\"\nfi"));
     assert_bash_n(&bash);
 }

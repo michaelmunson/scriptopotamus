@@ -48,6 +48,19 @@ impl Source {
         self.idx += 1;
     }
 
+    pub fn usage_comments(&self) -> Vec<String> {
+        let mut comments = Vec::new();
+        for line in self.lines[..self.idx].iter().rev() {
+            if let Some(comment) = line.trim().strip_prefix("#?") {
+                comments.push(comment.trim().to_string());
+            } else {
+                break;
+            }
+        }
+        comments.reverse();
+        comments
+    }
+
     pub fn current_raw_line(&self) -> Option<&str> {
         self.lines.get(self.idx).map(|s| s.as_str())
     }

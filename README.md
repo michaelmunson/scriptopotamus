@@ -79,3 +79,41 @@ make install   # installs scrippo (+ scriptopotamus symlink) to /usr/local/bin
 ## Examples
 
 See [docs/examples/](docs/examples/).
+
+## Aliases, scoped imports, and usage
+
+Use `/` for flags that name the same option, and `|` for mutually exclusive options:
+
+```scrippo
+.files([-ls / --list | -rm / --remove])
+  if $--list
+    -> listing
+```
+
+Import commands into a command or function scope with `--as`. CLI completion follows
+command scopes, so `projects project-one <tab>` lists the imported commands:
+
+```scrippo
+@import projects/project-one.scrippo --as .project-one
+@import projects/project-one.scrippo --as project-one-helper
+```
+
+Nested commands can copy their parent's parameters and options with `@inherit`.
+Add `#?` documentation above or beside commands, functions, parameters, and options:
+
+```scrippo
+#? Resolve a path
+.get-path(
+  path #? Path to resolve
+  [--verbose] #? Print details
+)
+  #? Resolve an absolute path
+  .abs(@inherit)
+    -> $(realpath "$path")
+```
+
+`--help` prints usage and exits successfully, unless explicitly declared as an
+option. Missing commands and invalid arguments print usage with their errors.
+`@usage [code]` prints usage for the current script, command, or function and exits
+with the given code (default `1`); `@usage --no-exit` prints usage and continues.
+Usage uses colors on a terminal and respects `NO_COLOR`.

@@ -1,4 +1,4 @@
-use super::import::{process_imports, ImportContext};
+use super::import::{ImportContext, process_imports};
 use crate::ast::*;
 use crate::error::{CompileError, Result};
 use std::collections::HashMap;
@@ -16,6 +16,7 @@ pub fn expand_program(path: &Path, mut program: Program) -> Result<ExpandResult>
     let mut macros: HashMap<String, MacroDef> = HashMap::new();
     collect_macros(&program.body, &mut macros);
     program.body = expand_body(&program.body, &macros)?;
+    inherit_params(path, &mut program.body, None)?;
 
     Ok(ExpandResult {
         program,
@@ -31,12 +32,7 @@ fn collect_macros(body: &[Stmt], macros: &mut HashMap<String, MacroDef>) {
     for stmt in body {
         match stmt {
             Stmt::MacroDef { name, body, .. } => {
-                macros.insert(
-                    name.clone(),
-                    MacroDef {
-                        body: body.clone(),
-                    },
-                );
+                macros.insert(name.clone(), MacroDef { body: body.clone() });
             }
             Stmt::Function { body, .. }
             | Stmt::If {
@@ -46,7 +42,11 @@ fn collect_macros(body: &[Stmt], macros: &mut HashMap<String, MacroDef>) {
             } => {
                 collect_macros(body, macros);
             }
-            Stmt::If { branches, else_body, .. } => {
+            Stmt::If {
+                branches,
+                else_body,
+                ..
+            } => {
                 for b in branches {
                     collect_macros(&b.body, macros);
                 }
@@ -72,6 +72,7 @@ fn expand_body(body: &[Stmt], macros: &HashMap<String, MacroDef>) -> Result<Bloc
     for stmt in body {
         match stmt {
             Stmt::MacroDef { .. } => {}
+            Stmt::MacroCall { name, .. } if name == "usage" => out.push(stmt.clone()),
             Stmt::MacroCall { name, args, line } => {
                 if name == "import" {
                     return Err(CompileError::new(
@@ -155,6 +156,7 @@ fn expand_body(body: &[Stmt], macros: &HashMap<String, MacroDef>) -> Result<Bloc
             Stmt::Function {
                 name,
                 is_command,
+                docs,
                 params,
                 body,
                 line,
@@ -162,6 +164,7 @@ fn expand_body(body: &[Stmt], macros: &HashMap<String, MacroDef>) -> Result<Bloc
                 out.push(Stmt::Function {
                     name: name.clone(),
                     is_command: *is_command,
+                    docs: docs.clone(),
                     params: params.clone(),
                     body: expand_body(body, macros)?,
                     line: *line,
@@ -219,4 +222,41 @@ fn expand_bash_macros(raw: &str, macros: &HashMap<String, MacroDef>) -> Result<S
         result.pop();
     }
     Ok(result)
+}
+
+fn inherit_params(
+    path: &Path,
+    body: &mut [Stmt],
+    parent: Option<(&[Param], &[(String, String)])>,
+) -> Result<()> {
+    for stmt in body {
+        if let Stmt::Function {
+            params,
+            docs,
+            body,
+            line,
+            ..
+        } = stmt
+        {
+            let mut resolved = Vec::new();
+            for param in std::mem::take(params) {
+                if matches!(&param, Param::Arg { name, .. } if name == "@inherit") {
+                    let (inherited, comments) = parent.ok_or_else(|| {
+                        CompileError::at(
+                            path,
+                            *line,
+                            "@inherit requires a parent command or function",
+                        )
+                    })?;
+                    resolved.extend_from_slice(inherited);
+                    docs.extend(comments.iter().filter(|(key, _)| !key.is_empty()).cloned());
+                } else {
+                    resolved.push(param);
+                }
+            }
+            *params = resolved;
+            inherit_params(path, body, Some((params, docs)))?;
+        }
+    }
+    Ok(())
 }

@@ -1,5 +1,5 @@
 use super::params::{emit_function_params, flatten_leaves};
-use super::{emit_condition, emit_value, type_test, Emitter, RootKind};
+use super::{Emitter, RootKind, emit_condition, emit_value, type_test};
 use crate::ast::*;
 use crate::error::{CompileError, Result};
 
@@ -88,9 +88,7 @@ pub fn emit_stmt(em: &mut Emitter, stmt: &Stmt) -> Result<()> {
             em.dedent();
             em.emit_line("done");
         }
-        Stmt::Case {
-            subject, arms, ..
-        } => {
+        Stmt::Case { subject, arms, .. } => {
             em.emit_line(&format!("case {} in", super::rewrite_refs(subject)));
             em.indent();
             for arm in arms {
@@ -117,10 +115,34 @@ pub fn emit_stmt(em: &mut Emitter, stmt: &Stmt) -> Result<()> {
             params,
             body,
             line,
+            docs,
         } => {
-            emit_function(em, name, *is_command, params, body, *line, None)?;
+            emit_function(em, name, *is_command, params, body, *line, None, docs)?;
         }
         Stmt::MacroDef { .. } => {}
+        Stmt::MacroCall { name, args, line } if name == "usage" => {
+            let mut code = "1";
+            let mut no_exit = false;
+            let mut seen_code = false;
+            for arg in args {
+                if arg == "--no-exit" {
+                    no_exit = true;
+                } else if !seen_code && arg.parse::<i64>().is_ok() {
+                    code = arg;
+                    seen_code = true;
+                } else {
+                    return Err(CompileError::new(
+                        "<input>",
+                        *line,
+                        "@usage: expected [code<int=1>] [--no-exit]",
+                    ));
+                }
+            }
+            em.emit_line("_scrippo_usage");
+            if !no_exit {
+                em.emit_line(&format!("exit {code}"));
+            }
+        }
         Stmt::MacroCall { name, args, line } => {
             return Err(CompileError::new(
                 "<input>",
@@ -222,6 +244,7 @@ fn emit_function(
     body: &[Stmt],
     line: usize,
     parent: Option<&str>,
+    docs: &[(String, String)],
 ) -> Result<()> {
     let fn_name = if name.is_empty() {
         if em.depth == 0 {
@@ -266,7 +289,15 @@ fn emit_function(
     // Emit nested command functions first
     let subcommands: Vec<&Stmt> = body
         .iter()
-        .filter(|s| matches!(s, Stmt::Function { is_command: true, .. }))
+        .filter(|s| {
+            matches!(
+                s,
+                Stmt::Function {
+                    is_command: true,
+                    ..
+                }
+            )
+        })
         .collect();
 
     for sub in &subcommands {
@@ -275,6 +306,7 @@ fn emit_function(
             params,
             body,
             line,
+            docs,
             ..
         } = sub
         {
@@ -292,12 +324,21 @@ fn emit_function(
                     "the root command '.()' must be defined at the top level",
                 ));
             }
-            emit_function(em, subname, true, params, body, *line, Some(&fn_name))?;
+            emit_function(em, subname, true, params, body, *line, Some(&fn_name), docs)?;
         }
     }
 
     em.emit_line(&format!("function {fn_name} {{"));
     em.indent();
+    let usage_name = if name.is_empty() {
+        "script".to_string()
+    } else {
+        fn_name.replace("__", " ")
+    };
+    super::usage::bind(em, &usage_name, params, docs, body, true);
+    if !super::usage::has_help(params) {
+        em.emit_line("if [[ ${1-} == --help ]]; then _scrippo_usage; return 0; fi");
+    }
 
     for sub in &subcommands {
         if let Stmt::Function { name: subname, .. } = sub {
@@ -309,10 +350,29 @@ fn emit_function(
         }
     }
 
+    if !subcommands.is_empty() {
+        em.emit_line("if [[ $# == 0 ]]; then");
+        em.emit_line(&format!(
+            "  echo {} >&2",
+            super::usage::quote(&format!("{usage_name}: command required"))
+        ));
+        em.emit_line("  _scrippo_usage >&2; exit 1");
+        em.emit_line("fi");
+        if params.is_empty() {
+            em.emit_line(&format!("echo \"{usage_name}: unknown command '$1'\" >&2"));
+            em.emit_line("_scrippo_usage >&2; exit 1");
+        }
+    }
     emit_function_params(em, &label, params)?;
 
     for stmt in body {
-        if matches!(stmt, Stmt::Function { is_command: true, .. }) {
+        if matches!(
+            stmt,
+            Stmt::Function {
+                is_command: true,
+                ..
+            }
+        ) {
             continue;
         }
         emit_stmt(em, stmt)?;

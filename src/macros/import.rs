@@ -12,6 +12,7 @@ const STD_ALL: &str = include_str!("../../stdlib/std.scrippo");
 
 pub struct ImportContext {
     pub imported: BTreeSet<PathBuf>,
+    active: BTreeSet<PathBuf>,
     pub prelude_bash: Vec<String>,
     pub import_dir: PathBuf,
     pub source_path: PathBuf,
@@ -30,6 +31,7 @@ impl ImportContext {
             imported.insert(source.to_path_buf());
         }
         Self {
+            active: imported.clone(),
             imported,
             prelude_bash: Vec::new(),
             import_dir,
@@ -42,16 +44,12 @@ pub fn process_imports(program: &mut Program, ctx: &mut ImportContext) -> Result
     let mut new_body = Vec::new();
     for stmt in std::mem::take(&mut program.body) {
         match stmt {
-            Stmt::MacroCall {
-                name,
-                args,
-                line,
-            } if name == "import" => {
-                if args.len() != 1 {
+            Stmt::MacroCall { name, args, line } if name == "import" => {
+                if args.len() != 1 && !(args.len() == 3 && args[1] == "--as") {
                     return Err(CompileError::at(
                         &ctx.source_path,
                         line,
-                        "@import: expected a single <path>",
+                        "@import: expected <path> [--as .command|function]",
                     ));
                 }
                 let pattern = &args[0];
@@ -62,7 +60,100 @@ pub fn process_imports(program: &mut Program, ctx: &mut ImportContext) -> Result
                         format!("@import: <path> must be a literal, received {pattern}"),
                     ));
                 }
-                import_pattern(ctx, &mut new_body, pattern, line)?;
+                if args.len() == 3 {
+                    let alias = &args[2];
+                    let name = alias.strip_prefix('.').unwrap_or(alias);
+                    if !regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_-]*$")
+                        .unwrap()
+                        .is_match(name)
+                    {
+                        return Err(CompileError::at(
+                            &ctx.source_path,
+                            line,
+                            "@import: invalid scope name",
+                        ));
+                    }
+                    let mut scoped = Vec::new();
+                    // Each scope has its own import-once set; retain ancestors for cycle prevention.
+                    let saved = ctx.imported.clone();
+                    ctx.imported = ctx.active.clone();
+                    let prelude_start = ctx.prelude_bash.len();
+                    let result = import_pattern(ctx, &mut scoped, pattern, line);
+                    ctx.imported = saved;
+                    result?;
+                    let mut prelude: Vec<_> = ctx
+                        .prelude_bash
+                        .drain(prelude_start..)
+                        .map(|raw| Stmt::Bash { raw, line })
+                        .collect();
+                    prelude.append(&mut scoped);
+                    scoped = prelude;
+                    let mut params = Vec::new();
+                    let mut docs = Vec::new();
+                    let mut body = Vec::new();
+                    let mut has_root = false;
+                    for stmt in scoped {
+                        if let Stmt::Function {
+                            name,
+                            is_command: true,
+                            params: root_params,
+                            docs: root_docs,
+                            body: root_body,
+                            ..
+                        } = &stmt
+                        {
+                            if name.is_empty() {
+                                if has_root {
+                                    return Err(CompileError::at(
+                                        &ctx.source_path,
+                                        line,
+                                        "root command '.()' already defined in imported scope",
+                                    ));
+                                }
+                                has_root = true;
+                                params = root_params.clone();
+                                docs = root_docs.clone();
+                                body.extend(root_body.clone());
+                                continue;
+                            }
+                        }
+                        body.push(stmt);
+                    }
+                    merge_stmt(
+                        ctx,
+                        &mut new_body,
+                        Stmt::Function {
+                            name: name.to_string(),
+                            is_command: alias.starts_with('.'),
+                            docs,
+                            params,
+                            body,
+                            line,
+                        },
+                        line,
+                    )?;
+                } else {
+                    import_pattern(ctx, &mut new_body, pattern, line)?;
+                }
+            }
+            Stmt::Function {
+                name,
+                is_command,
+                docs,
+                params,
+                body,
+                line,
+            } => {
+                let mut nested = Program { body };
+                process_imports(&mut nested, ctx)?;
+                new_body.push(Stmt::Function {
+                    name,
+                    is_command,
+                    docs,
+                    params,
+                    body: nested.body,
+                    line,
+                });
             }
             other => new_body.push(other),
         }
@@ -237,13 +328,8 @@ fn import_file(
 
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
     if ext == "bash" || ext == "sh" {
-        let text = std::fs::read_to_string(path).map_err(|e| {
-            CompileError::at(
-                &ctx.source_path,
-                line,
-                format!("@import: {}", e),
-            )
-        })?;
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| CompileError::at(&ctx.source_path, line, format!("@import: {}", e)))?;
         ctx.prelude_bash.push(text);
         return Ok(());
     }
@@ -253,9 +339,11 @@ fn import_file(
     ctx.import_dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
     ctx.source_path = path.to_path_buf();
 
+    ctx.active.insert(canon.clone());
     let mut prog = parse::parse_file(path)?;
     process_imports(&mut prog, ctx)?;
 
+    ctx.active.remove(&canon);
     ctx.import_dir = saved_dir;
     ctx.source_path = saved_source;
 

@@ -26,10 +26,10 @@ test('literal types', async () => {
 });
 
 test('flag aliases are one option', async () => {
-  const src = 'f(\n  [-s|--style<str>]\n  [-a | --all]\n)\n  echo';
-  assert.match(await scopeOf(src, '-s|--style'), /variable\.parameter\.option/);
-  assert.match(await scopeOf(src, '-a | --all'), /variable\.parameter\.option/);
-  assert.doesNotMatch(await scopeOf(src, '-s|--style'), /keyword\.operator\.exclusive/);
+  const src = 'f(\n  [-s / --style<str>]\n  [-a / --all]\n)\n  echo';
+  assert.match(await scopeOf(src, '-s / --style'), /variable\.parameter\.option/);
+  assert.match(await scopeOf(src, '-a / --all'), /variable\.parameter\.option/);
+  assert.doesNotMatch(await scopeOf(src, '-s / --style'), /keyword\.operator\.exclusive/);
 });
 
 test('macro definitions', async () => {
@@ -39,10 +39,10 @@ test('macro definitions', async () => {
 });
 
 test('function definitions with multi-line parameters', async () => {
-  const src = ['my_func(', '  path', '  [-s | --select<str>...]', '  [--yes] | [--no]', '  --name<str="mike"> # note', ')', '  echo $path'].join('\n');
+  const src = ['my_func(', '  path', '  [-s / --select<str>...]', '  [--yes] | [--no]', '  --name<str="mike"> # note', ')', '  echo $path'].join('\n');
   assert.match(await scopeOf(src, 'my_func'), /entity\.name\.function/);
   assert.match(await scopeOf(src, 'path'), /variable\.parameter/);
-  assert.match(await scopeOf(src, '-s | --select'), /variable\.parameter\.option/);
+  assert.match(await scopeOf(src, '-s / --select'), /variable\.parameter\.option/);
   assert.match(await scopeOf(src, '...'), /keyword\.operator\.repeat/);
   const starred = ['f(', '  [*rest]', ')', '  echo'].join('\n');
   assert.match(await scopeOf(starred, '*'), /keyword\.operator\.rest/);
@@ -120,4 +120,10 @@ test('shebang and comments', async () => {
   assert.match(await scopeOf(src, '#!/usr/bin/env scriptopotamus'), /comment\.line\.shebang/);
   assert.match(await scopeOf(src, '#', 0), /variable\.language\.special/);
   assert.match(await scopeOf(src, ' count'), /comment\.line\.number-sign/);
+});
+
+test('scoped import flags and parameter macros are highlighted', async () => {
+  assert.match(await scopeOf('@import tools.scrippo --as .tools', '--as'), /keyword\.control\.import/);
+  assert.match(await scopeOf('.child(@inherit)', '@'), /macro/);
+  assert.match(await scopeOf('#? command documentation', '#?'), /punctuation\.definition\.comment/);
 });

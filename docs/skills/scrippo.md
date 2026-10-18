@@ -119,7 +119,7 @@ choose(
   [optional_arg<int>]
   -v<str>
   [
-    -s | --select
+    -s / --select
     --options<str>...
     [--multi]
   ] | [

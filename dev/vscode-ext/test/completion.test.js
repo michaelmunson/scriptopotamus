@@ -45,10 +45,10 @@ function labels(lines, text, after, options) {
 test('macros complete after @', () => {
   const found = at(SOURCE, '  @im');
   assert.equal(found.from, 3);
-  assert.deepEqual(found.items.map((i) => i.label), ['import']);
-  assert.equal(found.items[0].insertText, 'import ${1:scrippo/std}');
+  assert.deepEqual(found.items.map((i) => i.label), ['inherit', 'usage', 'import']);
+  assert.equal(found.items.find((item) => item.label === 'import').insertText, 'import ${1:scrippo/std}');
   const defined = ['@say()', '  -> "hi"', '@'];
-  assert.deepEqual(labels(defined.slice(0, 2), defined[2]), ['import', 'say']);
+  assert.deepEqual(labels(defined.slice(0, 2), defined[2]), ['inherit', 'usage', 'import', 'say']);
   assert.notDeepEqual(labels(SOURCE, 'user@ho'), ['import']);
 });
 
@@ -168,4 +168,12 @@ test('nothing completes in comments or single quotes', () => {
   assert.equal(at(SOURCE, 'echo hi # $'), null);
   assert.equal(at(SOURCE, "echo '$"), null);
   assert.ok(at(SOURCE, 'echo "$').items.length);
+});
+
+test('scoped imports and usage macros complete', () => {
+  assert.deepEqual(labels([], '@import tools.scrippo '), ['--as']);
+  assert.deepEqual(labels([], '@import "my tools.scrippo" --a'), ['--as']);
+  assert.deepEqual(labels([], '@import tools.scrippo --as '), ['.command', 'function']);
+  assert.ok(labels([], '@').includes('usage'));
+  assert.ok(labels([], '.child(@').includes('inherit'));
 });

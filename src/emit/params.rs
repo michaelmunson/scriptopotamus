@@ -1,4 +1,4 @@
-use super::{type_test, Emitter};
+use super::{Emitter, type_test};
 use crate::ast::*;
 use crate::error::Result;
 
@@ -145,6 +145,9 @@ pub fn emit_function_params(em: &mut Emitter, fn_label: &str, params: &[Param]) 
     em.emit_line("case $1 in");
     em.indent();
 
+    if !super::usage::has_help(params) {
+        em.emit_line("--help) _scrippo_usage; return 0 ;;");
+    }
     for leaf in &leaves {
         if leaf.kind == LeafKind::Opt {
             emit_option(em, fn_label, leaf);
@@ -177,10 +180,8 @@ pub fn emit_function_params(em: &mut Emitter, fn_label: &str, params: &[Param]) 
         em.emit_line("  break");
         em.emit_line("  ;;");
         em.emit_line("-?*)");
-        em.emit_line(&format!(
-            "  echo \"{fn_label}: unknown option '$1'\" >&2"
-        ));
-        em.emit_line("  exit 1");
+        em.emit_line(&format!("  echo \"{fn_label}: unknown option '$1'\" >&2"));
+        em.emit_line("  _scrippo_usage >&2; exit 1");
         em.emit_line("  ;;");
         em.emit_line("*)");
         em.emit_line("  _scrippo_args+=(\"$1\")");
@@ -195,6 +196,14 @@ pub fn emit_function_params(em: &mut Emitter, fn_label: &str, params: &[Param]) 
 
     emit_assign_args(em, fn_label, &leaves, catchall.as_deref())?;
     emit_checks(em, fn_label, params, &leaves)?;
+    for leaf in &leaves {
+        for flag in leaf.flags.iter().skip(1) {
+            let alias = flag.trim_start_matches('-').replace('-', "_");
+            if alias != leaf.name {
+                em.emit_line(&format!("local -n {alias}={}", leaf.name));
+            }
+        }
+    }
     em.emit_line("set -- \"${_scrippo_argv[@]}\"");
     Ok(())
 }
@@ -214,7 +223,7 @@ fn emit_option(em: &mut Emitter, fn_label: &str, leaf: &Leaf) {
         em.emit_line("done");
     } else {
         em.emit_line(&format!(
-            "if (( $# < 2 )); then echo \"{fn_label}: {} requires a value\" >&2; exit 1; fi",
+            "if (( $# < 2 )); then echo \"{fn_label}: {} requires a value\" >&2; _scrippo_usage >&2; exit 1; fi",
             leaf.flags.first().map(|s| s.as_str()).unwrap_or("")
         ));
         if leaf.array {
@@ -293,7 +302,7 @@ fn emit_assign_args(
         }
     } else if !rest {
         em.emit_line(&format!(
-            "if (( ${{#_scrippo_args[@]}} > {position} )); then echo \"{fn_label}: too many arguments\" >&2; exit 1; fi"
+            "if (( ${{#_scrippo_args[@]}} > {position} )); then echo \"{fn_label}: too many arguments\" >&2; _scrippo_usage >&2; exit 1; fi"
         ));
     }
     Ok(())
@@ -311,10 +320,7 @@ fn used_expr(param: &Param) -> String {
         }
         Param::Rest { name, .. } => format!("${{#{name}[@]}} -gt 0"),
         Param::Arg {
-            name,
-            ty,
-            repeat,
-            ..
+            name, ty, repeat, ..
         } => {
             if *repeat || ty.kind == TypeKind::List {
                 format!("${{#{name}[@]}} -gt 0")
@@ -323,10 +329,7 @@ fn used_expr(param: &Param) -> String {
             }
         }
         Param::Opt {
-            name,
-            ty,
-            repeat,
-            ..
+            name, ty, repeat, ..
         } => {
             if *repeat {
                 format!("${{#{name}[@]}} -gt 0")
@@ -347,11 +350,7 @@ fn name_of(param: &Param) -> String {
             let inner: Vec<_> = params.iter().map(name_of).collect();
             format!("[{}]", inner.join(" "))
         }
-        Param::Exclusive { options } => options
-            .iter()
-            .map(name_of)
-            .collect::<Vec<_>>()
-            .join(" | "),
+        Param::Exclusive { options } => options.iter().map(name_of).collect::<Vec<_>>().join(" | "),
         Param::Rest { name, .. } => format!("*{name}"),
         Param::Arg { name, .. } => format!("<{name}>"),
         Param::Opt { flags, .. } => flags.first().cloned().unwrap_or_default(),
@@ -445,7 +444,7 @@ fn emit_checks(em: &mut Emitter, fn_label: &str, params: &[Param], leaves: &[Lea
     collect_checks(params, None, &mut checks);
     for check in checks {
         em.emit_line(&format!(
-            "if [[ {} ]]; then echo \"{fn_label}: {}\" >&2; exit 1; fi",
+            "if [[ {} ]]; then echo \"{fn_label}: {}\" >&2; _scrippo_usage >&2; exit 1; fi",
             check.test, check.message
         ));
     }
@@ -461,9 +460,12 @@ fn emit_checks(em: &mut Emitter, fn_label: &str, params: &[Param], leaves: &[Lea
         };
         if leaf.array {
             if let Some(test) = type_test("$_scrippo_item", &leaf.ty) {
-                em.emit_line(&format!("for _scrippo_item in \"${{{}[@]}}\"; do", leaf.name));
                 em.emit_line(&format!(
-                    "  if [[ {test} ]]; then echo \"{fn_label}: {flag} expected {}, received '$_scrippo_item'\" >&2; exit 1; fi",
+                    "for _scrippo_item in \"${{{}[@]}}\"; do",
+                    leaf.name
+                ));
+                em.emit_line(&format!(
+                    "  if [[ {test} ]]; then echo \"{fn_label}: {flag} expected {}, received '$_scrippo_item'\" >&2; _scrippo_usage >&2; exit 1; fi",
                     leaf.ty.description()
                 ));
                 em.emit_line("done");
@@ -471,7 +473,7 @@ fn emit_checks(em: &mut Emitter, fn_label: &str, params: &[Param], leaves: &[Lea
         } else if let Some(test) = type_test(&format!("${}", leaf.name), &leaf.ty) {
             em.types.insert(leaf.name.clone(), leaf.ty.clone());
             em.emit_line(&format!(
-                "if [[ -n ${} && {test} ]]; then echo \"{fn_label}: {flag} expected {}, received '${}'\" >&2; exit 1; fi",
+                "if [[ -n ${} && {test} ]]; then echo \"{fn_label}: {flag} expected {}, received '${}'\" >&2; _scrippo_usage >&2; exit 1; fi",
                 leaf.name,
                 leaf.ty.description(),
                 leaf.name

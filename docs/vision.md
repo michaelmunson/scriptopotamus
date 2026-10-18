@@ -162,7 +162,7 @@ my_func(
     [optional_arg<int>]
     -v<str>
     [
-        -s | --select
+        -s / --select
         --options<str>...
         [--multi]
     ] | [
@@ -276,8 +276,8 @@ throw(code<int> msg...)
 # msgs are joined by a space unless -j is given
 prt(
     msg...
-    [-s|--style <str>...]...
-    [-j|--join <str>]
+    [-s / --style <str>...]...
+    [-j / --join <str>]
     [-n]
 )
 

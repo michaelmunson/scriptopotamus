@@ -9,7 +9,7 @@ const BUILTINS = {
     pkg: 'io',
   },
   prt: {
-    signature: 'prt(\n  msg...\n  [-s|--style<str>...]\n  [-j|--join<str>]\n  [-n]\n)',
+    signature: 'prt(\n  msg...\n  [-s / --style<str>...]\n  [-j / --join<str>]\n  [-n]\n)',
     description: 'Echo with style. Each `-s` styles only the message that follows it. Messages are joined by a space, or by `-j`. From `@import scrippo/std/io`.',
     snippet: 'prt "${1:message}"',
     flags: ['-s', '--style', '-j', '--join', '-n'],
@@ -50,9 +50,11 @@ const BUILTINS = {
     flags: ['--file', '--rel'],
     pkg: 'path',
   },
+  inherit: { signature: '@inherit', description: 'Inherit parameters and options from the parent command or function. Use inside a parameter list.', macro: true, snippet: 'inherit' },
+  usage: { signature: '@usage [code<int=1>] [--no-exit]', description: 'Print usage for the current scope, including #? documentation. Exit with code unless --no-exit is given.', macro: true, snippet: 'usage ${1:0}' },
   import: {
-    signature: '@import path',
-    description: 'Inlines another scrippo or bash file, or a standard library (`scrippo/std`, `scrippo/std/io`, `scrippo/std/types`, `scrippo/std/path`). Relative paths and globs resolve from the importing file. Each file is imported once.',
+    signature: '@import path [--as .command|function]',
+    description: 'Inlines another scrippo or bash file, or a standard library (`scrippo/std`, `scrippo/std/io`, `scrippo/std/types`, `scrippo/std/path`). Relative paths and globs resolve from the importing file. Each file is imported once per scope. Use `--as .command` or `--as function` to wrap the imported script.',
     macro: true,
     snippet: 'import ${1:scrippo/std}',
     flags: [],

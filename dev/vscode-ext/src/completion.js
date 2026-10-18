@@ -243,6 +243,10 @@ function localImportItems(importDir, typed, quote) {
 }
 
 function importCompletion(prefix, { importDir } = {}) {
+  const as = /@import\s+(?:"[^"]+"|'[^']+'|\S+)\s+(--?[\w-]*)?$/.exec(prefix);
+  if (as) return result(prefix, as[1] || '', [{ label: '--as', kind: 'flag', detail: 'Import into a command or function scope', insertText: '--as ${1:.command}', snippet: true }]);
+  const scope = /@import\s+.+\s+--as\s+(\.?[\w-]*)$/.exec(prefix);
+  if (scope) return result(prefix, scope[1], [{ label: '.command', kind: 'command', insertText: '.${1:command}', snippet: true }, { label: 'function', kind: 'function', insertText: '${1:function}', snippet: true }]);
   const m = /@import\s+(['"]?)([^\s'"]*)$/.exec(prefix);
   if (!m) return null;
   const quote = m[1];

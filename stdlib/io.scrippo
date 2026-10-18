@@ -7,8 +7,8 @@ throw(
 
 prt(
   msg...
-  [-s|--style<str>...]
-  [-j|--join<str>]
+  [-s / --style<str>...]
+  [-j / --join<str>]
   [-n]
 )
   _scrippo_prt "$@"
