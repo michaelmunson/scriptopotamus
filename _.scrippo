@@ -9,7 +9,7 @@
 		input --confirm "Bump Version?" -v answer
 		if ! $answer
 			throw 1 "Bump Version Aborted"
-		echo cargo set-version --bump $bump
+		cargo set-version --bump $bump
 		new_version<str>="$(version get)"
 		jq -r '.version = "'"$new_version"'"' <<< $(cat ./dev/vscode-ext/package.json) > ./dev/vscode-ext/package.json.tmp
 		mv ./dev/vscode-ext/package.json.tmp ./dev/vscode-ext/package.json
