@@ -8,6 +8,7 @@ const { analyze, describeParam, paramNames } = require('./analyzer');
 const compiler = require('./compiler');
 const completion = require('./completion');
 const docs = require('./docs');
+const { registerDocumentationComments } = require('./documentation-comments');
 
 const LANGUAGE_ID = 'scriptopotamus';
 const LINT_SOURCE = 'scriptopotamus';
@@ -71,6 +72,7 @@ function sourceFileOf(doc) {
 }
 
 function activate(context) {
+  registerDocumentationComments(vscode, context);
   const output = vscode.window.createOutputChannel('Scriptopotamus');
   const lintCollection = vscode.languages.createDiagnosticCollection(LINT_SOURCE);
   const compilerCollection = vscode.languages.createDiagnosticCollection(COMPILER_SOURCE);

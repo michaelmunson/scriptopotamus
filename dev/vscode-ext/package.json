@@ -2,7 +2,7 @@
   "name": "scriptopotamus",
   "displayName": "Scriptopotamus",
   "description": "Syntax highlighting, autocomplete, linting, and compiler diagnostics for Scriptopotamus (.scrippo) scripts",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "publisher": "michaelmunson",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -42,6 +42,18 @@
     }
   },
   "contributes": {
+    "colors": [
+      {
+        "id": "scriptopotamus.documentationCommentForeground",
+        "description": "Foreground color for Scriptopotamus #? documentation comments.",
+        "defaults": {
+          "dark": "#808080",
+          "light": "#666666",
+          "highContrast": "#A0A0A0",
+          "highContrastLight": "#595959"
+        }
+      }
+    ],
     "languages": [
       {
         "id": "scriptopotamus",

@@ -127,3 +127,12 @@ test('scoped import flags and parameter macros are highlighted', async () => {
   assert.match(await scopeOf('.child(@inherit)', '@'), /macro/);
   assert.match(await scopeOf('#? command documentation', '#?'), /punctuation\.definition\.comment/);
 });
+
+test('documentation comments have their own scope in parameter lists and bodies', async () => {
+  const src = '#? command docs\n.run(\n  path #? parameter docs\n)\n  #? body docs\n  echo ok # regular comment';
+  for (const text of [' command docs', ' parameter docs', ' body docs']) {
+    assert.match(await scopeOf(src, text), /comment\.line\.documentation\.scriptopotamus/);
+  }
+  assert.match(await scopeOf(src, ' regular comment'), /comment\.line\.number-sign/);
+  assert.doesNotMatch(await scopeOf('echo "#? literal"', '#? literal'), /comment\.line/);
+});
