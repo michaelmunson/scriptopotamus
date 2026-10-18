@@ -62,7 +62,7 @@ With `autoload=true`, add this to your shell rc:
 eval "$(scrippo --hook)"
 ```
 
-Entering a directory then aliases:
+Entering a directory loads aliases from that directory and all its parents. The nearest directory wins when names conflict:
 
 - `package.scrippo` (or any scrippo-shebang file) as `package` → `scrippo package.scrippo`
 - each top-level command in `.scrippo/commands.scrippo` (e.g. `build`) as `build` → `scrippo .scrippo/commands.scrippo build`

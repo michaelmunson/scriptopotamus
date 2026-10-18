@@ -133,47 +133,9 @@ fn program_for_completion(file: &Path) -> Option<Program> {
 fn discover_aliases(dir: &Path) -> Result<Vec<AliasEntry>> {
     let mut entries = Vec::new();
     let mut names = std::collections::BTreeSet::new();
-    let read = fs::read_dir(dir).with_context(|| format!("failed to read {}", dir.display()))?;
-    let mut scripts = Vec::new();
-
-    for item in read {
-        let item = item?;
-        let path = item.path();
-        if !path.is_file() {
-            continue;
-        }
-        let name = item.file_name();
-        let name = name.to_string_lossy();
-        if name.as_ref() == ".scrippo" || name.starts_with('.') {
-            continue;
-        }
-        if name.ends_with(".scrippo") || has_scrippo_shebang(&path)? {
-            scripts.push(path);
-        }
-    }
-
-    scripts.sort();
-    for path in scripts {
-        push_script_alias(&mut entries, &mut names, path, Vec::new());
-    }
-
-    if let Some(path) = paths::project_commands_file(dir) {
-        let file = path.canonicalize().unwrap_or_else(|_| path.clone());
-        if let Ok(program) = parse::parse_file(&path) {
-            for cmd in top_level_commands(&program) {
-                if !is_valid_alias_name(&cmd) {
-                    continue;
-                }
-                if !names.insert(cmd.clone()) {
-                    continue;
-                }
-                entries.push(AliasEntry {
-                    name: cmd.clone(),
-                    file: file.clone(),
-                    prefix: vec![cmd],
-                });
-            }
-        }
+    // Visit nearest directories first so local aliases shadow inherited ones.
+    for ancestor in dir.ancestors() {
+        discover_directory_aliases(ancestor, &mut entries, &mut names)?;
     }
 
     if let Ok(scripts_dir) = paths::global_scripts_dir() {
@@ -200,6 +162,57 @@ fn discover_aliases(dir: &Path) -> Result<Vec<AliasEntry>> {
     }
 
     Ok(entries)
+}
+
+fn discover_directory_aliases(
+    dir: &Path,
+    entries: &mut Vec<AliasEntry>,
+    names: &mut std::collections::BTreeSet<String>,
+) -> Result<()> {
+    let read = fs::read_dir(dir).with_context(|| format!("failed to read {}", dir.display()))?;
+    let mut scripts = Vec::new();
+
+    for item in read {
+        let item = item?;
+        let path = item.path();
+        if !path.is_file() {
+            continue;
+        }
+        let name = item.file_name();
+        let name = name.to_string_lossy();
+        if name.as_ref() == ".scrippo" || name.starts_with('.') {
+            continue;
+        }
+        if name.ends_with(".scrippo") || has_scrippo_shebang(&path).unwrap_or(false) {
+            scripts.push(path);
+        }
+    }
+
+    scripts.sort();
+    for path in scripts {
+        push_script_alias(entries, names, path, Vec::new());
+    }
+
+    if let Some(path) = paths::project_commands_file(dir) {
+        let file = path.canonicalize().unwrap_or_else(|_| path.clone());
+        if let Ok(program) = parse::parse_file(&path) {
+            for cmd in top_level_commands(&program) {
+                if !is_valid_alias_name(&cmd) {
+                    continue;
+                }
+                if !names.insert(cmd.clone()) {
+                    continue;
+                }
+                entries.push(AliasEntry {
+                    name: cmd.clone(),
+                    file: file.clone(),
+                    prefix: vec![cmd],
+                });
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn push_script_alias(

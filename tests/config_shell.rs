@@ -98,6 +98,49 @@ fn env_emits_aliases_for_dot_scrippo_and_package() {
     assert!(stdout.contains("scrippo ") && stdout.contains("package.scrippo"), "{stdout}");
 }
 
+#[test]
+fn env_inherits_parent_aliases_with_nearest_directory_winning() {
+    let root = tempfile_dir();
+    let child = root.join("src");
+    let grandchild = child.join("nested");
+    std::fs::create_dir_all(&grandchild).unwrap();
+    std::fs::write(root.join("_.scrippo"), ".version()\n  -> parent\n").unwrap();
+    std::fs::write(root.join("shared.scrippo"), "-> parent\n").unwrap();
+    std::fs::write(child.join("shared.scrippo"), "-> child\n").unwrap();
+    std::fs::write(root.join(".scrippo"), ".build()\n  -> parent\n.deploy()\n  -> parent\n").unwrap();
+    std::fs::create_dir(child.join(".scrippo")).unwrap();
+    std::fs::write(child.join(".scrippo/commands.scrippo"), ".build()\n  -> child\n").unwrap();
+    let cfg = root.join("config");
+    std::fs::write(&cfg, "autoload=true\nautocomplete=true\n").unwrap();
+    for shell in ["bash", "zsh"] {
+        for cwd in [&child, &grandchild] {
+            let output = Command::new(bin())
+                .env("SCRIPPO_CONFIG", &cfg)
+                .env("SCRIPPO_HOME", root.join("global"))
+                .env("SCRIPPO_SHELL", shell)
+                .current_dir(cwd)
+                .arg("--env")
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for (name, file) in [
+                ("_", root.join("_.scrippo")),
+                ("shared", child.join("shared.scrippo")),
+                ("build", child.join(".scrippo/commands.scrippo")),
+                ("deploy", root.join(".scrippo")),
+            ] {
+                let aliases: Vec<_> = stdout.lines().filter(|line| line.starts_with(&format!("alias {name}="))).collect();
+                assert_eq!(aliases.len(), 1, "{stdout}");
+                assert!(aliases[0].contains(&file.display().to_string()), "{}", aliases[0]);
+                assert!(stdout.contains(&format!("_SCRIPPO_FILES[{name}]={}", file.display())), "{stdout}");
+                let completion = if shell == "bash" { "complete -o default -F _scrippo_comp" } else { "compdef -a _scrippo_comp" };
+                assert!(stdout.contains(&format!("{completion} {name}")), "{stdout}");
+            }
+        }
+    }
+}
+
 fn tempfile_dir() -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!(
         "scrippo-test-{}-{}",
