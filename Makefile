@@ -20,5 +20,5 @@ install: build-release
 	ln -sf /usr/local/bin/scrippo /usr/local/bin/scriptopotamus
 
 sudo-install: build-release
-	install -m 755 target/release/scrippo /usr/local/bin/scrippo
-	ln -sf /usr/local/bin/scrippo /usr/local/bin/scriptopotamus
+	sudo install -m 755 target/release/scrippo /usr/local/bin/scrippo
+	sudo ln -sf /usr/local/bin/scrippo /usr/local/bin/scriptopotamus
