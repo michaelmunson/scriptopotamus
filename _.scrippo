@@ -1,5 +1,7 @@
 #! /usr/bin/env scrippo
 @import scrippo/std
+@import "./docs/examples/demo/demo.scrippo" --as .demo
+
 .version()
 	.get()
 		cargo pkgid | sed -E 's/.*#([^:]+).*/\1/'

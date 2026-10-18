@@ -1,0 +1,13 @@
+
+#? get a path, either relative or absolute
+.get-path(
+	path #? the path to get
+)
+	#? get a relative path
+	.rel(@inherit)
+		-> $(realpath --relative-to=. $path)
+	#? get an absolute path
+	.abs(@inherit)
+		-> $(realpath $path)
+
+	@usage 1

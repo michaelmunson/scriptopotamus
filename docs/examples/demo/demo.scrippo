@@ -1,0 +1,14 @@
+@import "./fs.scrippo" --as .fs
+@import scrippo/std
+
+#? hello world function
+.hello(
+	name #? Name of the person to greet
+)
+	.world(@inherit [
+		--age<int> #? Age of the person to greet
+	])
+		prt  -s green "Hello, $name!"
+		if -n $age
+			prt  -s yellow "You are $age years old."
+	@usage 0
