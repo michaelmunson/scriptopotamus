@@ -352,10 +352,6 @@ fn emit_function(
 
     if !subcommands.is_empty() {
         em.emit_line("if [[ $# == 0 ]]; then");
-        em.emit_line(&format!(
-            "  echo {} >&2",
-            super::usage::quote(&format!("{usage_name}: command required"))
-        ));
         em.emit_line("  _scrippo_usage >&2; exit 1");
         em.emit_line("fi");
         if params.is_empty() {

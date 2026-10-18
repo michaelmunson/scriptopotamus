@@ -119,11 +119,6 @@ fn emit_dispatch(em: &mut Emitter) {
     match em.root {
         None => {
             em.emit_line("\"\")");
-            em.emit_line("  echo \"${0##*/}: command required\" >&2");
-            em.emit_line(&format!(
-                "  echo \"commands: {}\" >&2",
-                em.commands.join(" ")
-            ));
             em.emit_line("  _scrippo_usage >&2");
             em.emit_line("  exit 1");
             em.emit_line("  ;;");
