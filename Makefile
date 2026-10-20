@@ -1,4 +1,4 @@
-.PHONY: build build-release test run install version build-extension
+.PHONY: build build-release test run install version build-extension install-nvim test-nvim
 
 build:
 	cargo build
@@ -11,6 +11,15 @@ build-extension:
 
 test:
 	cargo test
+
+test-nvim:
+	nvim --headless -u NONE -l dev/nvim/test/run.lua
+
+NVIM_PACK_DIR ?= $(or $(XDG_DATA_HOME),$(HOME)/.local/share)/nvim/site/pack/scriptopotamus/start
+
+install-nvim:
+	mkdir -p $(NVIM_PACK_DIR)
+	ln -sfn $(CURDIR)/dev/nvim $(NVIM_PACK_DIR)/scrippo.nvim
 
 run:
 	cargo run --bin scrippo

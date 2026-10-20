@@ -70,6 +70,11 @@ Entering a directory loads aliases from that directory and all its parents. The 
 
 With `autocomplete=true`, tab completion covers those aliases' commands and `--` options.
 
+## Editor support
+
+- VS Code: [dev/vscode-ext](dev/vscode-ext) (`make build-extension`)
+- Neovim: [dev/nvim](dev/nvim) — syntax highlighting, indentation, and autocomplete (`make install-nvim`)
+
 ## Install
 
 ```bash
