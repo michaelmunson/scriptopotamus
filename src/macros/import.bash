@@ -17,10 +17,30 @@ function macro_import {
   fi
   pattern=$_compile_result
   [[ $pattern == /* ]] || pattern=$_compile_import_dir/$pattern
+  macro_import_sandbox "$node" "$pattern"
   if [[ $pattern == *[*?\[]* ]]; then
     macro_import_glob "$node" "$pattern"
   else
     macro_import_file "$node" "$pattern"
+  fi
+}
+
+# Check the lexical path before expanding globs or touching the filesystem.
+function macro_import_sandbox {
+  [[ -n ${SCRIPPO_SANDBOX_ROOT:-} ]] || return 0
+  local node=$1 path=$2 component normalized IFS=/
+  local -a components=() parts=()
+  read -r -a components <<< "$path"
+  for component in "${components[@]}"; do
+    case $component in
+      ''|.) ;;
+      ..) (( ${#parts[@]} == 0 )) || unset "parts[$(( ${#parts[@]} - 1 ))]" ;;
+      *) parts+=("$component") ;;
+    esac
+  done
+  normalized=/${parts[*]}
+  if [[ $normalized != "$SCRIPPO_SANDBOX_ROOT/"* ]]; then
+    compile_error "$node" '@import: path is outside the package sandbox'
   fi
 }
 
@@ -59,6 +79,13 @@ function macro_import_file {
     compile_error "$node" "@import: file not found: $path"
   fi
   file=$(cd "$(dirname "$path")" && pwd)/$(basename "$path")
+  if [[ -n ${SCRIPPO_SANDBOX_ROOT:-} ]]; then
+    local physical
+    physical=$(cd -P "$(dirname "$path")" && pwd)/$(basename "$path")
+    if [[ -L $path || $physical != "$SCRIPPO_SANDBOX_ROOT/"* ]]; then
+      compile_error "$node" '@import: path is outside the package sandbox'
+    fi
+  fi
   [[ -z ${_compile_imported[$file]} ]] || return 0
   _compile_imported[$file]=1
 

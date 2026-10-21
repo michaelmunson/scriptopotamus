@@ -5,8 +5,15 @@
 @import "macros/input.bash"
 @import "macros/import.bash"
 @import "macros/path.bash"
+@import "macros/info.bash"
 @import "compiler.bash"
 @import "shell.bash"
+@import "packages.bash"
+
+# Handle installation before script argument parsing, preserving option order.
+if package_requested "$@"
+	package_install "$@"
+	exit $?
 
 # scrippo(
 #   [path]

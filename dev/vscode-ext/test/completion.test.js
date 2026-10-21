@@ -32,10 +32,10 @@ function labels(lines, text, after) {
 test('macros complete after @', () => {
   const found = at(SOURCE, '  @pr');
   assert.equal(found.from, 3);
-  assert.deepEqual(found.items.map((i) => i.label), ['throw', 'prt', 'input', 'rootdir', 'import']);
+  assert.deepEqual(found.items.map((i) => i.label), ['throw', 'prt', 'input', 'rootdir', 'import', 'info']);
   assert.equal(found.items.find((i) => i.label === 'prt').insertText, 'prt "${1:message}"');
-  assert.deepEqual(labels(SOURCE, 'cd @'), ['throw', 'prt', 'input', 'rootdir', 'import']);
-  assert.notDeepEqual(labels(SOURCE, 'user@ho'), ['throw', 'prt', 'input', 'rootdir', 'import']);
+  assert.deepEqual(labels(SOURCE, 'cd @'), ['throw', 'prt', 'input', 'rootdir', 'import', 'info']);
+  assert.notDeepEqual(labels(SOURCE, 'user@ho'), ['throw', 'prt', 'input', 'rootdir', 'import', 'info']);
 });
 
 test('variables and params complete after $', () => {

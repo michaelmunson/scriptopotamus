@@ -36,6 +36,13 @@ const BUILTINS = {
     snippet: 'import "${1:file}"',
     flags: [],
   },
+  info: {
+    signature: 'info(name version [description])',
+    description: 'Package metadata: one top-level declaration per installable .scrippo file. The name matches the filename; the stable version matches the repository tag. Values are literals and emit no runtime code.',
+    macro: true,
+    snippet: 'info ${1:name} ${2:1.0.0} "${3:description}"',
+    flags: [],
+  },
   len: {
     signature: 'len(name)',
     description: 'Prints the number of items in a list or dict.',
