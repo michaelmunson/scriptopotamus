@@ -59,6 +59,13 @@ const BUILTINS = {
     snippet: 'import ${1:scrippo/std}',
     flags: [],
   },
+  info: {
+    signature: '@info name version [description]',
+    description: 'Installable entry metadata. Use one top-level declaration with literal values. The name matches the filename and the version matches the stable Git tag. Emits no runtime code.',
+    macro: true,
+    snippet: 'info ${1:name} ${2:1.0.0} "${3:description}"',
+    flags: [],
+  },
 };
 
 const KEYWORDS = {

@@ -16,6 +16,7 @@ pub struct ImportContext {
     pub prelude_bash: Vec<String>,
     pub import_dir: PathBuf,
     pub source_path: PathBuf,
+    pub(crate) sandbox_root: Option<PathBuf>,
 }
 
 impl ImportContext {
@@ -36,7 +37,28 @@ impl ImportContext {
             prelude_bash: Vec::new(),
             import_dir,
             source_path: source.to_path_buf(),
+            sandbox_root: None,
         }
+    }
+
+    pub(crate) fn check_path(&self, path: &Path, line: usize) -> Result<()> {
+        if let Some(root) = &self.sandbox_root {
+            let canonical = path.canonicalize().map_err(|e| {
+                CompileError::at(
+                    &self.source_path,
+                    line,
+                    format!("@import: {}: {e}", path.display()),
+                )
+            })?;
+            if !canonical.starts_with(root) {
+                return Err(CompileError::at(
+                    &self.source_path,
+                    line,
+                    "@import: path is outside the package sandbox",
+                ));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -44,6 +66,9 @@ pub fn process_imports(program: &mut Program, ctx: &mut ImportContext) -> Result
     let mut new_body = Vec::new();
     for stmt in std::mem::take(&mut program.body) {
         match stmt {
+            Stmt::MacroCall { name, args, line } if name == "info" => {
+                super::info::PackageInfo::parse(&ctx.source_path, line, &args)?;
+            }
             Stmt::MacroCall { name, args, line } if name == "import" => {
                 if args.len() != 1 && !(args.len() == 3 && args[1] == "--as") {
                     return Err(CompileError::at(
@@ -193,7 +218,20 @@ fn import_pattern(
     }
 
     if paths::is_package_name(&pattern) {
-        if let Some(pkg) = paths::resolve_package(&pattern, &ctx.source_path) {
+        let package = match &ctx.sandbox_root {
+            // Package builds must not depend on the installer's project or home.
+            Some(root) => [root.join("packages"), root.join(".scrippo/lib")]
+                .into_iter()
+                .flat_map(|dir| {
+                    [
+                        dir.join(format!("{pattern}.scrippo")),
+                        dir.join(format!("{pattern}.bash")),
+                    ]
+                })
+                .find(|path| path.is_file()),
+            None => paths::resolve_package(&pattern, &ctx.source_path),
+        };
+        if let Some(pkg) = package {
             import_file(ctx, body, &pkg, line)?;
             return Ok(());
         }
@@ -257,6 +295,7 @@ fn import_glob(
     let mut matches: Vec<PathBuf> = Vec::new();
     // Simple glob: use walk of parent + filter
     let parent = pattern.parent().unwrap_or(Path::new("."));
+    ctx.check_path(parent, line)?;
     let file_pat = pattern
         .file_name()
         .map(|s| s.to_string_lossy().to_string())
@@ -314,6 +353,7 @@ fn import_file(
     path: &Path,
     line: usize,
 ) -> Result<()> {
+    ctx.check_path(path, line)?;
     let canon = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     if !ctx.imported.insert(canon.clone()) {
         return Ok(());
