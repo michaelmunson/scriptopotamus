@@ -139,6 +139,19 @@ do
 end
 
 -- ---------------------------------------------------------------- completion
+do
+  local analysis = require('scrippo.analyzer').analyze({
+    '@info(',
+    '  --name hello',
+    '  --description "A greeting (with punctuation); # hi"',
+    '  --script',
+    ')',
+    '.hello() -> hello',
+  })
+  eq('info is metadata, not a macro definition', #analysis.macros, 0)
+  eq('command after info is analyzed', analysis.defs[1].name, 'hello')
+end
+
 local complete = require('scrippo.complete')
 
 local function labels(result)

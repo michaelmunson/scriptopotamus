@@ -1,6 +1,6 @@
 //! Tagged Git installs into the existing package and script search paths.
 use crate::ast::Stmt;
-use crate::macros::info::{PackageInfo, Version};
+use crate::macros::info::{FileKind, PackageInfo, Version};
 use crate::paths::{self, NewKind};
 use anyhow::{Context, Result, bail};
 use serde_json::json;
@@ -92,6 +92,17 @@ pub fn install(options: &InstallOptions) -> Result<InstallResult> {
     for relative in selected {
         let file = source.join(relative);
         let info = entry_info(&file, &version)?;
+        let expected_kind = match options.kind {
+            NewKind::Package => FileKind::Package,
+            NewKind::Script => FileKind::Script,
+        };
+        if info.metadata.kind.is_some_and(|kind| kind != expected_kind) {
+            bail!(
+                "{}: @info kind must match the selected {} directory",
+                file.display(),
+                kind
+            );
+        }
         if !names.insert(info.name.clone()) {
             bail!("duplicate {kind} entry name: {}", info.name);
         }
@@ -112,8 +123,12 @@ pub fn install(options: &InstallOptions) -> Result<InstallResult> {
         };
         let filename = format!("{}.{extension}", info.name);
         artifacts.push((filename, artifact));
-        metadata
-            .push(json!({"name": info.name, "description": info.description, "source": relative}));
+        metadata.push(json!({
+            "name": info.name, "version": info.version.0.iter().map(u64::to_string).collect::<Vec<_>>().join("."),
+            "description": info.description, "author": info.metadata.author,
+            "license": info.metadata.license, "repository": info.metadata.repository,
+            "kind": expected_kind.as_str(), "autoload": info.metadata.autoload, "source": relative,
+        }));
     }
     fs::write(
         staged.join("install.json"),

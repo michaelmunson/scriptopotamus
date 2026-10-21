@@ -141,6 +141,60 @@ fn env_inherits_parent_aliases_with_nearest_directory_winning() {
     }
 }
 
+#[test]
+fn file_metadata_controls_autoload_for_local_global_and_project_commands() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let global = root.join("global");
+    std::fs::create_dir_all(global.join("scripts")).unwrap();
+    std::fs::create_dir_all(root.join(".scrippo")).unwrap();
+    for path in [
+        root.join("hidden.scrippo"),
+        global.join("scripts/hidden_global.scrippo"),
+    ] {
+        std::fs::write(path, "@info(--autoload disable)\n-> hello\n").unwrap();
+    }
+    std::fs::write(
+        root.join("visible.scrippo"),
+        "@info(--autoload enable)\n-> hello\n",
+    )
+    .unwrap();
+    std::fs::write(root.join("defaulted.scrippo"), "@info()\n-> hello\n").unwrap();
+    std::fs::write(root.join("plain.scrippo"), "-> hello\n").unwrap();
+    std::fs::write(
+        root.join(".scrippo/commands.scrippo"),
+        "@info(--autoload disable)\n.hidden_cmd() -> hello\n",
+    )
+    .unwrap();
+    let cfg = root.join("config");
+    std::fs::write(&cfg, "autoload=true\nautocomplete=true\n").unwrap();
+    for shell in ["bash", "zsh"] {
+        let output = Command::new(bin())
+            .env("SCRIPPO_CONFIG", &cfg)
+            .env("SCRIPPO_HOME", &global)
+            .env("SCRIPPO_SHELL", shell)
+            .current_dir(root)
+            .arg("--env")
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for name in ["visible", "defaulted", "plain"] {
+            assert!(stdout.contains(&format!("alias {name}=")), "{stdout}");
+        }
+        for name in ["hidden", "hidden_global", "hidden_cmd"] {
+            assert!(!stdout.contains(&format!("alias {name}=")), "{stdout}");
+        }
+    }
+    let output = Command::new(bin())
+        .current_dir(root)
+        .arg("hidden.scrippo")
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "hello\n");
+}
+
 fn tempfile_dir() -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!(
         "scrippo-test-{}-{}",

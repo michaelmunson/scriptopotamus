@@ -313,6 +313,67 @@ fn metadata_validation_rejects_invalid_entries_without_publishing_anything() {
 }
 
 #[test]
+fn named_metadata_is_preserved_for_packages_and_scripts() {
+    let f = Fixture::new();
+    for (directory, name, kind, body) in [
+        ("packages", "greet", "package", "greet() -> hello"),
+        ("scripts", "hello", "script", "-> hello"),
+    ] {
+        f.write(&format!("{directory}/{name}.scrippo"), &format!(
+            "@info(\n  --name {name}\n  --version 2.0.0\n  --description 'A greeting'\n  --author 'Ada Lovelace'\n  --license MIT\n  --repository https://example.com/helpers.git\n  --{kind}\n  --autoload disable\n)\n{body}\n"
+        ));
+    }
+    f.tag("v2.0.0");
+    for (flag, destination, directory, name, kind) in [
+        ("-p", f.lib(), "packages", "greet", "package"),
+        ("-s", f.project.clone(), "scripts", "hello", "script"),
+    ] {
+        let output = f.install(&[flag], None);
+        assert!(output.status.success(), "{}", text(&output));
+        let manifest = f.manifest(&destination, directory);
+        let entry = &manifest["entries"][0];
+        assert_eq!(entry["name"], name);
+        assert_eq!(entry["version"], "2.0.0");
+        assert_eq!(entry["description"], "A greeting");
+        assert_eq!(entry["author"], "Ada Lovelace");
+        assert_eq!(entry["license"], "MIT");
+        assert_eq!(entry["repository"], "https://example.com/helpers.git");
+        assert_eq!(entry["kind"], kind);
+        assert_eq!(entry["autoload"], false);
+    }
+    let output = f.run(&["hello.scrippo"]);
+    assert!(output.status.success(), "{}", text(&output));
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "hello\n");
+}
+
+#[test]
+fn installable_named_metadata_requires_name_version_and_matching_kind() {
+    for (header, message) in [
+        ("@info(--version 2.0.0)", "require --name"),
+        ("@info(--name greet)", "require --version"),
+        (
+            "@info(--name greet --version 2.0.0 --script)",
+            "kind must match",
+        ),
+        (
+            "-> hi\n@info(--name greet --version 2.0.0)",
+            "top of the file",
+        ),
+    ] {
+        let f = Fixture::new();
+        f.write(
+            "packages/greet.scrippo",
+            &format!("{header}\ngreet() -> hi\n"),
+        );
+        f.tag("v2.0.0");
+        let output = f.install(&["-p"], None);
+        assert!(!output.status.success(), "{header}");
+        assert!(text(&output).contains(message), "{}", text(&output));
+        assert!(!f.lib().join("greet.bash").exists());
+    }
+}
+
+#[test]
 fn script_metadata_is_validated_and_duplicate_names_are_rejected() {
     let f = Fixture::new();
     f.write("scripts/hello.scrippo", "-> no-metadata\n");

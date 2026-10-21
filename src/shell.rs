@@ -198,6 +198,9 @@ fn discover_directory_aliases(
     if let Some(path) = paths::project_commands_file(dir) {
         let file = path.canonicalize().unwrap_or_else(|_| path.clone());
         if let Ok(program) = parse::parse_file(&path) {
+            if !autoload_enabled(&path, &program) {
+                return Ok(());
+            }
             for cmd in top_level_commands(&program) {
                 if !is_valid_alias_name(&cmd) {
                     continue;
@@ -223,6 +226,11 @@ fn push_script_alias(
     path: PathBuf,
     prefix: Vec<String>,
 ) {
+    if let Ok(program) = parse::parse_file(&path) {
+        if !autoload_enabled(&path, &program) {
+            return;
+        }
+    }
     let stem = alias_name_for(&path);
     if stem.is_empty() || !is_valid_alias_name(&stem) {
         return;
@@ -235,6 +243,13 @@ fn push_script_alias(
         file: path.canonicalize().unwrap_or(path),
         prefix,
     });
+}
+
+fn autoload_enabled(path: &Path, program: &Program) -> bool {
+    macros::info::FileInfo::from_program(path, program)
+        .ok()
+        .flatten()
+        .is_none_or(|info| info.autoload)
 }
 
 fn alias_name_for(path: &Path) -> String {

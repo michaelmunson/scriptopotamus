@@ -63,12 +63,11 @@ impl ImportContext {
 }
 
 pub fn process_imports(program: &mut Program, ctx: &mut ImportContext) -> Result<()> {
+    super::info::FileInfo::from_program(&ctx.source_path, program)?;
     let mut new_body = Vec::new();
     for stmt in std::mem::take(&mut program.body) {
         match stmt {
-            Stmt::MacroCall { name, args, line } if name == "info" => {
-                super::info::PackageInfo::parse(&ctx.source_path, line, &args)?;
-            }
+            Stmt::MacroCall { name, .. } if name == "info" => {}
             Stmt::MacroCall { name, args, line } if name == "import" => {
                 if args.len() != 1 && !(args.len() == 3 && args[1] == "--as") {
                     return Err(CompileError::at(
