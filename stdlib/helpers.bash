@@ -126,7 +126,7 @@ function _scrippo_select {
       if (( i == cursor )); then
         line=$'\e[36m❯\e[0m '
       fi
-      if [[ $multi == true && -n ${picked[i]} ]]; then
+      if [[ $multi == true && -n ${picked[i]:-} ]]; then
         line+=$'\e[32m◉\e[0m '
       elif [[ $multi == true ]]; then
         line+=$'\e[2m◯\e[0m '
@@ -143,7 +143,7 @@ function _scrippo_select {
       up) cursor=$(( (cursor + count - 1) % count )) ;;
       down) cursor=$(( (cursor + 1) % count )) ;;
       space)
-        if [[ -n ${picked[cursor]} ]]; then
+        if [[ -n ${picked[cursor]:-} ]]; then
           unset 'picked[cursor]'
         else
           picked[cursor]=1
@@ -171,9 +171,9 @@ function _scrippo_select {
     return 0
   fi
   for i in "${!options[@]}"; do
-    [[ -n ${picked[i]} ]] && _scrippo_picks+=("${options[i]}")
+    [[ -n ${picked[i]:-} ]] && _scrippo_picks+=("${options[i]}")
   done
-  printf -v line '%s, ' "${_scrippo_picks[@]}"
+  printf -v line '%s, ' "${_scrippo_picks[@]+"${_scrippo_picks[@]}"}"
   _scrippo_answered "$prompt" "${line%, }"
 }
 
@@ -185,10 +185,10 @@ function _scrippo_select_plain {
   done
   printf '%s\n' "$prompt" >&2
   IFS=', ' read -ra picks
-  for pick in "${picks[@]}"; do
+  for pick in "${picks[@]+"${picks[@]}"}"; do
     if [[ $pick =~ ^[0-9]+$ ]] && (( pick >= 1 && pick <= ${#options[@]} )); then
       _scrippo_picks+=("${options[pick - 1]}")
     fi
   done
-  _scrippo_reply=${_scrippo_picks[0]}
+  _scrippo_reply=${_scrippo_picks[0]:-}
 }
