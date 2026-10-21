@@ -140,7 +140,7 @@ pub fn apply_configure(pairs: &[String]) -> Result<()> {
     eprintln!("wrote {}", path.display());
     if cfg.autoload {
         eprintln!("add this to your shell rc to enable autoload:");
-        eprintln!("  eval \"$(scrippo --hook)\"");
+        eprintln!("  eval \"$(scrippo --init)\"");
     }
     Ok(())
 }

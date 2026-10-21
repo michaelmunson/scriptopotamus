@@ -158,7 +158,7 @@ Settings live in `~/.scrippo/config` (override with `SCRIPPO_CONFIG` or `SCRIPPO
 With `autoload=true`, add this to your shell rc:
 
 ```bash
-eval "$(scrippo --hook)"
+eval "$(scrippo --init)"
 ```
 
 Entering a directory loads aliases from that directory and all its parents. The nearest directory wins when names conflict:

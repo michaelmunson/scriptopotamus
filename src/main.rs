@@ -19,7 +19,7 @@ struct Cli {
     new: bool,
 
     /// Install a version-tagged Git repository
-    #[arg(short = 'i', long = "install", conflicts_with_all = ["new", "configure", "hook", "env", "complete", "compile_only", "noexec"])]
+    #[arg(short = 'i', long = "install", conflicts_with_all = ["new", "configure", "init", "env", "complete", "compile_only", "noexec"])]
     install: bool,
 
     /// Exact stable version tag to install (default: highest stable version)
@@ -42,11 +42,11 @@ struct Cli {
     #[arg(short = 'g', long = "global", conflicts_with = "local")]
     global: bool,
 
-    /// Emit shell hook for autoload (eval from your shell rc)
-    #[arg(long = "hook")]
-    hook: bool,
+    /// Emit shell init for autoload (eval from your shell rc)
+    #[arg(long = "init")]
+    init: bool,
 
-    /// Emit aliases/completions for the current directory (used by --hook)
+    /// Emit aliases/completions for the current directory (used by --init)
     #[arg(long = "env")]
     env: bool,
 
@@ -80,8 +80,8 @@ fn main() -> Result<()> {
     if cli.new {
         return run_new(&cli);
     }
-    if cli.hook {
-        return shell::emit_hook();
+    if cli.init {
+        return shell::emit_init();
     }
     if cli.env {
         return shell::emit_env();
