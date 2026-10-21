@@ -74,6 +74,14 @@ impl Emitter {
 }
 
 pub fn emit_program(program: &Program) -> Result<String> {
+    emit_program_kind(program, false)
+}
+
+pub fn emit_library(program: &Program) -> Result<String> {
+    emit_program_kind(program, true)
+}
+
+fn emit_program_kind(program: &Program, library: bool) -> Result<String> {
     let mut em = Emitter::new();
     em.add_helper(
         "usage",
@@ -95,18 +103,22 @@ pub fn emit_program(program: &Program) -> Result<String> {
         } if name.is_empty() => Some((params, docs, body)),
         _ => None,
     });
-    if let Some((params, docs, body)) = root {
-        usage::bind(&mut em, "script", params, docs, body, false);
-    } else {
-        usage::bind(&mut em, "", &[], &[], &program.body, false);
-    }
-    if !root.is_some_and(|(params, _, _)| usage::has_help(params)) {
-        em.emit_line("if [[ ${1-} == --help ]]; then _scrippo_usage; exit 0; fi");
+    if !library {
+        if let Some((params, docs, body)) = root {
+            usage::bind(&mut em, "script", params, docs, body, false);
+        } else {
+            usage::bind(&mut em, "", &[], &[], &program.body, false);
+        }
+        if !root.is_some_and(|(params, _, _)| usage::has_help(params)) {
+            em.emit_line("if [[ ${1-} == --help ]]; then _scrippo_usage; exit 0; fi");
+        }
     }
     for stmt in &program.body {
         stmt::emit_stmt(&mut em, stmt)?;
     }
-    emit_dispatch(&mut em);
+    if !library {
+        emit_dispatch(&mut em);
+    }
     Ok(em.finish())
 }
 

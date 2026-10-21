@@ -1,7 +1,8 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
 use scriptopotamus::compile_file;
-use scriptopotamus::{config, paths, shell};
+use scriptopotamus::{config, packages, paths, shell};
+use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -17,20 +18,28 @@ struct Cli {
     #[arg(long = "new")]
     new: bool,
 
-    /// Create a package (with --new)
-    #[arg(long = "package", conflicts_with = "script")]
+    /// Install a version-tagged Git repository
+    #[arg(short = 'i', long = "install", conflicts_with_all = ["new", "configure", "hook", "env", "complete", "compile_only", "noexec"])]
+    install: bool,
+
+    /// Exact stable version tag to install (default: highest stable version)
+    #[arg(long, requires = "install")]
+    tag: Option<String>,
+
+    /// Select packages (with --new or --install)
+    #[arg(short = 'p', long = "package", conflicts_with = "script")]
     package: bool,
 
-    /// Create a script (with --new)
-    #[arg(long = "script", conflicts_with = "package")]
+    /// Select scripts (with --new or --install)
+    #[arg(short = 's', long = "script", conflicts_with = "package")]
     script: bool,
 
-    /// Create in the project / current directory (with --new)
+    /// Use the project / current directory (with --new or --install)
     #[arg(long = "local", conflicts_with = "global")]
     local: bool,
 
-    /// Create under ~/.scrippo (with --new)
-    #[arg(long = "global", conflicts_with = "local")]
+    /// Use ~/.scrippo, or SCRIPPO_HOME (with --new or --install)
+    #[arg(short = 'g', long = "global", conflicts_with = "local")]
     global: bool,
 
     /// Emit shell hook for autoload (eval from your shell rc)
@@ -53,16 +62,17 @@ struct Cli {
     #[arg(short = 'n', long = "noexec")]
     noexec: bool,
 
-    /// Script file to compile, name for --new, or words after --complete
-    file: Option<PathBuf>,
-
-    /// Arguments passed to the compiled script when executing
-    #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-    args: Vec<String>,
+    /// Script file, name for --new, repository for --install, or completion words
+    #[arg(value_name = "FILE", trailing_var_arg = true)]
+    input: Vec<OsString>,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    if cli.install {
+        return run_install(&cli);
+    }
 
     if let Some(pairs) = cli.configure {
         return config::apply_configure(&pairs);
@@ -77,18 +87,11 @@ fn main() -> Result<()> {
         return shell::emit_env();
     }
     if let Some(file) = cli.complete {
-        let mut words = Vec::new();
-        if let Some(f) = cli.file {
-            let s = f.display().to_string();
-            if s == "--" {
-                words.extend(cli.args);
-            } else {
-                words.push(s);
-                words.extend(cli.args);
-            }
-        } else {
-            words.extend(cli.args);
-        }
+        let words: Vec<_> = cli
+            .input
+            .iter()
+            .map(|word| word.to_string_lossy().into_owned())
+            .collect();
         let words = if !words.is_empty() && words[0] == "--" {
             words[1..].to_vec()
         } else {
@@ -98,9 +101,10 @@ fn main() -> Result<()> {
     }
 
     let file = cli
-        .file
-        .clone()
-        .context("usage: scrippo <file> [-c|-n] [-- args...]")?;
+        .input
+        .first()
+        .map(PathBuf::from)
+        .context("usage: scrippo [-c|-n] <file> [args...]")?;
 
     let file = paths::resolve_script_arg(&file)?;
     let bash = compile_file(&file).map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -136,10 +140,15 @@ fn main() -> Result<()> {
         }
     } else {
         let source = file.canonicalize().unwrap_or_else(|_| file.clone());
+        let script_args = if cli.input.get(1).is_some_and(|arg| arg == "--") {
+            &cli.input[2..]
+        } else {
+            &cli.input[1..]
+        };
         let status = Command::new("bash")
             .env("_SCRIPPO_FILE", &source)
             .arg(&tmp)
-            .args(&cli.args)
+            .args(script_args)
             .stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
@@ -156,11 +165,48 @@ fn main() -> Result<()> {
     result
 }
 
+fn run_install(cli: &Cli) -> Result<()> {
+    let repository = cli
+        .input
+        .first()
+        .context("--install requires a Git repository")?
+        .to_str()
+        .context("repository must be UTF-8")?
+        .to_string();
+    let kind = match (cli.package, cli.script) {
+        (true, false) => paths::NewKind::Package,
+        (false, true) => paths::NewKind::Script,
+        _ => bail!("--install requires --package or --script"),
+    };
+    if cli.input.len() > 2
+        || cli
+            .input
+            .get(1)
+            .is_some_and(|arg| arg.to_string_lossy().starts_with('-'))
+    {
+        bail!(
+            "usage: scrippo -i (-p|-s) [-g] [--tag VERSION] <repository> [directory]; put options before the repository"
+        );
+    }
+    let result = packages::install(&packages::InstallOptions {
+        repository,
+        kind,
+        global: cli.global,
+        destination: cli.input.get(1).map(PathBuf::from),
+        tag: cli.tag.clone(),
+    })?;
+    println!("installed {} ({})", result.tag, result.commit);
+    for file in result.files {
+        println!("  {}", file.display());
+    }
+    Ok(())
+}
+
 fn run_new(cli: &Cli) -> Result<()> {
     let name = cli
-        .file
-        .as_ref()
-        .map(|p| p.display().to_string())
+        .input
+        .first()
+        .map(|p| p.to_string_lossy().into_owned())
         .context("usage: scrippo --new [--package|--script] [--local|--global] <name>")?;
 
     let kind = match (cli.package, cli.script) {

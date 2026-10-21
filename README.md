@@ -35,6 +35,7 @@ Global packages and scripts live under `~/.scrippo` (override with `SCRIPPO_HOME
 ~/.scrippo/
 ├── config                     # autoload / autocomplete
 ├── lib/<package>.scrippo      # @import <package>
+│       <package>.bash        # compiled, installed packages
 └── scripts/<script>.scrippo   # scrippo <script> / scrippo <script>.scrippo
 ```
 
@@ -46,6 +47,85 @@ scrippo --new --script  [--local|--global] <name>   # default: --global
 ```
 
 Project commands live in `.scrippo/commands.scrippo` (a legacy `.scrippo` file still works).
+
+### Installing from Git
+
+```bash
+scrippo -i -p https://github.com/owner/helpers.git         # project .scrippo/lib
+scrippo -i -p -g https://github.com/owner/helpers.git      # ~/.scrippo/lib
+scrippo -i -s -g https://github.com/owner/helpers.git      # ~/.scrippo/scripts
+scrippo -i -s https://github.com/owner/helpers.git ./tools # explicit directory
+scrippo --install --package --tag v1.2.0 https://github.com/owner/helpers.git
+```
+
+Use `-p | --package` or `-s | --script`. Installs default to local: packages go
+in the nearest project's `.scrippo/lib` (created in the current directory if
+needed), and scripts go in the current directory. `-g | --global` follows
+`SCRIPPO_HOME`; it cannot be combined with an explicit destination. Put scrippo
+options before the repository or script filename; arguments after a script
+filename belong to that script.
+
+The installer requires Git and Bash. It selects the highest stable
+`MAJOR.MINOR.PATCH` version tag, with or without a `v` prefix, ignoring prereleases
+and untagged commits. `--tag` selects an exact tag. Local Git repositories work
+too.
+
+Packages are compiled to `<name>.bash` with all imports inlined, checked with
+`bash -n`, and exposed through the existing `@import <name>` lookup. Source
+packages still work; project packages take precedence over global packages.
+Compiled libraries expose named functions and commands as callable Bash
+functions, without taking over the importing script's CLI dispatch or `--help`.
+Executable root commands (`.()`) belong in scripts.
+
+Scripts keep the complete repository source tree. `<name>.scrippo` links into
+that snapshot, preserving relative imports, `here`, global name lookup, autoload,
+and command completion. Links are relative so a local installation can move
+with its project. Windows script installs require permission to create symlinks.
+
+Snapshots, compiled outputs, and a JSON manifest recording the repository, tag,
+commit, and entries are stored under the destination's
+`.scrippo-installed/<packages|scripts>/<repo>/content/`. Existing files and
+repository installations are never overwritten. Choose a separate destination
+to try another version. Validation and compilation finish before publication;
+failed installs clean up their own outputs.
+
+Package compilation never executes repository code. Its compiler sandbox permits
+imports only from the downloaded repository and bundled standard library, without
+falling back to the installer's local or global packages. Repository symlinks
+and submodules are rejected before extraction. This is compiler-level isolation,
+not an operating system sandbox.
+
+### Publishing installable entries
+
+Use this repository layout (nested directories are allowed, with unique names):
+
+```text
+helpers/
+├── packages/is-even.scrippo
+├── scripts/greet.scrippo
+└── support/common.scrippo
+```
+
+Every `.scrippo` file under the selected `packages/` or `scripts/` tree needs
+exactly one top-level metadata declaration:
+
+```scrippo
+@info is-even 1.2.0 "Checks whether an integer is even"
+
+is_even(value<int>)
+  [[ $((value % 2)) == 0 ]]
+```
+
+The format is `@info <name> <version> [<description>]`. Values must be literals;
+the name must match the filename without `.scrippo`, and the version must match
+the selected tag without its optional `v`. Metadata emits no runtime code.
+Shared support files without metadata belong outside the entry directories.
+Bare package imports during compilation resolve from the repository's
+`packages/` or `.scrippo/lib/`; relative imports and file globs can reference
+other files inside the repository.
+
+Commit the source, create a tag such as `git tag v1.2.0`, then push the commit
+and tag to your Git host. No registry or build hook is required.
 
 ## Config & autoload
 
