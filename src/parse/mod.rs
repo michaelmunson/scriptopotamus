@@ -18,7 +18,9 @@ pub fn parse_file(path: &Path) -> Result<Program> {
 pub fn parse_source(path: &Path, text: &str) -> Result<Program> {
     let mut src = Source::new(path, text);
     let body = parse_block(&mut src, -1)?;
-    Ok(Program { body })
+    let program = Program { body };
+    crate::macros::info::FileInfo::from_program(path, &program)?;
+    Ok(program)
 }
 
 fn parse_block(src: &mut Source, parent_indent: i32) -> Result<Block> {
@@ -58,6 +60,16 @@ fn parse_statement(src: &mut Source) -> Result<Stmt> {
                 text.split_whitespace().next().unwrap_or(&text)
             ),
         ));
+    }
+
+    // Metadata strings may contain semicolons; consume the entire declaration first.
+    if text.strip_prefix("@info").is_some_and(|rest| {
+        rest.is_empty() || rest.starts_with('(') || rest.starts_with(char::is_whitespace)
+    }) {
+        if src.indent != 0 {
+            return Err(src.error("@info must be at the top of the file"));
+        }
+        return parse_info(src, &text);
     }
 
     // Inline control on one line: if $c; -> a; else -> b
@@ -552,6 +564,67 @@ fn parse_case_arm(src: &mut Source) -> Result<CaseArm> {
         body,
         terminator,
     })
+}
+
+/// `@info(...)` is a built-in declaration, never a user macro definition.
+fn parse_info(src: &mut Source, text: &str) -> Result<Stmt> {
+    let line = src.line_number();
+    let rest = text.strip_prefix("@info").unwrap().trim_start();
+    let parenthesized = rest.starts_with('(');
+    let mut current = rest.strip_prefix('(').unwrap_or(rest).to_string();
+    let mut args = String::new();
+    let mut quote = None;
+    loop {
+        for (index, ch) in current.char_indices() {
+            if let Some(q) = quote {
+                args.push(ch);
+                if ch == q {
+                    quote = None;
+                }
+            } else {
+                match ch {
+                    '\'' | '"' => {
+                        quote = Some(ch);
+                        args.push(ch);
+                    }
+                    '#' => break,
+                    ')' if parenthesized => {
+                        let tail = current[index + 1..].trim();
+                        if !tail.is_empty() && !tail.starts_with('#') {
+                            return Err(src.error("@info: unexpected text after ')'"));
+                        }
+                        src.next();
+                        return Ok(Stmt::MacroCall {
+                            name: "info".into(),
+                            args: split_words(&args),
+                            line,
+                        });
+                    }
+                    _ => args.push(ch),
+                }
+            }
+        }
+        if quote.is_some() {
+            return Err(src.error("@info: unterminated literal"));
+        }
+        src.next();
+        if !parenthesized {
+            return Ok(Stmt::MacroCall {
+                name: "info".into(),
+                args: split_words(&args),
+                line,
+            });
+        }
+        args.push(' ');
+        if !src.peek()? {
+            return Err(CompileError::at(
+                &src.path,
+                line,
+                "@info: expected closing ')'",
+            ));
+        }
+        current = src.text.clone();
+    }
 }
 
 fn parse_macro(src: &mut Source, text: &str) -> Result<Stmt> {

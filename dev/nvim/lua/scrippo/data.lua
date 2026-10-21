@@ -70,11 +70,11 @@ M.BUILTINS = {
     flags = {},
   },
   info = {
-    signature = '@info name version [description]',
-    description = 'Installable entry metadata. Use one top-level declaration with literal values. The name matches the filename and the version matches the stable Git tag. Emits no runtime code.',
+    signature = '@info([--name <name>] [--description <text>] [--version <version>] [--author <text>] [--license <text>] [--repository <url>] [--script | --package] [--autoload enable|disable])',
+    description = 'File metadata at the top, after shebang and comments. All values are literals. Installable entries require a name matching the filename and a version matching the stable Git tag. Autoload defaults to enable; disable omits shell aliases. The original @info name version [description] form also works. Emits no runtime code.',
     macro = true,
-    snippet = 'info ${1:name} ${2:1.0.0} "${3:description}"',
-    flags = {},
+    snippet = 'info(\n  --name ${1:name}\n  --version ${2:1.0.0}\n  --description "${3:description}"\n)',
+    flags = { '--name', '--description', '--version', '--author', '--license', '--repository', '--script', '--package', '--autoload' },
   },
 }
 

@@ -595,13 +595,14 @@ class Analyzer {
   parseMacro() {
     const i = this.idx;
     const line = this.lines[i];
+    if (/^@info\s*\(/.test(line.text)) return this.parseInfo();
     const m = RE.macro.exec(line.text);
     if (!m) return null;
     const name = m[1];
     const trailing = m[3];
     const nameRange = span(i, line.indent + 1, line.indent + 1 + name.length);
     const header = line.raw.trimEnd();
-    const defines = !trailing && name !== 'import' && this.followingIndented(i, line.indent);
+    const defines = !trailing && name !== 'import' && name !== 'info' && this.followingIndented(i, line.indent);
     if (!defines) {
       this.idx++;
       return { kind: 'macro-call', name, line: i, indent: line.indent, nameRange, args: (trailing || '').trim(), header };
@@ -611,6 +612,44 @@ class Analyzer {
     const node = { kind: 'macro', name, line: i, indent: line.indent, closeLine: i, nameRange, body, header };
     this.macros.push(node);
     return node;
+  }
+
+  parseInfo() {
+    const start = this.idx;
+    const line = this.lines[start];
+    const args = [];
+    const nameRange = span(start, line.indent + 1, line.indent + 5);
+    let quote = null;
+    let closed = false;
+    let end = start;
+    for (; end < this.lines.length; end++) {
+      const text = end === start ? line.text.slice(line.text.indexOf('(') + 1) : this.lines[end].raw;
+      for (const ch of text) {
+        if (quote) {
+          args.push(ch);
+          if (ch === quote) quote = null;
+        } else if (ch === '"' || ch === "'") {
+          quote = ch;
+          args.push(ch);
+        } else if (ch === '#') {
+          break;
+        } else if (ch === ')') {
+          closed = true;
+          break;
+        } else {
+          args.push(ch);
+        }
+      }
+      if (closed) break;
+      args.push(' ');
+    }
+    if (!closed) {
+      this.report('error', nameRange, "Unclosed '(' in @info(...)", 'unclosed-paren');
+      end = this.lines.length - 1;
+    }
+    this.idx = end + 1;
+    const header = this.lines.slice(start, end + 1).map((item) => item.raw).join('\n');
+    return { kind: 'macro-call', name: 'info', line: start, indent: line.indent, closeLine: end, nameRange, args: args.join('').trim(), header };
   }
 
   followingIndented(index, indent) {

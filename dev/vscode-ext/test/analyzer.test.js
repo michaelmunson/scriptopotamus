@@ -22,6 +22,15 @@ function codes(lines) {
   return lint(lines).map((d) => `${d.line}:${d.code}`);
 }
 
+test('multiline info is metadata and preserves following command analysis', () => {
+  const source = '@info(\n  --name hello\n  --description "A greeting (with punctuation); # hi" # comment\n  --version 1.2.3\n  --script\n)\n.hello() -> hello\n';
+  const analysis = analyze(source);
+  assert.deepEqual(analysis.diagnostics, []);
+  assert.deepEqual(analysis.macros, []);
+  assert.ok(analysis.symbols.some((symbol) => symbol.name === '.hello'));
+  assert.ok(analyze('@info(\n --name hello').diagnostics.some((item) => item.code === 'unclosed-paren'));
+});
+
 test('examples and fixtures have no errors', () => {
   const files = [
     'docs/examples/simple.scrippo',

@@ -105,6 +105,7 @@ end
 
 local function collect_header(lines, start, rest)
   local depth = 0
+  local quote
   local parts = {}
   local i = start
   local text = rest
@@ -113,7 +114,13 @@ local function collect_header(lines, start, rest)
     local piece = {}
     for pos = 1, #clean do
       local c = clean:sub(pos, pos)
-      if c == '(' then
+      if quote then
+        piece[#piece + 1] = c
+        if c == quote then quote = nil end
+      elseif c == '"' or c == "'" then
+        quote = c
+        piece[#piece + 1] = c
+      elseif c == '(' then
         depth = depth + 1
         if depth > 1 then
           piece[#piece + 1] = c
@@ -166,7 +173,9 @@ function M.analyze(lines)
 
     if macro_name then
       local inner, close = collect_header(lines, i, line:sub(#macro_ws + #macro_name + 2))
-      table.insert(result.macros, { name = macro_name, line = i, close = close, header = inner })
+      if macro_name ~= 'info' then
+        table.insert(result.macros, { name = macro_name, line = i, close = close, header = inner })
+      end
       i = close
     elseif ws and not (dot == '' and KEYWORDS[name]) then
       local inner, close = collect_header(lines, i, line:sub(#ws + #dot + #name + 1))

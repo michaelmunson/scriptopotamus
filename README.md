@@ -107,18 +107,37 @@ helpers/
 ```
 
 Every `.scrippo` file under the selected `packages/` or `scripts/` tree needs
-exactly one top-level metadata declaration:
+exactly one metadata declaration at the top (after any shebang and comments):
 
 ```scrippo
-@info is-even 1.2.0 "Checks whether an integer is even"
+@info(
+  --name is-even
+  --version 1.2.0
+  --description "Checks whether an integer is even"
+  --author "Ada Lovelace"
+  --license MIT
+  --repository "https://github.com/example/helpers"
+  --package
+  --autoload enable
+)
 
 is_even(value<int>)
   [[ $((value % 2)) == 0 ]]
 ```
 
-The format is `@info <name> <version> [<description>]`. Values must be literals;
-the name must match the filename without `.scrippo`, and the version must match
-the selected tag without its optional `v`. Metadata emits no runtime code.
+`@info(...)` accepts `--name`, `--description`, `--version`, `--author`,
+`--license`, `--repository`, mutually exclusive `--script` / `--package`, and
+`--autoload enable|disable` (default: `enable`). Text options take one literal
+value; quote text containing spaces or punctuation. Shell interpolation and
+command substitutions are rejected. Options may share a line or span lines;
+trailing `#` comments are allowed. Metadata emits no runtime code.
+
+All options are optional for ordinary files. Installable entries require a name
+matching the filename without `.scrippo` and a stable `MAJOR.MINOR.PATCH` version
+matching the selected tag without its optional `v`. If a kind is declared, it
+must match the `packages/` or `scripts/` directory. All metadata is retained in
+the installation manifest. The original `@info <name> <version> [<description>]`
+form and the single-line `@info --name ... --version ...` form also work.
 Shared support files without metadata belong outside the entry directories.
 Bare package imports during compilation resolve from the repository's
 `packages/` or `.scrippo/lib/`; relative imports and file globs can reference
@@ -149,6 +168,10 @@ Entering a directory loads aliases from that directory and all its parents. The 
 - global scripts in `~/.scrippo/scripts/` (local names win on conflict)
 
 With `autocomplete=true`, tab completion covers those aliases' commands and `--` options.
+
+Put `@info(--autoload disable)` at the top of a file to omit its aliases and shell
+completions, including commands in `.scrippo/commands.scrippo`. Direct execution
+and imports still work. Per-file `enable` follows the global autoload setting.
 
 ## Editor support
 
