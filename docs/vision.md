@@ -241,7 +241,7 @@ function my_func {
         * each file is only imported once, so repeated, circular, and self imports are skipped
         * top-level commands in an imported `.scrippo` file are added to the script's commands, and defining the same command twice is a compile error
         * bare names (`@import mylib`) resolve to `.scrippo/lib/mylib.scrippo` in the project, then `~/.scrippo/lib/mylib.scrippo`
-        * paths and globs still resolve relative to the importing file
+        * relative paths and globs resolve relative to the importing file; a leading `~/` expands to the compiler's `HOME`, including inside quotes
 ```bash
 @import lib/utils.bash # these always resolve relative to the file, not the current working directory
 @import scrippo/*
@@ -249,6 +249,8 @@ function my_func {
 @import scrippo/path
 @import mylib          # project .scrippo/lib/mylib.scrippo or ~/.scrippo/lib/mylib.scrippo
 @import script.scrippo
+@import ~/scripts/utils.scrippo
+@import "~/my scripts/*.scrippo"
 ```
 ##### Defining Macros
 ```bash

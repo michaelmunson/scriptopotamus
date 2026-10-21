@@ -379,6 +379,28 @@ fn outside_imports_and_host_package_dependencies_are_blocked() {
     failure(&f.install(&["-p"], None), "package not found");
 }
 
+#[test]
+fn home_imports_cannot_escape_the_package_sandbox() {
+    for pattern in ["~/private.scrippo", "~/*.scrippo"] {
+        let f = Fixture::new();
+        fs::write(f.home.join("private.scrippo"), "secret() -> private\n").unwrap();
+        f.write(
+            "packages/greet.scrippo",
+            &format!("@info greet 2.0.0\n@import {pattern}\n"),
+        );
+        f.tag("2.0.0");
+        let output = f
+            .command()
+            .env("HOME", &f.home)
+            .args(["-i", "-p"])
+            .arg(&f.repo)
+            .output()
+            .unwrap();
+        failure(&output, "outside the package sandbox");
+        assert!(!f.lib().join("greet.bash").exists());
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn repository_symlinks_are_rejected_before_snapshotting() {
