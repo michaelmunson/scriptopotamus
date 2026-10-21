@@ -483,6 +483,10 @@ fn cli_errors_are_reported_without_changing_normal_script_arguments() {
         String::from_utf8_lossy(&output.stdout),
         "-i -p --tag value\n"
     );
+    fs::write(f.project.join("raw.scrippo"), "printf '<%s>\\n' \"$@\"\n").unwrap();
+    let output = f.run(&["raw.scrippo", "--", "-i"]);
+    success(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "<-i>\n");
 }
 
 #[test]

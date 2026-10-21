@@ -140,10 +140,15 @@ fn main() -> Result<()> {
         }
     } else {
         let source = file.canonicalize().unwrap_or_else(|_| file.clone());
+        let script_args = if cli.input.get(1).is_some_and(|arg| arg == "--") {
+            &cli.input[2..]
+        } else {
+            &cli.input[1..]
+        };
         let status = Command::new("bash")
             .env("_SCRIPPO_FILE", &source)
             .arg(&tmp)
-            .args(cli.input.iter().skip(1))
+            .args(script_args)
             .stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
