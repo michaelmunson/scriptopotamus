@@ -9,8 +9,27 @@ pub struct ExpandResult {
     pub prelude_bash: Vec<String>,
 }
 
-pub fn expand_program(path: &Path, mut program: Program) -> Result<ExpandResult> {
+pub fn expand_program(path: &Path, program: Program) -> Result<ExpandResult> {
+    let ctx = ImportContext::new(path);
+    expand_with_context(path, program, ctx)
+}
+
+pub(crate) fn expand_program_sandboxed(
+    path: &Path,
+    program: Program,
+    root: &Path,
+) -> Result<ExpandResult> {
     let mut ctx = ImportContext::new(path);
+    ctx.sandbox_root = Some(root.to_path_buf());
+    ctx.check_path(path, 0)?;
+    expand_with_context(path, program, ctx)
+}
+
+fn expand_with_context(
+    path: &Path,
+    mut program: Program,
+    mut ctx: ImportContext,
+) -> Result<ExpandResult> {
     process_imports(&mut program, &mut ctx)?;
 
     let mut macros: HashMap<String, MacroDef> = HashMap::new();

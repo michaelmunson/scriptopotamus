@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 
 /// Override with `SCRIPPO_HOME`. Default: `$HOME/.scrippo`.
@@ -80,15 +80,17 @@ pub fn resolve_package(pattern: &str, from: &Path) -> Option<PathBuf> {
     }
     let file = package_file_name(pattern);
     if let Some(lib) = local_lib_dir(from) {
-        let path = lib.join(&file);
-        if path.is_file() {
-            return Some(path);
+        for path in [lib.join(&file), lib.join(format!("{pattern}.bash"))] {
+            if path.is_file() {
+                return Some(path);
+            }
         }
     }
     if let Ok(lib) = global_lib_dir() {
-        let path = lib.join(&file);
-        if path.is_file() {
-            return Some(path);
+        for path in [lib.join(&file), lib.join(format!("{pattern}.bash"))] {
+            if path.is_file() {
+                return Some(path);
+            }
         }
     }
     None

@@ -45,10 +45,10 @@ function labels(lines, text, after, options) {
 test('macros complete after @', () => {
   const found = at(SOURCE, '  @im');
   assert.equal(found.from, 3);
-  assert.deepEqual(found.items.map((i) => i.label), ['inherit', 'usage', 'import']);
+  assert.deepEqual(found.items.map((i) => i.label), ['inherit', 'usage', 'import', 'info']);
   assert.equal(found.items.find((item) => item.label === 'import').insertText, 'import ${1:scrippo/std}');
   const defined = ['@say()', '  -> "hi"', '@'];
-  assert.deepEqual(labels(defined.slice(0, 2), defined[2]), ['inherit', 'usage', 'import', 'say']);
+  assert.deepEqual(labels(defined.slice(0, 2), defined[2]), ['inherit', 'usage', 'import', 'info', 'say']);
   assert.notDeepEqual(labels(SOURCE, 'user@ho'), ['import']);
 });
 

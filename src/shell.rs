@@ -123,6 +123,8 @@ pub fn completion_candidates_from_file(file: &Path, words: &[String]) -> Vec<Str
 
 /// Parse a scrippo file and expand `@import`s so completion sees imported commands.
 fn program_for_completion(file: &Path) -> Option<Program> {
+    let canonical = file.canonicalize().ok()?;
+    let file = canonical.as_path();
     let program = parse::parse_file(file).ok()?;
     match macros::expand_program(file, program.clone()) {
         Ok(expanded) => Some(expanded.program),
