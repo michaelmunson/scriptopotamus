@@ -15,7 +15,7 @@ struct AliasEntry {
     prefix: Vec<String>,
 }
 
-pub fn emit_hook() -> Result<()> {
+pub fn emit_init() -> Result<()> {
     // Detect at source/eval time: BASH_VERSION/ZSH_VERSION are not exported to `scrippo`.
     print!("{HOOK_UNIVERSAL}");
     Ok(())
@@ -486,7 +486,7 @@ elif [ -n "${BASH_VERSION-}" ]; then
   fi
   _scrippo_hook
 else
-  echo "scrippo --hook: unsupported shell (need bash or zsh)" >&2
+  echo "scrippo --init: unsupported shell (need bash or zsh)" >&2
 fi
 "#;
 
