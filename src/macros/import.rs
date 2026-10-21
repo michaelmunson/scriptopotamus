@@ -188,7 +188,7 @@ pub fn process_imports(program: &mut Program, ctx: &mut ImportContext) -> Result
 }
 
 fn is_literal_path(s: &str) -> bool {
-    let re = regex::Regex::new(r"^[A-Za-z0-9_./+*?\[\]-]+$").unwrap();
+    let re = regex::Regex::new(r"^[A-Za-z0-9_./+*?\[\]~-]+$").unwrap();
     re.is_match(s)
         || ((s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')))
 }
@@ -244,7 +244,22 @@ fn import_pattern(
         ));
     }
 
-    let path = if Path::new(&pattern).is_absolute() {
+    let path = if pattern == "~" || pattern.starts_with("~/") {
+        let home = std::env::var_os("HOME")
+            .filter(|home| !home.is_empty())
+            .ok_or_else(|| {
+                CompileError::at(
+                    &ctx.source_path,
+                    line,
+                    "@import: cannot expand '~': HOME is not set or is empty",
+                )
+            })?;
+        let home = PathBuf::from(home);
+        match pattern.strip_prefix("~/") {
+            Some(relative) => home.join(relative.trim_start_matches('/')),
+            None => home,
+        }
+    } else if Path::new(&pattern).is_absolute() {
         PathBuf::from(&pattern)
     } else {
         ctx.import_dir.join(&pattern)

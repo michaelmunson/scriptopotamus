@@ -142,6 +142,7 @@ Inside the body, use the bare name (`$select`, `$options`) — not `$--select`.
 @import scrippo/std/io
 @import mylib                # .scrippo/lib/mylib.scrippo then ~/.scrippo/lib/
 @import ./relative.scrippo
+@import ~/scripts/utils.scrippo # leading ~/ expands from HOME, also inside quotes
 @import ./*                  # sorted glob; dirs skipped; each file once
 
 @say_hi()
