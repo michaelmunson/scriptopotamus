@@ -219,8 +219,13 @@ fn import_pattern(
     if paths::is_package_name(&pattern) {
         let package = match &ctx.sandbox_root {
             // Package builds must not depend on the installer's project or home.
-            Some(root) => [root.join("packages"), root.join(".scrippo/lib")]
-                .into_iter()
+            Some(root) => [
+                ctx.import_dir.clone(),
+                root.clone(),
+                root.join("packages"),
+                root.join(".scrippo/lib"),
+            ]
+            .into_iter()
                 .flat_map(|dir| {
                     [
                         dir.join(format!("{pattern}.scrippo")),

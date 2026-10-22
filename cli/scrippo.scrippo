@@ -13,7 +13,7 @@
       #? Create a package or script; <file> is its name
       --new |
       [
-        #? Install from a Git repository or local directory; <file> is the source, [args] an optional destination
+        #? Install from a Git repository or local directory; <file> is the source, [args] an optional directory inside it (default: its root) then an optional destination
         -i / --install
         #? Exact stable version tag to install (default: highest Git tag, or @info version for directories)
         [--tag<str>]

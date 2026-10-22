@@ -180,21 +180,23 @@ fn run_install(cli: &Cli) -> Result<()> {
         (false, true) => paths::NewKind::Script,
         _ => bail!("--install requires --package or --script"),
     };
-    if cli.input.len() > 2
+    if cli.input.len() > 3
         || cli
             .input
-            .get(1)
-            .is_some_and(|arg| arg.to_string_lossy().starts_with('-'))
+            .iter()
+            .skip(1)
+            .any(|arg| arg.to_string_lossy().starts_with('-'))
     {
         bail!(
-            "usage: scrippo -i (-p|-s) [-g] [--tag VERSION] <repository|directory> [destination]; put options before the source"
+            "usage: scrippo -i (-p|-s) [-g] [--tag VERSION] <repository|directory> [source-subdirectory] [destination]; put options before the source"
         );
     }
     let result = packages::install(&packages::InstallOptions {
         repository,
         kind,
         global: cli.global,
-        destination: cli.input.get(1).map(PathBuf::from),
+        directory: cli.input.get(1).map(PathBuf::from),
+        destination: cli.input.get(2).map(PathBuf::from),
         tag: cli.tag.clone(),
     })?;
     println!("installed {} ({})", result.tag, result.commit);

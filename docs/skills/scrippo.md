@@ -39,7 +39,7 @@ scrippo --new --script  [--local|--global] <name>   # default --global
 scrippo -i -p <git-url|directory>                   # install packages (or -s for scripts)
 ```
 
-Install sources may be a Git repo or a plain directory with `packages/` / `scripts/`. Optional `.install.scrippo` at the source root runs automatically: top-level code on both passes, `.before()` before publish, `.after()` after.
+Install sources may be a Git repo or a plain directory. The installer scans the source root (or the directory given as the second argument: `scrippo -i -p <source> [dir] [destination]`) recursively and installs every `.scrippo` file whose top `@info(--name … --version … --package|--script)` matches `-p` / `-s`; files without a matching `@info` are support files and skipped. Optional `.install.scrippo` at the source root runs automatically: top-level code on both passes, `.before()` before publish, `.after()` after.
 
 Optional shebang on runnable scripts:
 
