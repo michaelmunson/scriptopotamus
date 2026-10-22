@@ -50,6 +50,15 @@ pub fn emit_env() -> Result<()> {
             println!("_SCRIPPO_PREFIX[{name}]=''");
         }
     }
+    // `alias=` names behave like `scrippo`, with the same completion.
+    for name in &cfg.alias {
+        println!("alias {}=scrippo", shell_quote(name));
+        println!("_SCRIPPO_MANAGED+=({})", shell_quote(name));
+        if cfg.autocomplete {
+            println!("_SCRIPPO_FILES[{}]={CLI_SELF}", shell_quote(name));
+            println!("_SCRIPPO_PREFIX[{}]=''", shell_quote(name));
+        }
+    }
     for entry in &aliases {
         let file = shell_quote(&entry.file.display().to_string());
         let mut cmd = format!("scrippo {file}");
@@ -87,6 +96,12 @@ pub fn emit_env() -> Result<()> {
                 for name in CLI_NAMES {
                     println!("complete -o filenames -o default -F _scrippo_comp {name}");
                 }
+                for name in &cfg.alias {
+                    println!(
+                        "complete -o filenames -o default -F _scrippo_comp {}",
+                        shell_quote(name)
+                    );
+                }
                 for entry in &aliases {
                     println!(
                         "complete -o default -F _scrippo_comp {}",
@@ -98,6 +113,9 @@ pub fn emit_env() -> Result<()> {
                 println!("{COMP_FN_ZSH}");
                 for name in CLI_NAMES {
                     println!("compdef -a _scrippo_comp {name}");
+                }
+                for name in &cfg.alias {
+                    println!("compdef -a _scrippo_comp {}", shell_quote(name));
                 }
                 for entry in &aliases {
                     println!(
