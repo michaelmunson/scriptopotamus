@@ -69,7 +69,12 @@ fn compile_expanded(path: &Path, expanded: macros::ExpandResult, library: bool) 
     let mut bash = if library {
         emit::emit_library(&expanded.program)?
     } else {
-        emit::emit_program(&expanded.program)?
+        let name = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .filter(|s| !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.')))
+            .unwrap_or("script");
+        emit::emit_program_named(&expanded.program, name)?
     };
 
     let needs_helpers = program_needs_helpers(&expanded.program);

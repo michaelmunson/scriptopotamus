@@ -1,4 +1,7 @@
-use super::{Emitter, params::flatten_leaves};
+use super::{
+    Emitter,
+    params::{LeafKind, flatten_leaves},
+};
 use crate::ast::*;
 
 pub fn quote(s: &str) -> String {
@@ -26,21 +29,77 @@ fn comments(docs: &[(String, String)], key: &str, colored: bool) -> String {
     }
 }
 fn entry(name: &str, params: &[Param], docs: &[(String, String)], colored: bool) -> String {
-    let mut text = format!(
-        "  {}{}\n",
-        paint(name, 32, colored),
-        comments(docs, "", colored)
-    );
-    append_exclusives(&mut text, params, colored);
-    for leaf in flatten_leaves(params) {
+    let mut view = View {
+        docs,
+        colored,
+        out: format!(
+            "  {}{}\n",
+            paint(name, 32, colored),
+            comments(docs, "", colored)
+        ),
+        bullet: false,
+    };
+    view.params(params, 4);
+    view.out
+}
+
+/// Renders a parameter tree: nested groups indent beneath their leading option,
+/// and every alternative of an exclusive set is bulleted under `one of:`.
+struct View<'a> {
+    docs: &'a [(String, String)],
+    colored: bool,
+    out: String,
+    bullet: bool,
+}
+
+impl View<'_> {
+    fn line(&mut self, indent: usize, text: &str) {
+        if std::mem::take(&mut self.bullet) {
+            self.out
+                .push_str(&format!("{}- {text}\n", " ".repeat(indent.saturating_sub(2))));
+        } else {
+            self.out.push_str(&format!("{}{text}\n", " ".repeat(indent)));
+        }
+    }
+
+    fn params(&mut self, params: &[Param], indent: usize) {
+        for param in params {
+            self.param(param, indent);
+        }
+    }
+
+    fn param(&mut self, param: &Param, indent: usize) {
+        match param {
+            Param::Arg { .. } | Param::Opt { .. } | Param::Rest { .. } => self.leaf(param, indent),
+            Param::Exclusive { options } => {
+                let header = paint("one of:", 2, self.colored);
+                self.line(indent, &header);
+                for option in options {
+                    self.bullet = true;
+                    self.param(option, indent + 4);
+                }
+            }
+            Param::Group { params, .. } => match params.first() {
+                Some(lead) if is_leaf(lead) => {
+                    self.leaf(lead, indent);
+                    self.params(&params[1..], indent + 2);
+                }
+                _ => self.params(params, indent),
+            },
+        }
+    }
+
+    fn leaf(&mut self, param: &Param, indent: usize) {
+        let Some(leaf) = flatten_leaves(std::slice::from_ref(param)).into_iter().next() else {
+            return;
+        };
         let option = !leaf.flags.is_empty();
         let label = if option {
             leaf.flags.join(" / ")
         } else {
             leaf.name.clone()
         };
-        let optional = optional_leaf(params, &leaf.name);
-        let mut label = if optional {
+        let mut label = if param.is_optional() {
             format!("[{label}]")
         } else {
             format!("{{{label}}}")
@@ -48,68 +107,25 @@ fn entry(name: &str, params: &[Param], docs: &[(String, String)], colored: bool)
         if leaf.repeat {
             label.push_str("...");
         }
-        text.push_str(&format!(
-            "    {}",
-            paint(&label, if option { 34 } else { 36 }, colored)
-        ));
-        if leaf.ty.kind
-            != if option {
-                TypeKind::Bool
-            } else {
-                TypeKind::Str
-            }
+        let mut text = paint(&label, if option { 34 } else { 36 }, self.colored);
+        if leaf.kind != LeafKind::Rest
+            && leaf.ty.kind
+                != if option {
+                    TypeKind::Bool
+                } else {
+                    TypeKind::Str
+                }
         {
-            text.push_str(&paint(&format!("<{}>", leaf.ty.description()), 33, colored));
+            text.push_str(&paint(&format!("<{}>", leaf.ty.description()), 33, self.colored));
         }
         let key = if option { &leaf.flags[0] } else { &leaf.name };
-        text.push_str(&comments(docs, key, colored));
-        text.push('\n');
-    }
-    text
-}
-fn append_exclusives(text: &mut String, params: &[Param], colored: bool) {
-    for param in params {
-        match param {
-            Param::Exclusive { options } => {
-                let alternatives = options
-                    .iter()
-                    .map(|option| {
-                        flatten_leaves(std::slice::from_ref(option))
-                            .iter()
-                            .map(|leaf| {
-                                if leaf.flags.is_empty() {
-                                    paint(&leaf.name, 36, colored)
-                                } else {
-                                    paint(&leaf.flags.join(" / "), 34, colored)
-                                }
-                            })
-                            .collect::<Vec<_>>()
-                            .join(" ")
-                    })
-                    .collect::<Vec<_>>()
-                    .join(" | ");
-                text.push_str(&format!("    {alternatives} (mutually exclusive)\n"));
-            }
-            Param::Group { params, .. } => append_exclusives(text, params, colored),
-            _ => {}
-        }
+        text.push_str(&comments(self.docs, key, self.colored));
+        self.line(indent, &text);
     }
 }
-fn optional_leaf(params: &[Param], name: &str) -> bool {
-    params.iter().any(|p| match p {
-        Param::Arg {
-            name: n, optional, ..
-        }
-        | Param::Opt {
-            name: n, optional, ..
-        } => n == name && *optional,
-        Param::Rest { name: n, .. } => n == name,
-        Param::Group { params, optional } => {
-            (*optional && flatten_leaves(params).iter().any(|l| l.name == name))
-                || optional_leaf(params, name)
-        }
-        Param::Exclusive { options } => optional_leaf(options, name),
-    })
+
+fn is_leaf(param: &Param) -> bool {
+    matches!(param, Param::Arg { .. } | Param::Opt { .. } | Param::Rest { .. })
 }
 pub fn text(
     name: &str,
@@ -155,11 +171,11 @@ pub fn bind(
     local: bool,
 ) {
     let prefix = if local { "local " } else { "" };
-    em.emit_line(&format!(
+    em.emit_verbatim(&format!(
         "{prefix}_scrippo_usage_text={}",
         quote(&text(name, params, docs, body, false))
     ));
-    em.emit_line(&format!(
+    em.emit_verbatim(&format!(
         "{prefix}_scrippo_usage_color={}",
         quote(&text(name, params, docs, body, true))
     ));

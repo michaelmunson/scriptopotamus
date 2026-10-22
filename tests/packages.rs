@@ -11,7 +11,7 @@ fn bin() -> PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.push("scrippo");
+    path.push("scrippo-core");
     path
 }
 

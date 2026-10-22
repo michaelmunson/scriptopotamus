@@ -1,9 +1,10 @@
-use crate::ast::{Param, Program, Stmt};
+use crate::ast::{Param, Program, Stmt, TypeKind};
 use crate::config::Config;
 use crate::macros;
 use crate::parse;
 use crate::paths;
 use anyhow::{Context, Result};
+use std::collections::HashSet;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -34,13 +35,20 @@ pub fn emit_env() -> Result<()> {
             print!("{CLEAR_ZSH}");
         }
     }
-    if !cfg.autoload {
-        return Ok(());
-    }
-    let cwd = std::env::current_dir().context("failed to get current directory")?;
-    let aliases = discover_aliases(&cwd)?;
-    if aliases.is_empty() {
-        return Ok(());
+    let aliases = if cfg.autoload {
+        let cwd = std::env::current_dir().context("failed to get current directory")?;
+        discover_aliases(&cwd)?
+    } else {
+        Vec::new()
+    };
+    if cfg.autocomplete {
+        // scrippo itself is a scrippo script (cli/scrippo.scrippo); complete it
+        // from the copy embedded in this binary. Aliases below may override it.
+        for name in CLI_NAMES {
+            println!("_SCRIPPO_MANAGED+=({name})");
+            println!("_SCRIPPO_FILES[{name}]={CLI_SELF}");
+            println!("_SCRIPPO_PREFIX[{name}]=''");
+        }
     }
     for entry in &aliases {
         let file = shell_quote(&entry.file.display().to_string());
@@ -76,6 +84,9 @@ pub fn emit_env() -> Result<()> {
         match shell {
             Shell::Bash => {
                 println!("{COMP_FN_BASH}");
+                for name in CLI_NAMES {
+                    println!("complete -o filenames -o default -F _scrippo_comp {name}");
+                }
                 for entry in &aliases {
                     println!(
                         "complete -o default -F _scrippo_comp {}",
@@ -85,6 +96,9 @@ pub fn emit_env() -> Result<()> {
             }
             Shell::Zsh => {
                 println!("{COMP_FN_ZSH}");
+                for name in CLI_NAMES {
+                    println!("compdef -a _scrippo_comp {name}");
+                }
                 for entry in &aliases {
                     println!(
                         "compdef -a _scrippo_comp {}",
@@ -98,11 +112,7 @@ pub fn emit_env() -> Result<()> {
 }
 
 pub fn emit_completions(file: &Path, words: &[String]) -> Result<()> {
-    let program = match program_for_completion(file) {
-        Some(p) => p,
-        None => return Ok(()),
-    };
-    for c in complete_candidates(&program, words) {
+    for c in completion_candidates_from_file(file, words) {
         println!("{c}");
     }
     Ok(())
@@ -115,10 +125,54 @@ pub fn completion_candidates_for_test(program: &Program, words: &[String]) -> Ve
 
 #[doc(hidden)]
 pub fn completion_candidates_from_file(file: &Path, words: &[String]) -> Vec<String> {
+    if file == Path::new(CLI_SELF) {
+        return complete_cli(words);
+    }
     match program_for_completion(file) {
         Some(program) => complete_candidates(&program, words),
         None => Vec::new(),
     }
+}
+
+/// The scrippo CLI itself, as declared in `cli/scrippo.scrippo`.
+pub const CLI_SOURCE: &str = include_str!("../cli/scrippo.scrippo");
+/// Stand-in for a script path that completes against `CLI_SOURCE`.
+pub const CLI_SELF: &str = "@cli";
+const CLI_NAMES: [&str; 2] = ["scrippo", "scriptopotamus"];
+
+/// Flags that switch `scrippo` out of "run a script" mode.
+const CLI_MODES: [&str; 8] = [
+    "--new",
+    "-i",
+    "--install",
+    "--tag",
+    "--configure",
+    "--hook",
+    "--env",
+    "--complete",
+];
+
+/// Complete `scrippo ...`. Once a script is named, completion continues with that
+/// script's own commands and options, since everything after it belongs to it.
+fn complete_cli(words: &[String]) -> Vec<String> {
+    let Ok(program) = parse::parse_source(Path::new("scrippo.scrippo"), CLI_SOURCE) else {
+        return Vec::new();
+    };
+    for (i, word) in words.iter().enumerate() {
+        if CLI_MODES.contains(&word.as_str()) {
+            break;
+        }
+        if word.starts_with('-') {
+            continue;
+        }
+        if let Ok(path) = paths::resolve_script_arg(Path::new(word)) {
+            if let Some(script) = program_for_completion(&path) {
+                return complete_candidates(&script, &words[i + 1..]);
+            }
+        }
+        break;
+    }
+    complete_candidates(&program, words)
 }
 
 /// Parse a scrippo file and expand `@import`s so completion sees imported commands.
@@ -284,7 +338,19 @@ fn top_level_commands(program: &Program) -> Vec<String> {
 
 fn complete_candidates(program: &Program, words: &[String]) -> Vec<String> {
     let mut body = program.body.as_slice();
-    let mut params: &[Param] = &[];
+    let mut params: &[Param] = program
+        .body
+        .iter()
+        .find_map(|s| match s {
+            Stmt::Function {
+                name,
+                is_command: true,
+                params,
+                ..
+            } if name.is_empty() => Some(params.as_slice()),
+            _ => None,
+        })
+        .unwrap_or(&[]);
     let mut idx = 0;
 
     while idx < words.len() {
@@ -305,6 +371,12 @@ fn complete_candidates(program: &Program, words: &[String]) -> Vec<String> {
             _ => break,
         }
     }
+    let typed = &words[idx..];
+
+    // A catch-all (`*rest`) takes everything after the last positional verbatim.
+    if has_rest(params) && positional_seen(params, typed) {
+        return Vec::new();
+    }
 
     let mut out = Vec::new();
     for stmt in body {
@@ -319,10 +391,50 @@ fn complete_candidates(program: &Program, words: &[String]) -> Vec<String> {
             }
         }
     }
-    collect_flags(params, &mut out);
+    let used: HashSet<&str> = typed
+        .iter()
+        .filter(|w| w.starts_with('-'))
+        .map(String::as_str)
+        .collect();
+    collect_flags(params, &used, &mut out);
     out.sort();
     out.dedup();
     out
+}
+
+fn has_rest(params: &[Param]) -> bool {
+    params.iter().any(|p| match p {
+        Param::Rest { .. } => true,
+        Param::Group { params, .. } => has_rest(params),
+        Param::Exclusive { options } => has_rest(options),
+        _ => false,
+    })
+}
+
+/// Whether `words` already contain a positional (a non-flag word that is not the
+/// value of a typed option).
+fn positional_seen(params: &[Param], words: &[String]) -> bool {
+    let mut i = 0;
+    while i < words.len() {
+        let word = &words[i];
+        if !word.starts_with('-') {
+            return true;
+        }
+        if takes_value(params, word) {
+            i += 1;
+        }
+        i += 1;
+    }
+    false
+}
+
+fn takes_value(params: &[Param], flag: &str) -> bool {
+    params.iter().any(|p| match p {
+        Param::Opt { flags, ty, .. } => ty.kind != TypeKind::Bool && flags.iter().any(|f| f == flag),
+        Param::Group { params, .. } => takes_value(params, flag),
+        Param::Exclusive { options } => takes_value(options, flag),
+        _ => false,
+    })
 }
 
 fn find_command<'a>(body: &'a [Stmt], name: &str) -> Option<&'a Stmt> {
@@ -338,13 +450,28 @@ fn find_command<'a>(body: &'a [Stmt], name: &str) -> Option<&'a Stmt> {
     })
 }
 
-fn collect_flags(params: &[Param], out: &mut Vec<String>) {
+fn param_used(param: &Param, used: &HashSet<&str>) -> bool {
+    match param {
+        Param::Opt { flags, .. } => flags.iter().any(|f| used.contains(f.as_str())),
+        Param::Group { params, .. } => params.iter().any(|p| param_used(p, used)),
+        Param::Exclusive { options } => options.iter().any(|p| param_used(p, used)),
+        Param::Arg { .. } | Param::Rest { .. } => false,
+    }
+}
+
+/// Offer what may come next: options already given are dropped, once one side of
+/// an exclusive set is chosen the other sides disappear, and a group's nested
+/// options appear only after its leading option is used.
+fn collect_flags(params: &[Param], used: &HashSet<&str>, out: &mut Vec<String>) {
     for param in params {
         match param {
-            Param::Opt { flags, ty, .. } => {
-                for f in flags {
-                    out.push(f.clone());
+            Param::Opt {
+                flags, ty, repeat, ..
+            } => {
+                if !*repeat && param_used(param, used) {
+                    continue;
                 }
+                out.extend(flags.iter().cloned());
                 if let Some(lits) = &ty.literals {
                     out.extend(lits.iter().cloned());
                 }
@@ -354,8 +481,25 @@ fn collect_flags(params: &[Param], out: &mut Vec<String>) {
                     out.extend(lits.iter().cloned());
                 }
             }
-            Param::Group { params, .. } => collect_flags(params, out),
-            Param::Exclusive { options } => collect_flags(options, out),
+            Param::Group { params, .. } => match params.first() {
+                Some(lead) if !matches!(lead, Param::Arg { .. } | Param::Rest { .. }) => {
+                    collect_flags(std::slice::from_ref(lead), used, out);
+                    if param_used(lead, used) {
+                        collect_flags(&params[1..], used, out);
+                    }
+                }
+                _ => collect_flags(params, used, out),
+            },
+            Param::Exclusive { options } => {
+                let chosen: Vec<&Param> = options.iter().filter(|o| param_used(o, used)).collect();
+                if chosen.is_empty() {
+                    collect_flags(options, used, out);
+                } else {
+                    for option in chosen {
+                        collect_flags(std::slice::from_ref(option), used, out);
+                    }
+                }
+            }
         }
     }
 }
@@ -514,6 +658,9 @@ const COMP_FN_BASH: &str = r#"_scrippo_comp() {
     mapfile -t candidates < <(scrippo --complete "$file" --)
   fi
   COMPREPLY=($(compgen -W "${candidates[*]}" -- "$cur"))
+  if [[ $file == @cli && $cur != -* ]]; then
+    COMPREPLY+=($(compgen -f -- "$cur"))
+  fi
 }
 "#;
 
@@ -533,7 +680,13 @@ const COMP_FN_ZSH: &str = r#"_scrippo_comp() {
   else
     candidates=(${(f)"$(scrippo --complete "$file" --)"})
   fi
-  (( ${#candidates[@]} )) || return 1
-  compadd -a -- candidates
+  local ret=1
+  if (( ${#candidates[@]} )); then
+    compadd -a -- candidates && ret=0
+  fi
+  if [[ $file == @cli && $PREFIX != -* ]]; then
+    _files && ret=0
+  fi
+  return $ret
 }
 "#;

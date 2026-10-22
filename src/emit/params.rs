@@ -135,9 +135,16 @@ pub fn emit_function_params(em: &mut Emitter, fn_label: &str, params: &[Param]) 
         }
     }
 
+    let positional = leaves
+        .iter()
+        .filter(|l| l.kind == LeafKind::Arg && !l.array)
+        .count();
     if catchall.is_some() {
         em.emit_line("local -a _scrippo_seq=()");
         em.emit_line("local -a _scrippo_kind=()");
+        if positional > 0 {
+            em.emit_line("local _scrippo_npos=0");
+        }
     }
     em.emit_line("local _scrippo_args=()");
     em.emit_line("while (( $# > 0 )); do");
@@ -172,6 +179,18 @@ pub fn emit_function_params(em: &mut Emitter, fn_label: &str, params: &[Param]) 
         em.emit_line("  _scrippo_seq+=(\"$1\")");
         em.emit_line("  _scrippo_kind+=(arg)");
         em.emit_line("  shift");
+        if positional > 0 {
+            // Once every declared positional is filled, the rest is passed through
+            // verbatim (options included), like a trailing var-arg.
+            em.emit_line("  _scrippo_npos=$(( _scrippo_npos + 1 ))");
+            em.emit_line(&format!("  if (( _scrippo_npos >= {positional} )); then"));
+            em.emit_line("    while (( $# > 0 )); do");
+            em.emit_line("      _scrippo_seq+=(\"$1\")");
+            em.emit_line("      _scrippo_kind+=(flag)");
+            em.emit_line("      shift");
+            em.emit_line("    done");
+            em.emit_line("  fi");
+        }
         em.emit_line("  ;;");
     } else {
         em.emit_line("--)");
@@ -347,7 +366,14 @@ fn used_expr(param: &Param) -> String {
 fn name_of(param: &Param) -> String {
     match param {
         Param::Group { params, .. } => {
-            let inner: Vec<_> = params.iter().map(name_of).collect();
+            let inner: Vec<_> = flatten_leaves(params)
+                .iter()
+                .map(|leaf| match leaf.kind {
+                    LeafKind::Rest => format!("*{}", leaf.name),
+                    LeafKind::Arg => format!("<{}>", leaf.name),
+                    LeafKind::Opt => leaf.flags.first().cloned().unwrap_or_default(),
+                })
+                .collect();
             format!("[{}]", inner.join(" "))
         }
         Param::Exclusive { options } => options.iter().map(name_of).collect::<Vec<_>>().join(" | "),
@@ -401,13 +427,19 @@ fn collect_checks(params: &[Param], context: Option<&str>, out: &mut Vec<Check>)
                     });
                 }
                 for opt in options {
-                    if let Param::Group { params, .. } = opt {
-                        let used = used_expr(opt);
-                        let ctx = match context {
-                            Some(c) => format!("{c} && {used}"),
-                            None => used,
-                        };
-                        collect_checks(params, Some(&ctx), out);
+                    match opt {
+                        Param::Group { params, .. } => {
+                            let used = used_expr(opt);
+                            let ctx = match context {
+                                Some(c) => format!("{c} && {used}"),
+                                None => used,
+                            };
+                            collect_checks(params, Some(&ctx), out);
+                        }
+                        Param::Exclusive { .. } => {
+                            collect_checks(std::slice::from_ref(opt), context, out)
+                        }
+                        _ => {}
                     }
                 }
             }

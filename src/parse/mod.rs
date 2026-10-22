@@ -678,6 +678,7 @@ fn parse_function(src: &mut Source) -> Result<Stmt> {
                 cur.trim_start()
                     .trim_start_matches('[')
                     .trim_start()
+                    .trim_start_matches('*')
                     .split(|c: char| c.is_whitespace() || "<>] /|".contains(c))
                     .next()
                     .unwrap_or("")

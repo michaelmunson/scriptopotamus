@@ -2,10 +2,10 @@
 name = "scriptopotamus"
 version = "0.6.2"
 edition = "2024"
-default-run = "scrippo"
+default-run = "scrippo-core"
 
 [[bin]]
-name = "scrippo"
+name = "scrippo-core"
 path = "src/main.rs"
 
 [dependencies]

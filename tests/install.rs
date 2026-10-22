@@ -68,7 +68,7 @@ impl Fixture {
     }
 
     fn command(&self) -> Command {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_scrippo"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_scrippo-core"));
         command
             .current_dir(&self.project)
             .env("SCRIPPO_HOME", &self.home)
@@ -234,7 +234,7 @@ fn local_scripts_default_to_current_directory_and_accept_explicit_directory() {
     success(&f.run(&[dir.join("hello.scrippo").to_str().unwrap(), "main"]));
     let moved = f.root.join("moved-project");
     fs::rename(&f.project, &moved).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_scrippo"))
+    let output = Command::new(env!("CARGO_BIN_EXE_scrippo-core"))
         .current_dir(&moved)
         .env("SCRIPPO_HOME", &f.home)
         .args(["hello.scrippo", "main"])
