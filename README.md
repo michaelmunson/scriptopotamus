@@ -23,8 +23,12 @@ scrippo -c script.scrippo          # compile to stdout
 scrippo -n script.scrippo          # compile + bash -n
 scrippo script.scrippo             # compile and run
 scrippo script.scrippo greet world # run with args (command dispatch)
-scrippo hello                      # run ~/.scrippo/scripts/hello.scrippo
+scrippo hello                      # run ./hello.scrippo (or a parent dir's), else ~/.scrippo/scripts/hello.scrippo
 ```
+
+A bare script name resolves to the nearest `<name>.scrippo` in the current directory or
+any parent directory, so it works from subdirectories. Local scripts override global ones.
+Tab completion for `scrippo <name> <tab>` uses the same resolution.
 
 ## Packages & scripts
 
@@ -38,7 +42,7 @@ Global packages and scripts live under `~/.scrippo` (override with `SCRIPPO_HOME
 
 ```
 ~/.scrippo/
-├── config                     # autoload / autocomplete
+├── config                     # autoload / autocomplete / alias
 ├── lib/<package>.scrippo      # @import <package>
 │       <package>.bash        # compiled, installed packages
 └── scripts/<script>.scrippo   # scrippo <script> / scrippo <script>.scrippo
@@ -173,7 +177,12 @@ and tag to your Git host. No registry or build hook is required.
 ```bash
 scrippo --configure                          # print settings
 scrippo --configure autoload=true autocomplete=true
+scrippo --configure alias=s                  # `s build` == `scrippo build`, with completion
 ```
+
+`alias` takes comma-separated command names (`alias=s,sc`); `alias=` clears them. Aliases
+are defined by the shell hook below, so they appear in new shells (or after a `cd` in bash),
+and `autocomplete=true` gives them the same tab completion as `scrippo`.
 
 Settings live in `~/.scrippo/config` (override with `SCRIPPO_CONFIG` or `SCRIPPO_HOME`).
 

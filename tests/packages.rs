@@ -216,3 +216,58 @@ fn env_aliases_commands_from_scrippo_dir() {
     assert!(stdout.contains("alias hello="), "{stdout}");
     assert!(stdout.contains("commands.scrippo"), "{stdout}");
 }
+
+fn run_script(home: &PathBuf, cwd: &PathBuf, args: &[&str]) -> std::process::Output {
+    Command::new(bin())
+        .env("SCRIPPO_HOME", home)
+        .current_dir(cwd)
+        .args(args)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn run_local_script_by_name_from_subdirectory_overriding_global() {
+    let home = tempfile_dir();
+    let project = tempfile_dir();
+    std::fs::create_dir_all(home.join("scripts")).unwrap();
+    std::fs::write(home.join("scripts/build.scrippo"), "-> \"from-global\"\n").unwrap();
+    std::fs::write(project.join("build.scrippo"), "-> \"from-local\"\n").unwrap();
+    // A directory named like the script must not shadow it.
+    std::fs::create_dir_all(project.join("build")).unwrap();
+    let sub = project.join("build");
+
+    for cwd in [&project, &sub] {
+        let output = run_script(&home, cwd, &["build"]);
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "from-local");
+    }
+
+    // Nearest script wins over one further up.
+    std::fs::write(sub.join("build.scrippo"), "-> \"from-sub\"\n").unwrap();
+    let output = run_script(&home, &sub, &["build.scrippo"]);
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "from-sub");
+
+    // Without a local script, the global one is used.
+    let other = tempfile_dir();
+    let output = run_script(&home, &other, &["build"]);
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "from-global");
+}
+
+#[test]
+fn complete_local_script_commands_from_subdirectory() {
+    let project = tempfile_dir();
+    std::fs::write(project.join("build.scrippo"), ".compile()\n  -> \"c\"\n").unwrap();
+    let sub = project.join("deep");
+    std::fs::create_dir_all(&sub).unwrap();
+
+    let _guard = ENV_LOCK.lock().unwrap();
+    let old = std::env::current_dir().unwrap();
+    std::env::set_current_dir(&sub).unwrap();
+    let got = scriptopotamus::shell::completion_candidates_from_file(
+        std::path::Path::new(scriptopotamus::shell::CLI_SELF),
+        &["build".to_string()],
+    );
+    std::env::set_current_dir(old).unwrap();
+    assert!(got.contains(&"compile".to_string()), "{got:?}");
+}

@@ -7,6 +7,8 @@ use std::path::PathBuf;
 pub struct Config {
     pub autoload: bool,
     pub autocomplete: bool,
+    /// Extra command names for `scrippo`, with the same tab completion.
+    pub alias: Vec<String>,
 }
 
 impl Default for Config {
@@ -14,6 +16,7 @@ impl Default for Config {
         Self {
             autoload: false,
             autocomplete: false,
+            alias: Vec::new(),
         }
     }
 }
@@ -46,30 +49,27 @@ impl Config {
             fs::create_dir_all(parent)
                 .with_context(|| format!("failed to create {}", parent.display()))?;
         }
-        let body = format!(
-            "autoload={}\nautocomplete={}\n",
-            bool_str(self.autoload),
-            bool_str(self.autocomplete)
-        );
+        let body = self.display();
         fs::write(&path, body).with_context(|| format!("failed to write {}", path.display()))?;
         Ok(path)
     }
 
     pub fn set(&mut self, key: &str, value: &str) -> Result<()> {
-        let parsed = parse_bool(value)?;
         match key {
-            "autoload" => self.autoload = parsed,
-            "autocomplete" => self.autocomplete = parsed,
-            _ => bail!("unknown config key '{key}' (expected autoload or autocomplete)"),
+            "autoload" => self.autoload = parse_bool(value)?,
+            "autocomplete" => self.autocomplete = parse_bool(value)?,
+            "alias" => self.alias = parse_aliases(value)?,
+            _ => bail!("unknown config key '{key}' (expected autoload, autocomplete or alias)"),
         }
         Ok(())
     }
 
     pub fn display(&self) -> String {
         format!(
-            "autoload={}\nautocomplete={}\n",
+            "autoload={}\nautocomplete={}\nalias={}\n",
             bool_str(self.autoload),
-            bool_str(self.autocomplete)
+            bool_str(self.autocomplete),
+            self.alias.join(",")
         )
     }
 }
@@ -119,6 +119,24 @@ fn parse_bool(value: &str) -> Result<bool> {
         "false" | "0" | "no" | "off" => Ok(false),
         _ => bail!("invalid boolean '{value}' (expected true or false)"),
     }
+}
+
+/// Comma-separated command names; an empty value clears the aliases.
+fn parse_aliases(value: &str) -> Result<Vec<String>> {
+    let mut names: Vec<String> = Vec::new();
+    for name in value.split(',').map(str::trim).filter(|n| !n.is_empty()) {
+        let valid = name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
+            && name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+        if !valid {
+            bail!("invalid alias '{name}' (use letters, digits, _ or -; start with a letter or _)");
+        }
+        if !names.iter().any(|n| n == name) {
+            names.push(name.to_string());
+        }
+    }
+    Ok(names)
 }
 
 fn bool_str(v: bool) -> &'static str {

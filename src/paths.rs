@@ -96,43 +96,75 @@ pub fn resolve_package(pattern: &str, from: &Path) -> Option<PathBuf> {
     None
 }
 
-/// Resolve a script argument to a path. Tries the given path, then global scripts.
+/// Find `<name>.scrippo` in `start` or the nearest ancestor directory containing it.
+pub fn find_local_script(name: &str, start: &Path) -> Option<PathBuf> {
+    let stem = strip_scrippo_ext(name);
+    if !is_package_name(stem) {
+        return None;
+    }
+    let file = package_file_name(stem);
+    start
+        .ancestors()
+        .map(|dir| dir.join(&file))
+        .find(|candidate| candidate.is_file())
+}
+
+/// Resolve a script argument to a path.
+///
+/// An existing path is used as given. A bare name (`build`, `build.scrippo`) resolves
+/// to the nearest `<name>.scrippo` in the current directory or a parent directory,
+/// then to a global script in `~/.scrippo/scripts`, so local scripts override global ones.
 pub fn resolve_script_arg(arg: &Path) -> Result<PathBuf> {
+    let bare_name = if arg.components().count() == 1 {
+        arg.file_name().and_then(|s| s.to_str()).filter(|s| !s.is_empty())
+    } else {
+        None
+    };
+
+    let Some(name) = bare_name else {
+        if arg.is_file() {
+            return Ok(arg.to_path_buf());
+        }
+        if arg.is_dir() {
+            return dir_commands(arg);
+        }
+        bail!("script not found: {}", arg.display());
+    };
+
+    if let Ok(cwd) = std::env::current_dir() {
+        if let Some(path) = find_local_script(name, &cwd) {
+            return Ok(path);
+        }
+    }
     if arg.is_file() {
         return Ok(arg.to_path_buf());
     }
+
+    if let Ok(scripts) = global_scripts_dir() {
+        let stem = strip_scrippo_ext(name);
+        for candidate in [
+            scripts.join(package_file_name(name)),
+            scripts.join(stem),
+        ] {
+            if candidate.is_file() {
+                return Ok(candidate);
+            }
+        }
+    }
+
+    // A bare directory name (e.g. `build/`) only counts once no script matched it.
     if arg.is_dir() {
-        let commands = arg.join("commands.scrippo");
-        if commands.is_file() {
-            return Ok(commands);
-        }
-        bail!("not a scrippo script: {}", arg.display());
+        return dir_commands(arg);
     }
-
-    let name = arg
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_string();
-    if name.is_empty() || arg.components().count() != 1 {
-        bail!("script not found: {}", arg.display());
-    }
-
-    let scripts = global_scripts_dir()?;
-    let with_ext = package_file_name(&name);
-    let stem = strip_scrippo_ext(&name);
-
-    for candidate in [
-        scripts.join(&with_ext),
-        scripts.join(stem),
-        scripts.join(format!("{stem}.scrippo")),
-    ] {
-        if candidate.is_file() {
-            return Ok(candidate);
-        }
-    }
-
     bail!("script not found: {}", arg.display());
+}
+
+fn dir_commands(dir: &Path) -> Result<PathBuf> {
+    let commands = dir.join("commands.scrippo");
+    if commands.is_file() {
+        return Ok(commands);
+    }
+    bail!("not a scrippo script: {}", dir.display());
 }
 
 pub fn validate_name(name: &str) -> Result<String> {

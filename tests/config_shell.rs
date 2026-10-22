@@ -207,3 +207,64 @@ fn tempfile_dir() -> std::path::PathBuf {
     std::fs::create_dir_all(&path).unwrap();
     path
 }
+
+#[test]
+fn configure_alias_roundtrip_and_validation() {
+    let dir = tempfile_dir();
+    let cfg = dir.join("config");
+    let run = |args: &[&str]| {
+        Command::new(bin())
+            .env("SCRIPPO_CONFIG", &cfg)
+            .arg("--configure")
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    let out = run(&["alias=s,sc"]);
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(String::from_utf8_lossy(&out.stdout).contains("alias=s,sc"));
+    assert!(std::fs::read_to_string(&cfg).unwrap().contains("alias=s,sc"));
+
+    assert!(!run(&["alias=bad name"]).status.success());
+    assert!(!run(&["alias=1x"]).status.success());
+
+    let out = run(&["alias="]);
+    assert!(out.status.success());
+    assert!(std::fs::read_to_string(&cfg).unwrap().contains("alias=\n"));
+}
+
+#[test]
+fn env_emits_alias_with_completion() {
+    let dir = tempfile_dir();
+    let cfg = dir.join("config");
+    std::fs::write(&cfg, "autoload=false\nautocomplete=true\nalias=s\n").unwrap();
+    for (shell, registration) in [
+        ("bash", "complete -o filenames -o default -F _scrippo_comp s"),
+        ("zsh", "compdef -a _scrippo_comp s"),
+    ] {
+        let out = Command::new(bin())
+            .arg("--env")
+            .env("SCRIPPO_CONFIG", &cfg)
+            .env("SCRIPPO_SHELL", shell)
+            .current_dir(&dir)
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert!(text.contains("alias s=scrippo"), "{text}");
+        assert!(text.contains("_SCRIPPO_FILES[s]=@cli"), "{text}");
+        assert!(text.contains(registration), "{text}");
+    }
+
+    // Without autocomplete the alias still exists, but has no completion.
+    std::fs::write(&cfg, "autoload=false\nautocomplete=false\nalias=s\n").unwrap();
+    let out = Command::new(bin())
+        .arg("--env")
+        .env("SCRIPPO_CONFIG", &cfg)
+        .env("SCRIPPO_SHELL", "bash")
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("alias s=scrippo"), "{text}");
+    assert!(!text.contains("_SCRIPPO_FILES[s]"), "{text}");
+}
