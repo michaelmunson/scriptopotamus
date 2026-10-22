@@ -7,17 +7,21 @@
   #? Compile to stdout instead of running
   [-c / --compile] |
   #? Compile, then syntax-check with bash -n
-  [-n / --noexec] |
+  [--noexec] |
   [
     [
       #? Create a package or script; <file> is its name
-      --new |
+      -n / --new |
       [
         #? Install from a version-tagged Git repository; <file> is the repository, [args] an optional directory
         -i / --install
         #? Exact stable version tag to install (default: highest)
         [--tag<str>]
-      ]
+      ] |
+      #? List packages or scripts
+      -ls / --list |
+      #? Remove a package or script; <file> is its name
+      -rm / --remove
     ]
     [
       #? Select packages
@@ -26,9 +30,7 @@
       -s / --script
     ]
     [
-      #? Use the project / current directory (the default for packages and --install)
-      --local |
-      #? Use ~/.scrippo, or SCRIPPO_HOME
+      #? Use ~/.scrippo, or SCRIPPO_HOME (default: project / current directory)
       -g / --global
     ]
   ] |

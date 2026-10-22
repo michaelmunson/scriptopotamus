@@ -26,7 +26,7 @@ impl Fixture {
     fn command(&self, source: &str) -> Command {
         let script = self.project.join("main.scrippo");
         fs::write(&script, source).unwrap();
-        let mut command = Command::new(env!("CARGO_BIN_EXE_scrippo"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_scrippo-core"));
         command
             .current_dir(self.temp.path())
             .env("HOME", &self.home)

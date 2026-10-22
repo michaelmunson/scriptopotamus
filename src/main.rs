@@ -17,31 +17,35 @@ struct Cli {
     configure: Option<Vec<String>>,
 
     /// Create a new package or script
-    #[arg(long = "new")]
+    #[arg(short = 'n', long = "new", conflicts_with_all = ["list", "remove", "install", "configure", "init", "env", "complete", "compile_only", "noexec"])]
     new: bool,
 
+    /// List packages or scripts
+    #[arg(long = "list", conflicts_with_all = ["new", "remove", "install", "configure", "init", "env", "complete", "compile_only", "noexec"])]
+    list: bool,
+
+    /// Remove a package or script
+    #[arg(long = "remove", conflicts_with_all = ["new", "list", "install", "configure", "init", "env", "complete", "compile_only", "noexec"])]
+    remove: bool,
+
     /// Install a version-tagged Git repository
-    #[arg(short = 'i', long = "install", conflicts_with_all = ["new", "configure", "init", "env", "complete", "compile_only", "noexec"])]
+    #[arg(short = 'i', long = "install", conflicts_with_all = ["new", "list", "remove", "configure", "init", "env", "complete", "compile_only", "noexec"])]
     install: bool,
 
     /// Exact stable version tag to install (default: highest stable version)
     #[arg(long, requires = "install")]
     tag: Option<String>,
 
-    /// Select packages (with --new or --install)
+    /// Select packages (with --new, --list, --remove, or --install)
     #[arg(short = 'p', long = "package", conflicts_with = "script")]
     package: bool,
 
-    /// Select scripts (with --new or --install)
+    /// Select scripts (with --new, --list, --remove, or --install)
     #[arg(short = 's', long = "script", conflicts_with = "package")]
     script: bool,
 
-    /// Use the project / current directory (with --new or --install)
-    #[arg(long = "local", conflicts_with = "global")]
-    local: bool,
-
-    /// Use ~/.scrippo, or SCRIPPO_HOME (with --new or --install)
-    #[arg(short = 'g', long = "global", conflicts_with = "local")]
+    /// Use ~/.scrippo, or SCRIPPO_HOME (default: project / current directory)
+    #[arg(short = 'g', long = "global")]
     global: bool,
 
     /// Emit shell init for autoload (eval from your shell rc)
@@ -61,19 +65,25 @@ struct Cli {
     compile_only: bool,
 
     /// Compile and run bash -n (syntax check)
-    #[arg(short = 'n', long = "noexec")]
+    #[arg(long = "noexec")]
     noexec: bool,
 
-    /// Script file, name for --new, repository for --install, or completion words
+    /// Script file, name for --new/--remove, repository for --install, or completion words
     #[arg(value_name = "FILE", trailing_var_arg = true)]
     input: Vec<OsString>,
 }
 
 fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let cli = Cli::parse_from(normalize_cli_args(std::env::args_os()));
 
     if cli.install {
         return run_install(&cli);
+    }
+    if cli.list {
+        return run_list(&cli);
+    }
+    if cli.remove {
+        return run_remove(&cli);
     }
 
     if let Some(pairs) = cli.configure {
@@ -106,7 +116,7 @@ fn main() -> Result<()> {
         .input
         .first()
         .map(PathBuf::from)
-        .context("usage: scrippo [-c|-n] <file> [args...]")?;
+        .context("usage: scrippo [-c|--noexec] <file> [args...]")?;
 
     let file = paths::resolve_script_arg(&file)?;
     let bash = compile_file(&file).map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -167,6 +177,34 @@ fn main() -> Result<()> {
     result
 }
 
+/// Map multi-character short flags that clap cannot express (`-ls`, `-rm`).
+fn normalize_cli_args(args: impl IntoIterator<Item = OsString>) -> Vec<OsString> {
+    args.into_iter()
+        .map(|arg| match arg.to_str() {
+            Some("-ls") | Some("-list") => OsString::from("--list"),
+            Some("-rm") => OsString::from("--remove"),
+            _ => arg,
+        })
+        .collect()
+}
+
+fn kind_flag(cli: &Cli) -> Result<paths::NewKind> {
+    match (cli.package, cli.script) {
+        (true, false) => Ok(paths::NewKind::Package),
+        (false, true) => Ok(paths::NewKind::Script),
+        (false, false) => bail!("specify --package or --script"),
+        (true, true) => unreachable!("clap conflicts_with"),
+    }
+}
+
+fn scope_flag(cli: &Cli) -> paths::NewScope {
+    if cli.global {
+        paths::NewScope::Global
+    } else {
+        paths::NewScope::Local
+    }
+}
+
 fn run_install(cli: &Cli) -> Result<()> {
     let repository = cli
         .input
@@ -175,11 +213,7 @@ fn run_install(cli: &Cli) -> Result<()> {
         .to_str()
         .context("repository must be UTF-8")?
         .to_string();
-    let kind = match (cli.package, cli.script) {
-        (true, false) => paths::NewKind::Package,
-        (false, true) => paths::NewKind::Script,
-        _ => bail!("--install requires --package or --script"),
-    };
+    let kind = kind_flag(cli).map_err(|_| anyhow::anyhow!("--install requires --package or --script"))?;
     if cli.input.len() > 2
         || cli
             .input
@@ -209,27 +243,32 @@ fn run_new(cli: &Cli) -> Result<()> {
         .input
         .first()
         .map(|p| p.to_string_lossy().into_owned())
-        .context("usage: scrippo --new [--package|--script] [--local|--global] <name>")?;
+        .context("usage: scrippo -n (-p|-s) [-g] <name>")?;
 
-    let kind = match (cli.package, cli.script) {
-        (true, false) => paths::NewKind::Package,
-        (false, true) => paths::NewKind::Script,
-        (false, false) => bail!("specify --package or --script"),
-        (true, true) => unreachable!("clap conflicts_with"),
-    };
-
-    let scope = match (cli.local, cli.global) {
-        (true, false) => paths::NewScope::Local,
-        (false, true) => paths::NewScope::Global,
-        (false, false) => match kind {
-            paths::NewKind::Package => paths::NewScope::Local,
-            paths::NewKind::Script => paths::NewScope::Global,
-        },
-        (true, true) => unreachable!("clap conflicts_with"),
-    };
-
-    let path = paths::create_new(kind, scope, &name)?;
+    let kind = kind_flag(cli)?;
+    let path = paths::create_new(kind, scope_flag(cli), &name)?;
     println!("created {}", path.display());
+    Ok(())
+}
+
+fn run_list(cli: &Cli) -> Result<()> {
+    let kind = kind_flag(cli).context("usage: scrippo -ls (-p|-s) [-g]")?;
+    for name in paths::list_entries(kind, scope_flag(cli))? {
+        println!("{name}");
+    }
+    Ok(())
+}
+
+fn run_remove(cli: &Cli) -> Result<()> {
+    let name = cli
+        .input
+        .first()
+        .map(|p| p.to_string_lossy().into_owned())
+        .context("usage: scrippo -rm (-p|-s) [-g] <name>")?;
+    let kind = kind_flag(cli)?;
+    for path in paths::remove_entry(kind, scope_flag(cli), &name)? {
+        println!("removed {}", path.display());
+    }
     Ok(())
 }
 

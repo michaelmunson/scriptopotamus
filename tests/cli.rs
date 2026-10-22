@@ -66,6 +66,10 @@ fn usage_nests_options_under_their_mode() {
     assert!(text.contains("[-h / --help] # Show this usage"), "{text}");
     assert!(text.contains("- [-c / --compile] # Compile to stdout"), "{text}");
     assert!(text.contains("- [-i / --install] # Install"), "{text}");
+    assert!(text.contains("- [-n / --new]"), "{text}");
+    assert!(text.contains("- [-ls / --list]"), "{text}");
+    assert!(text.contains("- [-rm / --remove]"), "{text}");
+    assert!(!text.contains("--local"), "{text}");
     // --tag nests beneath --install, and the shared options beneath the modes.
     let install = text.find("- [-i / --install]").unwrap();
     let tag = text.find("[--tag]<str>").unwrap();
@@ -91,20 +95,19 @@ fn no_arguments_print_usage_and_fail() {
 fn modes_and_modifiers_are_exclusive() {
     let dir = temp_dir("exclusive");
     for (args, message) in [
-        (vec!["-c", "-n", "x.scrippo"], "-c and -n are mutually exclusive"),
+        (vec!["-c", "--noexec", "x.scrippo"], "-c and --noexec are mutually exclusive"),
+        (vec!["-c", "-n", "x.scrippo"], "-c and [-n"),
         (vec!["--new", "-p", "-s", "x"], "-p and -s are mutually exclusive"),
         (
-            vec!["--new", "-p", "--local", "-g", "x"],
-            "--local and -g are mutually exclusive",
-        ),
-        (
             vec!["--new", "-i", "-p", "x"],
-            "--new and [-i --tag] are mutually exclusive",
+            "-n and [-i --tag] are mutually exclusive",
         ),
-        (vec!["--new", "--tag", "v1", "-p", "x"], "--new and [-i --tag]"),
+        (vec!["--new", "--tag", "v1", "-p", "x"], "-n and [-i --tag]"),
+        (vec!["-n", "-ls", "-p"], "-n and -ls are mutually exclusive"),
+        (vec!["-ls", "-rm", "-s"], "-ls and -rm are mutually exclusive"),
         (vec!["-c", "--hook"], "-c and --hook are mutually exclusive"),
         (vec!["--hook", "--env"], "--hook and --env are mutually exclusive"),
-        (vec!["-c", "-p", "x.scrippo"], "-c and [--new"),
+        (vec!["-c", "-p", "x.scrippo"], "-c and [-n"),
     ] {
         let out = scrippo(&dir, &args);
         assert_eq!(out.status.code(), Some(1), "{args:?}");
@@ -121,7 +124,7 @@ fn wrapper_delegates_to_core() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(stdout(&out).starts_with("scrippo "), "{}", stdout(&out));
 
-    let out = scrippo(&dir, &["--new", "--package", "--local", "helpers"]);
+    let out = scrippo(&dir, &["-n", "-p", "helpers"]);
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(dir.join(".scrippo/lib/helpers.scrippo").is_file());
 
@@ -130,8 +133,42 @@ fn wrapper_delegates_to_core() {
     assert_eq!(stdout(&out), "hello bob\n", "{}", stderr(&out));
     let out = scrippo(&dir, &["-c", "hi.scrippo"]);
     assert!(stdout(&out).contains("function greet"), "{}", stderr(&out));
-    let out = scrippo(&dir, &["-n", "hi.scrippo"]);
+    let out = scrippo(&dir, &["--noexec", "hi.scrippo"]);
     assert!(out.status.success(), "{}", stderr(&out));
+}
+
+#[test]
+fn list_and_remove_scripts_and_packages() {
+    let dir = temp_dir("list-rm");
+    assert!(scrippo(&dir, &["-n", "-p", "helpers"]).status.success());
+    assert!(scrippo(&dir, &["-n", "-s", "hello"]).status.success());
+    assert!(scrippo(&dir, &["-n", "-s", "-g", "greet"]).status.success());
+    assert!(scrippo(&dir, &["-n", "-p", "-g", "utils"]).status.success());
+
+    let out = scrippo(&dir, &["-ls", "-p"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "helpers\n");
+
+    let out = scrippo(&dir, &["-ls", "-s"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "hello\n");
+
+    let out = scrippo(&dir, &["-ls", "-s", "-g"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "greet\n");
+
+    let out = scrippo(&dir, &["-ls", "-p", "-g"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "utils\n");
+
+    let out = scrippo(&dir, &["-rm", "-s", "hello"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!dir.join("hello.scrippo").exists());
+    assert!(stdout(&out).contains("removed"), "{}", stdout(&out));
+
+    let out = scrippo(&dir, &["-rm", "-p", "-g", "utils"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!dir.join("home/lib/utils.scrippo").exists());
 }
 
 #[test]
@@ -154,23 +191,29 @@ fn script_arguments_are_not_interpreted_by_the_wrapper() {
 #[test]
 fn completion_offers_modes_then_only_what_fits() {
     let all = complete(&[]);
-    for flag in ["--new", "-i", "--install", "-c", "--compile", "--hook", "--complete", "--help"] {
+    for flag in ["-n", "--new", "-ls", "--list", "-rm", "--remove", "-i", "--install", "-c", "--compile", "--hook", "--complete", "--help"] {
         assert!(all.iter().any(|c| c == flag), "{flag} in {all:?}");
     }
     // Modifiers only make sense once a mode is chosen.
-    for flag in ["-p", "--package", "--local", "--tag"] {
+    for flag in ["-p", "--package", "-g", "--tag"] {
         assert!(!all.iter().any(|c| c == flag), "{flag} in {all:?}");
     }
+    assert!(!all.iter().any(|c| c == "--local"), "{all:?}");
 
     let new = complete(&["--new"]);
-    assert!(new.contains(&"--package".into()) && new.contains(&"--local".into()), "{new:?}");
+    assert!(new.contains(&"--package".into()) && new.contains(&"-g".into()), "{new:?}");
+    assert!(!new.contains(&"--local".into()), "{new:?}");
     assert!(!new.contains(&"--tag".into()), "{new:?}");
     assert!(!new.contains(&"-i".into()) && !new.contains(&"--hook".into()), "{new:?}");
     assert!(!new.contains(&"--new".into()), "{new:?}");
 
-    let package = complete(&["--new", "-p"]);
+    let package = complete(&["-n", "-p"]);
     assert!(!package.contains(&"-s".into()) && !package.contains(&"--script".into()), "{package:?}");
     assert!(package.contains(&"-g".into()), "{package:?}");
+
+    let list = complete(&["-ls"]);
+    assert!(list.contains(&"-p".into()) && list.contains(&"-s".into()), "{list:?}");
+    assert!(list.contains(&"-g".into()), "{list:?}");
 
     let install = complete(&["-i"]);
     assert!(install.contains(&"--tag".into()), "{install:?}");
@@ -178,6 +221,7 @@ fn completion_offers_modes_then_only_what_fits() {
 
     let compile = complete(&["-c"]);
     assert!(!compile.contains(&"-n".into()) && !compile.contains(&"--new".into()), "{compile:?}");
+    assert!(!compile.contains(&"--noexec".into()), "{compile:?}");
 
     // Everything after the positional belongs to the script or the mode.
     assert!(complete(&["--new", "name"]).is_empty());
@@ -190,9 +234,10 @@ fn completion_continues_into_the_named_script() {
     std::fs::write(&script, ".build([--release])\n  -> b\n.test()\n  -> t\n").unwrap();
     let script = script.to_str().unwrap();
     assert_eq!(complete(&[script]), vec!["build", "test"]);
-    assert_eq!(complete(&["-n", script, "build"]), vec!["--release"]);
+    assert_eq!(complete(&["--noexec", script, "build"]), vec!["--release"]);
     // A mode flag means the word is not a script to run.
     assert!(!complete(&["--new", script]).contains(&"build".into()));
+    assert!(!complete(&["-n", script]).contains(&"build".into()));
 }
 
 #[test]
