@@ -57,13 +57,14 @@ scrippo -rm -p -g <name>    # remove global package
 
 Project commands live in `.scrippo/commands.scrippo` (a legacy `.scrippo` file still works).
 
-### Installing from Git
+### Installing from Git or a directory
 
 ```bash
 scrippo -i -p https://github.com/owner/helpers.git         # project .scrippo/lib
 scrippo -i -p -g https://github.com/owner/helpers.git      # ~/.scrippo/lib
 scrippo -i -s -g https://github.com/owner/helpers.git      # ~/.scrippo/scripts
-scrippo -i -s https://github.com/owner/helpers.git ./tools # explicit directory
+scrippo -i -s https://github.com/owner/helpers.git ./tools # explicit destination
+scrippo -i -p ./helpers                                    # plain local directory
 scrippo --install --package --tag v1.2.0 https://github.com/owner/helpers.git
 ```
 
@@ -71,13 +72,29 @@ Use `-p | --package` or `-s | --script`. Installs default to local: packages go
 in the nearest project's `.scrippo/lib` (created in the current directory if
 needed), and scripts go in the current directory. `-g | --global` follows
 `SCRIPPO_HOME`; it cannot be combined with an explicit destination. Put scrippo
-options before the repository or script filename; arguments after a script
-filename belong to that script.
+options before the source path; arguments after a script filename belong to that
+script.
 
-The installer requires Git and Bash. It selects the highest stable
-`MAJOR.MINOR.PATCH` version tag, with or without a `v` prefix, ignoring prereleases
-and untagged commits. `--tag` selects an exact tag. Local Git repositories work
-too.
+The source may be a Git URL/repository or a plain directory with the same
+`packages/` and `scripts/` layout. Git installs need Git and Bash and select the
+highest stable `MAJOR.MINOR.PATCH` tag (with or without a `v` prefix), ignoring
+prereleases and untagged commits. `--tag` selects an exact tag. Plain directories
+skip Git and use each entry's `@info` version when `--tag` is omitted (all
+selected entries must share one version).
+
+If the source contains `.install.scrippo`, the installer runs it twice: once
+before publishing (`before`) and once after (`after`). Top-level statements run
+on both passes; put phase-specific work in `.before()` / `.after()`:
+
+```scrippo
+-> "runs before and after"
+
+.before()
+  -> "prepare"
+
+.after()
+  -> "finish"
+```
 
 Packages are compiled to `<name>.bash` with all imports inlined, checked with
 `bash -n`, and exposed through the existing `@import <name>` lookup. Source

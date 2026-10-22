@@ -209,7 +209,7 @@ fn run_install(cli: &Cli) -> Result<()> {
     let repository = cli
         .input
         .first()
-        .context("--install requires a Git repository")?
+        .context("--install requires a Git repository or directory")?
         .to_str()
         .context("repository must be UTF-8")?
         .to_string();
@@ -221,7 +221,7 @@ fn run_install(cli: &Cli) -> Result<()> {
             .is_some_and(|arg| arg.to_string_lossy().starts_with('-'))
     {
         bail!(
-            "usage: scrippo -i (-p|-s) [-g] [--tag VERSION] <repository> [directory]; put options before the repository"
+            "usage: scrippo -i (-p|-s) [-g] [--tag VERSION] <repository|directory> [destination]; put options before the source"
         );
     }
     let result = packages::install(&packages::InstallOptions {

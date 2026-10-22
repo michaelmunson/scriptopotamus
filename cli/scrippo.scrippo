@@ -13,9 +13,9 @@
       #? Create a package or script; <file> is its name
       -n / --new |
       [
-        #? Install from a version-tagged Git repository; <file> is the repository, [args] an optional directory
+        #? Install from a Git repository or local directory; <file> is the source, [args] an optional destination
         -i / --install
-        #? Exact stable version tag to install (default: highest)
+        #? Exact stable version tag to install (default: highest Git tag, or @info version for directories)
         [--tag<str>]
       ] |
       #? List packages or scripts

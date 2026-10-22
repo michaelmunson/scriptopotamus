@@ -1,5 +1,5 @@
-//! Tagged Git installs into the existing package and script search paths.
-use crate::ast::Stmt;
+//! Tagged Git (or plain directory) installs into package and script search paths.
+use crate::ast::{Program, Stmt};
 use crate::macros::info::{FileKind, PackageInfo, Version};
 use crate::paths::{self, NewKind};
 use anyhow::{Context, Result, bail};
@@ -7,7 +7,7 @@ use serde_json::json;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 pub struct InstallOptions {
     pub repository: String,
@@ -37,42 +37,12 @@ pub fn install(options: &InstallOptions) -> Result<InstallResult> {
     let scratch = tempfile::Builder::new()
         .prefix(".scrippo-install-")
         .tempdir_in(&destination)?;
-    let git_dir = scratch.path().join("git");
-    checked(
-        Command::new("git")
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .args([
-                "-c",
-                "core.hooksPath=/dev/null",
-                "clone",
-                "--quiet",
-                "--bare",
-                "--",
-            ])
-            .arg(&options.repository)
-            .arg(&git_dir),
-    )?;
-    let tag = match &options.tag {
-        Some(tag) => tag.clone(),
-        None => {
-            let output = git(&git_dir, &["tag", "--list"])?;
-            String::from_utf8(output.stdout)?
-                .lines()
-                .filter_map(|tag| version_tag(tag).map(|version| (version, tag.to_string())))
-                .max()
-                .map(|(_, tag)| tag)
-                .context("repository has no stable version tags (expected 1.2.3 or v1.2.3)")?
-        }
-    };
-    let version = version_tag(&tag).unwrap();
-    let revision = format!("refs/tags/{tag}^{{commit}}");
-    let commit = String::from_utf8(git(&git_dir, &["rev-parse", "--verify", &revision])?.stdout)?
-        .trim()
-        .to_string();
     let staged = scratch.path().join("content");
     let source = staged.join("source");
     fs::create_dir_all(&source)?;
-    let entries = snapshot(&git_dir, &commit, &source)?;
+
+    let (tag, commit, entries) = stage_source(options, scratch.path(), &source)?;
+    let version = version_tag(&tag).unwrap();
     let kind = match options.kind {
         NewKind::Package => "packages",
         NewKind::Script => "scripts",
@@ -82,14 +52,18 @@ pub fn install(options: &InstallOptions) -> Result<InstallResult> {
         .filter(|path| {
             path.starts_with(kind) && path.extension().is_some_and(|ext| ext == "scrippo")
         })
+        .cloned()
         .collect();
     if selected.is_empty() {
         bail!("repository has no .scrippo files in {kind}/");
     }
+
+    run_install_hook(&source, "before")?;
+
     let mut names = BTreeSet::new();
     let mut artifacts = Vec::new();
     let mut metadata = Vec::new();
-    for relative in selected {
+    for relative in &selected {
         let file = source.join(relative);
         let info = entry_info(&file, &version)?;
         let expected_kind = match options.kind {
@@ -161,7 +135,8 @@ pub fn install(options: &InstallOptions) -> Result<InstallResult> {
         repository: repo_dir.clone(),
         committed: false,
     };
-    fs::rename(staged, repo_dir.join("content"))?;
+    fs::rename(&staged, repo_dir.join("content"))?;
+    let published_source = repo_dir.join("content/source");
     for (name, relative) in artifacts {
         let stored = repo_dir.join("content").join(relative);
         let public = destination.join(name);
@@ -171,12 +146,100 @@ pub fn install(options: &InstallOptions) -> Result<InstallResult> {
         }
         publication.files.push(public);
     }
+
+    run_install_hook(&published_source, "after")?;
     publication.committed = true;
     Ok(InstallResult {
         tag,
         commit,
         files: publication.files.clone(),
     })
+}
+
+fn stage_source(
+    options: &InstallOptions,
+    scratch: &Path,
+    source: &Path,
+) -> Result<(String, String, Vec<PathBuf>)> {
+    let path = Path::new(&options.repository);
+    if path.is_dir() && !path.join(".git").exists() {
+        let entries = snapshot_directory(path, source)?;
+        let tag = directory_tag(options, source, &entries)?;
+        return Ok((tag, "local".into(), entries));
+    }
+
+    let git_dir = scratch.join("git");
+    checked(
+        Command::new("git")
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .args([
+                "-c",
+                "core.hooksPath=/dev/null",
+                "clone",
+                "--quiet",
+                "--bare",
+                "--",
+            ])
+            .arg(&options.repository)
+            .arg(&git_dir),
+    )?;
+    let tag = match &options.tag {
+        Some(tag) => tag.clone(),
+        None => {
+            let output = git(&git_dir, &["tag", "--list"])?;
+            String::from_utf8(output.stdout)?
+                .lines()
+                .filter_map(|tag| version_tag(tag).map(|version| (version, tag.to_string())))
+                .max()
+                .map(|(_, tag)| tag)
+                .context("repository has no stable version tags (expected 1.2.3 or v1.2.3)")?
+        }
+    };
+    let revision = format!("refs/tags/{tag}^{{commit}}");
+    let commit = String::from_utf8(git(&git_dir, &["rev-parse", "--verify", &revision])?.stdout)?
+        .trim()
+        .to_string();
+    let entries = snapshot(&git_dir, &commit, source)?;
+    Ok((tag, commit, entries))
+}
+
+fn directory_tag(
+    options: &InstallOptions,
+    source: &Path,
+    entries: &[PathBuf],
+) -> Result<String> {
+    let kind = match options.kind {
+        NewKind::Package => "packages",
+        NewKind::Script => "scripts",
+    };
+    let selected: Vec<_> = entries
+        .iter()
+        .filter(|path| {
+            path.starts_with(kind) && path.extension().is_some_and(|ext| ext == "scrippo")
+        })
+        .collect();
+    if selected.is_empty() {
+        bail!("repository has no .scrippo files in {kind}/");
+    }
+    if let Some(tag) = &options.tag {
+        return Ok(tag.clone());
+    }
+    let mut found: Option<Version> = None;
+    for relative in selected {
+        let info = read_entry_info(&source.join(relative))?;
+        match &found {
+            None => found = Some(info.version.clone()),
+            Some(version) if version != &info.version => {
+                bail!("directory entries must share one @info version when --tag is omitted");
+            }
+            _ => {}
+        }
+    }
+    let version = found.unwrap();
+    Ok(format!(
+        "{}.{}.{}",
+        version.0[0], version.0[1], version.0[2]
+    ))
 }
 
 fn destination(options: &InstallOptions) -> Result<PathBuf> {
@@ -220,7 +283,7 @@ fn repository_name(repository: &str) -> Result<&str> {
     Ok(name)
 }
 
-fn entry_info(file: &Path, version: &Version) -> Result<PackageInfo> {
+fn read_entry_info(file: &Path) -> Result<PackageInfo> {
     let program = crate::parse::parse_file(file)?;
     let declarations: Vec<_> = program
         .body
@@ -238,6 +301,11 @@ fn entry_info(file: &Path, version: &Version) -> Result<PackageInfo> {
     if file.file_stem().and_then(|s| s.to_str()) != Some(&info.name) {
         bail!("{}: @info name must match the filename", file.display());
     }
+    Ok(info)
+}
+
+fn entry_info(file: &Path, version: &Version) -> Result<PackageInfo> {
+    let info = read_entry_info(file)?;
     if &info.version != version {
         bail!(
             "{}: @info version must match the selected tag",
@@ -283,6 +351,119 @@ fn snapshot(git_dir: &Path, commit: &str, destination: &Path) -> Result<Vec<Path
         entries.push(relative.to_path_buf());
     }
     Ok(entries)
+}
+
+fn snapshot_directory(root: &Path, destination: &Path) -> Result<Vec<PathBuf>> {
+    let root = root
+        .canonicalize()
+        .with_context(|| format!("failed to resolve {}", root.display()))?;
+    let mut entries = Vec::new();
+    fn walk(root: &Path, dir: &Path, destination: &Path, entries: &mut Vec<PathBuf>) -> Result<()> {
+        for item in fs::read_dir(dir).with_context(|| format!("failed to read {}", dir.display()))?
+        {
+            let item = item?;
+            let name = item.file_name();
+            if name == ".git" {
+                continue;
+            }
+            let path = item.path();
+            let meta = fs::symlink_metadata(&path)?;
+            if meta.file_type().is_symlink() {
+                bail!("repository links and submodules are not supported");
+            }
+            let relative = path
+                .strip_prefix(root)
+                .with_context(|| format!("path escaped install root: {}", path.display()))?;
+            if !relative
+                .components()
+                .all(|part| matches!(part, Component::Normal(s) if s != ".git"))
+            {
+                bail!("invalid repository path: {}", relative.display());
+            }
+            if meta.is_dir() {
+                walk(root, &path, destination, entries)?;
+                continue;
+            }
+            if !meta.is_file() {
+                continue;
+            }
+            let target = destination.join(relative);
+            fs::create_dir_all(target.parent().unwrap())?;
+            fs::copy(&path, &target)
+                .with_context(|| format!("failed to copy {}", path.display()))?;
+            entries.push(relative.to_path_buf());
+        }
+        Ok(())
+    }
+    walk(&root, &root, destination, &mut entries)?;
+    Ok(entries)
+}
+
+fn run_install_hook(source: &Path, phase: &str) -> Result<()> {
+    let hook = source.join(".install.scrippo");
+    if !hook.is_file() {
+        return Ok(());
+    }
+    let mut program = crate::parse::parse_file(&hook).map_err(|e| anyhow::anyhow!("{e}"))?;
+    ensure_install_hooks(&mut program);
+    let bash = crate::compile_program(&hook, program).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let tmp = tempfile::Builder::new()
+        .prefix(&format!("scrippo-install-{phase}-"))
+        .suffix(".bash")
+        .tempfile()
+        .context("failed to create install hook temp file")?;
+    fs::write(tmp.path(), bash.as_bytes())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o755))?;
+    }
+    let status = Command::new("bash")
+        .env("_SCRIPPO_FILE", &hook)
+        .env("SCRIPPO_INSTALL_PHASE", phase)
+        .current_dir(source)
+        .arg(tmp.path())
+        .arg(phase)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .with_context(|| format!("failed to run .install.scrippo {phase}"))?;
+    if !status.success() {
+        bail!(
+            ".install.scrippo {phase} failed{}",
+            status
+                .code()
+                .map(|code| format!(" (exit {code})"))
+                .unwrap_or_default()
+        );
+    }
+    Ok(())
+}
+
+fn ensure_install_hooks(program: &mut Program) {
+    for name in ["before", "after"] {
+        let present = program.body.iter().any(|stmt| {
+            matches!(
+                stmt,
+                Stmt::Function {
+                    name: n,
+                    is_command: true,
+                    ..
+                } if n == name
+            )
+        });
+        if !present {
+            program.body.push(Stmt::Function {
+                name: name.into(),
+                is_command: true,
+                docs: Vec::new(),
+                params: Vec::new(),
+                body: Vec::new(),
+                line: 0,
+            });
+        }
+    }
 }
 
 fn git(directory: &Path, args: &[&str]) -> Result<Output> {

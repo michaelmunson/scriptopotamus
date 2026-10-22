@@ -586,3 +586,86 @@ fn missing_tags_empty_selection_and_failed_clone_do_not_publish() {
     );
     assert!(!f.lib().join(".scrippo-installed").exists());
 }
+
+#[test]
+fn plain_directory_installs_without_git() {
+    let f = Fixture::new();
+    let dir = plain_helpers(&f.root);
+    fs::write(
+        dir.join("packages/greet.scrippo"),
+        "@info greet 1.2.3 \"Greeting library\"\n@import \"../support/message.scrippo\"\n.greet()\n  message\n",
+    )
+    .unwrap();
+    fs::write(dir.join("support/message.scrippo"), "message() -> \"from-dir\"\n").unwrap();
+
+    let output = f.command().args(["-i", "-p"]).arg(&dir).output().unwrap();
+    success(&output);
+    assert!(text(&output).contains("installed 1.2.3 (local)"), "{}", text(&output));
+    assert!(f.lib().join("greet.bash").is_file());
+    fs::write(
+        f.project.join("app.scrippo"),
+        "@import greet\n.()\n  greet\n",
+    )
+    .unwrap();
+    let output = f.run(&["app.scrippo"]);
+    success(&output);
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "from-dir\n");
+}
+
+fn plain_helpers(root: &Path) -> PathBuf {
+    let dir = root.join("helpers");
+    fs::create_dir_all(dir.join("packages")).unwrap();
+    fs::create_dir_all(dir.join("support")).unwrap();
+    fs::write(
+        dir.join("packages/greet.scrippo"),
+        "@info greet 1.0.0 \"Greeting library\"\n@import \"../support/message.scrippo\"\n.greet()\n  message\n",
+    )
+    .unwrap();
+    fs::write(dir.join("support/message.scrippo"), "message() -> \"1.0.0\"\n").unwrap();
+    dir
+}
+
+#[test]
+fn install_hook_runs_shared_before_and_after() {
+    let f = Fixture::new();
+    let dir = plain_helpers(&f.root);
+    fs::write(
+        dir.join(".install.scrippo"),
+        "-> \"shared\"\n.before()\n  -> \"before\"\n.after()\n  -> \"after\"\n",
+    )
+    .unwrap();
+
+    let output = f.command().args(["-i", "-p"]).arg(&dir).output().unwrap();
+    success(&output);
+    let text = text(&output);
+    assert_eq!(text.match_indices("shared\n").count(), 2, "{text}");
+    assert!(
+        text.find("shared\n")
+            .zip(text.find("before\n"))
+            .zip(text.rfind("shared\n"))
+            .zip(text.find("after\n"))
+            .is_some_and(|(((shared1, before), shared2), after)| {
+                shared1 < before && before < shared2 && shared2 < after
+            }),
+        "{text}"
+    );
+    assert!(f.lib().join("greet.bash").is_file());
+}
+
+#[test]
+fn failing_before_hook_does_not_publish() {
+    let f = Fixture::new();
+    let dir = plain_helpers(&f.root);
+    fs::write(
+        dir.join(".install.scrippo"),
+        ".before()\n  -> \"nope\"\n  exit 1\n.after()\n  -> \"after\"\n",
+    )
+    .unwrap();
+
+    failure(
+        &f.command().args(["-i", "-p"]).arg(&dir).output().unwrap(),
+        ".install.scrippo before failed",
+    );
+    assert!(!f.lib().join(".scrippo-installed").exists());
+    assert!(!f.lib().join("greet.bash").exists());
+}
