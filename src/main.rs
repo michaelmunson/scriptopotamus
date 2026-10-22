@@ -8,6 +8,8 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 #[derive(Parser, Debug)]
+// The user-facing `scrippo` is cli/scrippo.scrippo compiled to bash, which validates
+// its arguments and execs this binary (`scrippo-core`) with them unchanged.
 #[command(name = "scrippo", version, about = "Scriptopotamus compiler")]
 struct Cli {
     /// Configure scrippo settings (key=value). Prints current config when given alone.

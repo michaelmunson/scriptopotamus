@@ -331,7 +331,7 @@ fn emit_function(
     em.emit_line(&format!("function {fn_name} {{"));
     em.indent();
     let usage_name = if name.is_empty() {
-        "script".to_string()
+        em.script_name.clone()
     } else {
         fn_name.replace("__", " ")
     };

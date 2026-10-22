@@ -173,3 +173,33 @@ fn scoped_import_promotes_an_imported_root_command() {
     assert!(stdout(&out).contains("Imported root"));
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn nested_exclusive_sets_are_each_checked() {
+    let src = ".cmd([[-a | -b] | [-c]])\n  -> ok\n";
+    let out = run(src, &["cmd", "-a", "-b"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("-a and -b are mutually exclusive"), "{}", stderr(&out));
+    assert!(!run(src, &["cmd", "-a", "-c"]).status.success());
+    assert!(run(src, &["cmd", "-b"]).status.success());
+}
+
+#[test]
+fn rest_takes_everything_after_the_last_positional_verbatim() {
+    let src = ".cmd(file [-v] *rest)\n  -> \"$v|$file|${rest[*]}\"\n";
+    assert_eq!(stdout(&run(src, &["cmd", "-v", "a", "-v", "--x", "--", "b"])), "true|a|-v --x -- b\n");
+    assert_eq!(stdout(&run(src, &["cmd", "--other", "a", "b"])), "false|a|--other b\n");
+}
+
+#[test]
+fn usage_nests_groups_and_bullets_alternatives() {
+    let src = ".cmd(\n  [--sel<str>...\n    [--multi]\n  ] | [\n    --confirm\n  ]\n)\n  -> ok\n";
+    let out = run(src, &["cmd", "--help"]);
+    let text = stdout(&out);
+    assert!(
+        text.contains(
+            "    one of:\n      - [--sel]...<str>\n          [--multi]\n      - [--confirm]\n"
+        ),
+        "{text}"
+    );
+}

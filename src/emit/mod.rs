@@ -16,6 +16,7 @@ pub struct Emitter {
     pub root: Option<RootKind>,
     pub types: BTreeMap<String, Type>,
     pub needs_input_helpers: bool,
+    pub script_name: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,6 +37,7 @@ impl Emitter {
             root: None,
             types: BTreeMap::new(),
             needs_input_helpers: false,
+            script_name: "script".to_string(),
         }
     }
 
@@ -44,6 +46,13 @@ impl Emitter {
         for l in line.lines() {
             self.lines.push(format!("{pad}{l}"));
         }
+    }
+
+    /// Like `emit_line`, but only indents the first line so multi-line quoted
+    /// strings keep their exact contents.
+    pub fn emit_verbatim(&mut self, line: &str) {
+        let pad = "  ".repeat(self.depth);
+        self.lines.push(format!("{pad}{line}"));
     }
 
     pub fn indent(&mut self) {
@@ -74,15 +83,23 @@ impl Emitter {
 }
 
 pub fn emit_program(program: &Program) -> Result<String> {
-    emit_program_kind(program, false)
+    emit_program_kind(program, false, "script")
+}
+
+/// Like `emit_program`, but labels the root usage entry with `name`.
+pub fn emit_program_named(program: &Program, name: &str) -> Result<String> {
+    emit_program_kind(program, false, name)
 }
 
 pub fn emit_library(program: &Program) -> Result<String> {
-    emit_program_kind(program, true)
+    emit_program_kind(program, true, "script")
 }
 
-fn emit_program_kind(program: &Program, library: bool) -> Result<String> {
+fn emit_program_kind(program: &Program, library: bool, script_name: &str) -> Result<String> {
     let mut em = Emitter::new();
+    if !script_name.is_empty() {
+        em.script_name = script_name.to_string();
+    }
     em.add_helper(
         "usage",
         r#"_scrippo_usage() {
@@ -105,7 +122,8 @@ fn emit_program_kind(program: &Program, library: bool) -> Result<String> {
     });
     if !library {
         if let Some((params, docs, body)) = root {
-            usage::bind(&mut em, "script", params, docs, body, false);
+            let name = em.script_name.clone();
+            usage::bind(&mut em, &name, params, docs, body, false);
         } else {
             usage::bind(&mut em, "", &[], &[], &program.body, false);
         }

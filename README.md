@@ -5,11 +5,16 @@ Scriptopotamus (`scrippo`) compiles `.scrippo` to bash. See [docs/vision.md](doc
 ## Build
 
 ```bash
-cargo build
+make build   # cargo build + compile the scrippo wrapper
 cargo test
 ```
 
-Binary: `target/debug/scrippo` (or `cargo run --bin scrippo -- …`).
+`scrippo` is itself a scrippo script: [cli/scrippo.scrippo](cli/scrippo.scrippo) declares
+the options, their nesting and exclusivity, the `#?` usage text, and (through the same
+declaration) tab completion. `make build` compiles it to `target/debug/scrippo`, a bash
+script that validates its arguments and then execs `scrippo-core`, the Rust binary doing
+the actual work, found next to it (override with `SCRIPPO_CORE`). Both must sit side by
+side, as `make install` arranges.
 
 ## Usage
 
@@ -168,6 +173,9 @@ Entering a directory loads aliases from that directory and all its parents. The 
 - global scripts in `~/.scrippo/scripts/` (local names win on conflict)
 
 With `autocomplete=true`, tab completion covers those aliases' commands and `--` options.
+It also covers `scrippo` itself: modes and their modifiers (only what fits what you have
+typed: `scrippo --new -p <tab>` no longer offers `-s`), and once a script is named,
+that script's own commands and options (`scrippo app.scrippo <tab>`).
 
 Put `@info(--autoload disable)` at the top of a file to omit its aliases and shell
 completions, including commands in `.scrippo/commands.scrippo`. Direct execution
@@ -181,7 +189,7 @@ and imports still work. Per-file `enable` follows the global autoload setting.
 ## Install
 
 ```bash
-make install   # installs scrippo (+ scriptopotamus symlink) to /usr/local/bin
+make install   # installs scrippo, scrippo-core (+ scriptopotamus symlink) to /usr/local/bin
 ```
 
 ## Examples
@@ -219,6 +227,13 @@ Add `#?` documentation above or beside commands, functions, parameters, and opti
   .abs(@inherit)
     -> $(realpath "$path")
 ```
+
+Usage shows nesting: a group's nested options are indented beneath its leading option, and the
+alternatives of an exclusive set are bulleted under `one of:`.
+
+A `*rest` parameter after the positionals takes everything from the point the positionals are
+filled verbatim, options included, like a trailing var-arg (`scrippo` uses it so script
+arguments are never interpreted).
 
 `--help` prints usage and exits successfully, unless explicitly declared as an
 option. Missing commands and invalid arguments print usage with their errors.

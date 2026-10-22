@@ -14,7 +14,7 @@ fn assert_cmd_bin() -> std::path::PathBuf {
     if path.ends_with("deps") {
         path.pop();
     }
-    path.push("scrippo");
+    path.push("scrippo-core");
     path
 }
 

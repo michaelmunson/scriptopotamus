@@ -1,0 +1,55 @@
+#? Compile .scrippo to bash and run it (a wrapper around scrippo-core)
+.(
+  #? Show this usage
+  [-h / --help]
+  #? Print the scrippo version
+  [-V / --version]
+  #? Compile to stdout instead of running
+  [-c / --compile] |
+  #? Compile, then syntax-check with bash -n
+  [-n / --noexec] |
+  [
+    [
+      #? Create a package or script; <file> is its name
+      --new |
+      [
+        #? Install from a version-tagged Git repository; <file> is the repository, [args] an optional directory
+        -i / --install
+        #? Exact stable version tag to install (default: highest)
+        [--tag<str>]
+      ]
+    ]
+    [
+      #? Select packages
+      -p / --package |
+      #? Select scripts
+      -s / --script
+    ]
+    [
+      #? Use the project / current directory (the default for packages and --install)
+      --local |
+      #? Use ~/.scrippo, or SCRIPPO_HOME
+      -g / --global
+    ]
+  ] |
+  #? Print settings, or set them; [args] are key=value pairs
+  [--configure] |
+  #? Emit the shell hook for autoload (eval from your shell rc)
+  [--hook] |
+  #? Emit aliases and completions for the current directory
+  [--env] |
+  #? Emit completion candidates for <file>; [args] are the words typed so far
+  [--complete]
+  #? Script to run (or a name in ~/.scrippo/scripts), or the value for the mode flags
+  [file]
+  #? Passed through to the script
+  *args
+)
+  if $help
+    if [[ -z $file ]]
+      @usage 0
+  if [[ $# -eq 0 ]]
+    @usage
+  core="${SCRIPPO_CORE:-$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/scrippo-core}"
+  [[ -x $core ]] || core=scrippo-core
+  exec "$core" "$@"
