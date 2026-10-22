@@ -226,7 +226,7 @@ fn global_scripts_preserve_sources_relative_imports_here_and_completions() {
 #[test]
 fn local_scripts_default_to_current_directory_and_accept_explicit_directory() {
     let f = Fixture::new();
-    success(&f.install(&["-s", "--local"], None));
+    success(&f.install(&["-s"], None));
     assert!(f.project.join("hello.scrippo").is_file());
     success(&f.run(&["hello.scrippo", "main"]));
     let dir = f.root.join("scripts elsewhere");

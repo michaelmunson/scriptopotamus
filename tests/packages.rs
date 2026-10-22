@@ -118,14 +118,14 @@ fn resolve_global_script_with_and_without_extension() {
 }
 
 #[test]
-fn new_package_local_and_script_global() {
+fn new_package_and_script_default_local() {
     let project = tempfile_dir();
     let home = tempfile_dir();
 
     let output = Command::new(bin())
         .env("SCRIPPO_HOME", &home)
         .current_dir(&project)
-        .args(["--new", "--package", "--local", "mylib"])
+        .args(["-n", "-p", "mylib"])
         .output()
         .unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -135,11 +135,20 @@ fn new_package_local_and_script_global() {
     let output = Command::new(bin())
         .env("SCRIPPO_HOME", &home)
         .current_dir(&project)
-        .args(["--new", "--script", "hello"])
+        .args(["-n", "-s", "hello"])
         .output()
         .unwrap();
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-    assert!(home.join("scripts").join("hello.scrippo").is_file());
+    assert!(project.join("hello.scrippo").is_file());
+
+    let output = Command::new(bin())
+        .env("SCRIPPO_HOME", &home)
+        .current_dir(&project)
+        .args(["-n", "-s", "-g", "greet"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(home.join("scripts").join("greet.scrippo").is_file());
 }
 
 #[test]

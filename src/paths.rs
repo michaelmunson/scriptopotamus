@@ -162,10 +162,9 @@ pub enum NewScope {
     Global,
 }
 
-pub fn create_new(kind: NewKind, scope: NewScope, name: &str) -> Result<PathBuf> {
-    let stem = validate_name(name)?;
-    let file_name = format!("{stem}.scrippo");
-    let path = match (kind, scope) {
+/// Directory for packages or scripts in the given scope.
+pub fn scope_dir(kind: NewKind, scope: NewScope) -> Result<PathBuf> {
+    Ok(match (kind, scope) {
         (NewKind::Package, NewScope::Local) => {
             let cwd = std::env::current_dir().context("failed to get current directory")?;
             let scrippo_dir = match find_project_scrippo_dir(&cwd) {
@@ -181,15 +180,19 @@ pub fn create_new(kind: NewKind, scope: NewScope, name: &str) -> Result<PathBuf>
                     cwd.join(".scrippo")
                 }
             };
-            scrippo_dir.join("lib").join(&file_name)
+            scrippo_dir.join("lib")
         }
-        (NewKind::Package, NewScope::Global) => global_lib_dir()?.join(&file_name),
-        (NewKind::Script, NewScope::Global) => global_scripts_dir()?.join(&file_name),
+        (NewKind::Package, NewScope::Global) => global_lib_dir()?,
+        (NewKind::Script, NewScope::Global) => global_scripts_dir()?,
         (NewKind::Script, NewScope::Local) => {
-            let cwd = std::env::current_dir().context("failed to get current directory")?;
-            cwd.join(&file_name)
+            std::env::current_dir().context("failed to get current directory")?
         }
-    };
+    })
+}
+
+pub fn create_new(kind: NewKind, scope: NewScope, name: &str) -> Result<PathBuf> {
+    let stem = validate_name(name)?;
+    let path = scope_dir(kind, scope)?.join(format!("{stem}.scrippo"));
 
     if path.exists() {
         bail!("already exists: {}", path.display());
@@ -205,4 +208,64 @@ pub fn create_new(kind: NewKind, scope: NewScope, name: &str) -> Result<PathBuf>
     };
     std::fs::write(&path, body).with_context(|| format!("failed to write {}", path.display()))?;
     Ok(path)
+}
+
+/// Sorted unique entry names (file stems) in the scope directory.
+pub fn list_entries(kind: NewKind, scope: NewScope) -> Result<Vec<String>> {
+    let dir = scope_dir(kind, scope)?;
+    if !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+    let mut names = std::collections::BTreeSet::new();
+    for item in std::fs::read_dir(&dir).with_context(|| format!("failed to read {}", dir.display()))?
+    {
+        let item = item?;
+        let path = item.path();
+        if !path.is_file() && !path.is_symlink() {
+            continue;
+        }
+        let name = item.file_name();
+        let name = name.to_string_lossy();
+        let stem = name
+            .strip_suffix(".scrippo")
+            .or_else(|| name.strip_suffix(".bash"))
+            .unwrap_or("");
+        if stem.is_empty() {
+            continue;
+        }
+        if validate_name(stem).is_ok() {
+            names.insert(stem.to_string());
+        }
+    }
+    Ok(names.into_iter().collect())
+}
+
+/// Remove a named package or script from the scope directory.
+/// Deletes both `.scrippo` and `.bash` public links when present.
+pub fn remove_entry(kind: NewKind, scope: NewScope, name: &str) -> Result<Vec<PathBuf>> {
+    let stem = validate_name(name)?;
+    let dir = scope_dir(kind, scope)?;
+    let mut removed = Vec::new();
+    for ext in ["scrippo", "bash"] {
+        let path = dir.join(format!("{stem}.{ext}"));
+        match std::fs::symlink_metadata(&path) {
+            Ok(_) => {
+                std::fs::remove_file(&path)
+                    .with_context(|| format!("failed to remove {}", path.display()))?;
+                removed.push(path);
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => {
+                return Err(err).with_context(|| format!("failed to stat {}", path.display()));
+            }
+        }
+    }
+    if removed.is_empty() {
+        let kind = match kind {
+            NewKind::Package => "package",
+            NewKind::Script => "script",
+        };
+        bail!("{kind} not found: {stem}");
+    }
+    Ok(removed)
 }

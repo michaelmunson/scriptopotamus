@@ -20,7 +20,7 @@ side, as `make install` arranges.
 
 ```bash
 scrippo -c script.scrippo          # compile to stdout
-scrippo -n script.scrippo          # compile + bash -n
+scrippo --noexec script.scrippo    # compile + bash -n
 scrippo script.scrippo             # compile and run
 scrippo script.scrippo greet world # run with args (command dispatch)
 scrippo hello                      # run ~/.scrippo/scripts/hello.scrippo
@@ -47,8 +47,12 @@ Global packages and scripts live under `~/.scrippo` (override with `SCRIPPO_HOME
 Create them with:
 
 ```bash
-scrippo --new --package [--local|--global] <name>   # default: --local
-scrippo --new --script  [--local|--global] <name>   # default: --global
+scrippo -n -p [-g] <name>   # package; local unless -g
+scrippo -n -s [-g] <name>   # script; local unless -g
+scrippo -ls -s              # list local scripts
+scrippo -ls -p -g           # list global packages
+scrippo -rm -s <name>       # remove local script
+scrippo -rm -p -g <name>    # remove global package
 ```
 
 Project commands live in `.scrippo/commands.scrippo` (a legacy `.scrippo` file still works).
