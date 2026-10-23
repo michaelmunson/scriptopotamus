@@ -62,7 +62,7 @@ fn compile_expanded(path: &Path, expanded: macros::ExpandResult, library: bool) 
         return Err(error::CompileError::at(
             path,
             0,
-            "packages must expose named functions or commands; put executable root commands in scripts/",
+            "packages must expose named functions or commands; put executable root commands in scripts (@info --script)",
         ));
     }
     check::check_program(path, &expanded.program)?;

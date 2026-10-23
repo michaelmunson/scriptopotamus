@@ -41,8 +41,8 @@ impl Fixture {
     }
 
     fn version(&self, version: &str) {
-        self.write("packages/greet.scrippo", &format!("@info greet {version} \"Greeting library\"\n@import \"../support/message.scrippo\"\n.greet()\n  message\n"));
-        self.write("scripts/hello.scrippo", &format!("@info hello {version}\n@import \"../support/message.scrippo\"\n@import scrippo/std/path\n.main()\n  message\n  here\n"));
+        self.write("greet.scrippo", &format!("@info(--name greet --version {version} --description \"Greeting library\" --package)\n@import \"./support/message.scrippo\"\n.greet()\n  message\n"));
+        self.write("hello.scrippo", &format!("@info(--name hello --version {version} --script)\n@import \"./support/message.scrippo\"\n@import scrippo/std/path\n.main()\n  message\n  here\n"));
         self.write(
             "support/message.scrippo",
             &format!("message() -> \"{version}\"\n"),
@@ -80,7 +80,8 @@ impl Fixture {
         let mut command = self.command();
         command.arg("-i").args(options).arg(&self.repo);
         if let Some(path) = destination {
-            command.arg(path);
+            // The second argument is the directory inside the source; the third is the destination.
+            command.arg(".").arg(path);
         }
         command.output().unwrap()
     }
@@ -103,6 +104,8 @@ impl Fixture {
         .unwrap()
     }
 }
+
+const PKG_2: &str = "@info(--name greet --version 2.0.0 --package)";
 
 fn text(output: &Output) -> String {
     format!(
@@ -206,7 +209,7 @@ fn global_scripts_preserve_sources_relative_imports_here_and_completions() {
     assert!(
         fs::read_to_string(&canonical)
             .unwrap()
-            .contains("@info hello")
+            .contains("--name hello")
     );
     let output = f.run(&["hello", "main"]);
     success(&output);
@@ -245,10 +248,32 @@ fn local_scripts_default_to_current_directory_and_accept_explicit_directory() {
 }
 
 #[test]
+fn install_without_kind_installs_packages_and_scripts() {
+    let f = Fixture::new();
+    success(&f.install(&[], None));
+    assert!(f.lib().join("greet.bash").is_file());
+    assert!(f.project.join("hello.scrippo").is_file());
+}
+
+#[test]
+fn install_without_kind_skips_a_missing_kind_but_fails_when_both_are_missing() {
+    let f = Fixture::new();
+    f.version("2.0.0");
+    f.git(&["rm", "-q", "-f", "hello.scrippo"]);
+    f.tag("2.0.0");
+    success(&f.install(&[], None));
+    assert!(f.lib().join("greet.bash").is_file());
+    assert!(!f.project.join("hello.scrippo").exists());
+    f.git(&["rm", "-q", "-f", "greet.scrippo"]);
+    f.tag("3.0.0");
+    failure(&f.install(&[], None), "no installable packages found");
+}
+
+#[test]
 fn package_compilation_never_runs_raw_bash_or_command_substitutions() {
     let f = Fixture::new();
     let sentinel = f.root.join("executed");
-    f.write("packages/greet.scrippo", &format!("@info greet 2.0.0\n@import \"../support/raw.bash\"\nx=$(touch '{}')\ngreet() -> hello\n", sentinel.display()));
+    f.write("greet.scrippo", &format!("{PKG_2}\n@import \"./support/raw.bash\"\nx=$(touch '{}')\ngreet() -> hello\n", sentinel.display()));
     f.write(
         "support/raw.bash",
         &format!("touch '{}'\n", sentinel.display()),
@@ -262,12 +287,12 @@ fn package_compilation_never_runs_raw_bash_or_command_substitutions() {
 fn repository_dependencies_and_standard_library_are_compiled_inside_the_sandbox() {
     let f = Fixture::new();
     f.write(
-        "packages/greet.scrippo",
-        "@info greet 2.0.0\n@import nested\n@import scrippo/std/types\ngreet()\n  nested\n",
+        "greet.scrippo",
+        &format!("{PKG_2}\n@import nested\n@import scrippo/std/types\ngreet()\n  nested\n"),
     );
     f.write(
-        "packages/nested.scrippo",
-        "@info nested 2.0.0\nnested() -> dependency\n",
+        "nested.scrippo",
+        "@info(--name nested --version 2.0.0 --package)\nnested() -> dependency\n",
     );
     f.tag("2.0.0");
     success(&f.install(&["-p"], None));
@@ -283,27 +308,29 @@ fn repository_dependencies_and_standard_library_are_compiled_inside_the_sandbox(
 #[test]
 fn metadata_validation_rejects_invalid_entries_without_publishing_anything() {
     for (source, message) in [
-        ("greet() -> hi\n", "exactly one top-level @info"),
         (
-            "@info greet 2.0.0\n@info greet 2.0.0\n",
+            "@info(--name greet --version 2.0.0 --package)\n@info(--name greet --version 2.0.0 --package)\n",
             "exactly one top-level @info",
         ),
-        ("@info other 2.0.0\n", "name must match"),
-        ("@info greet 1.0.0\n", "version must match"),
-        ("@info greet 02.0.0\n", "stable version"),
+        ("@info(--name other --version 2.0.0 --package)\n", "name must match"),
+        ("@info(--name greet --version 1.0.0 --package)\n", "version must match"),
+        ("@info(--name greet --version 02.0.0 --package)\n", "stable version"),
         (
-            "@info greet \"$(touch sentinel)\"\n",
+            "@info(--name greet --version 2.0.0 --description \"$(touch sentinel)\" --package)\n",
             "values must be literals",
         ),
-        ("@info greet 2.0.0\n@unknown\n", "unknown macro"),
+        ("@info(--name greet --version 2.0.0 --package)\n@unknown\n", "unknown macro"),
         (
-            "@info greet 2.0.0\n.() -> script\n",
+            "@info(--name greet --version 2.0.0 --package)\n.() -> script\n",
             "packages must expose named",
         ),
-        ("@info greet 2.0.0\necho \"unterminated\n", "bash failed"),
+        (
+            "@info(--name greet --version 2.0.0 --package)\necho \"unterminated\n",
+            "bash failed",
+        ),
     ] {
         let f = Fixture::new();
-        f.write("packages/greet.scrippo", source);
+        f.write("greet.scrippo", source);
         f.tag("2.0.0");
         failure(&f.install(&["-p"], None), message);
         assert!(!f.lib().join("greet.bash").exists());
@@ -315,11 +342,11 @@ fn metadata_validation_rejects_invalid_entries_without_publishing_anything() {
 #[test]
 fn named_metadata_is_preserved_for_packages_and_scripts() {
     let f = Fixture::new();
-    for (directory, name, kind, body) in [
-        ("packages", "greet", "package", "greet() -> hello"),
-        ("scripts", "hello", "script", "-> hello"),
+    for (name, kind, body) in [
+        ("greet", "package", "greet() -> hello"),
+        ("hello", "script", "-> hello"),
     ] {
-        f.write(&format!("{directory}/{name}.scrippo"), &format!(
+        f.write(&format!("{name}.scrippo"), &format!(
             "@info(\n  --name {name}\n  --version 2.0.0\n  --description 'A greeting'\n  --author 'Ada Lovelace'\n  --license MIT\n  --repository https://example.com/helpers.git\n  --{kind}\n  --autoload disable\n)\n{body}\n"
         ));
     }
@@ -349,22 +376,15 @@ fn named_metadata_is_preserved_for_packages_and_scripts() {
 #[test]
 fn installable_named_metadata_requires_name_version_and_matching_kind() {
     for (header, message) in [
-        ("@info(--version 2.0.0)", "require --name"),
-        ("@info(--name greet)", "require --version"),
+        ("@info(--version 2.0.0 --package)", "require --name"),
+        ("@info(--name greet --package)", "require --version"),
         (
-            "@info(--name greet --version 2.0.0 --script)",
-            "kind must match",
-        ),
-        (
-            "-> hi\n@info(--name greet --version 2.0.0)",
+            "-> hi\n@info(--name greet --version 2.0.0 --package)",
             "top of the file",
         ),
     ] {
         let f = Fixture::new();
-        f.write(
-            "packages/greet.scrippo",
-            &format!("{header}\ngreet() -> hi\n"),
-        );
+        f.write("greet.scrippo", &format!("{header}\ngreet() -> hi\n"));
         f.tag("v2.0.0");
         let output = f.install(&["-p"], None);
         assert!(!output.status.success(), "{header}");
@@ -376,35 +396,98 @@ fn installable_named_metadata_requires_name_version_and_matching_kind() {
 #[test]
 fn script_metadata_is_validated_and_duplicate_names_are_rejected() {
     let f = Fixture::new();
-    f.write("scripts/hello.scrippo", "-> no-metadata\n");
+    f.write(
+        "hello.scrippo",
+        "@info(--name hello --version 2.0.0 --script)\n@info(--name hello --version 2.0.0 --script)\n",
+    );
     f.tag("2.0.0");
     failure(
         &f.install(&["-s", "-g"], None),
         "exactly one top-level @info",
     );
-    f.write(
-        "packages/nested/greet.scrippo",
-        "@info greet 1.0.0\ngreet() -> duplicate\n",
-    );
-    f.tag("3.0.0");
     // Match the tag on both entries so the duplicate name is the only error.
     f.write(
-        "packages/greet.scrippo",
-        "@info greet 4.0.0\ngreet() -> one\n",
+        "greet.scrippo",
+        "@info(--name greet --version 4.0.0 --package)\ngreet() -> one\n",
     );
     f.write(
-        "packages/nested/greet.scrippo",
-        "@info greet 4.0.0\ngreet() -> two\n",
+        "nested/greet.scrippo",
+        "@info(--name greet --version 4.0.0 --package)\ngreet() -> two\n",
+    );
+    f.write(
+        "hello.scrippo",
+        "@info(--name hello --version 4.0.0 --script)\n-> hi\n",
     );
     f.tag("4.0.0");
     failure(&f.install(&["-p"], None), "duplicate packages entry name");
 }
 
 #[test]
+fn files_are_selected_by_info_kind_anywhere_under_the_root() {
+    let f = Fixture::new();
+    f.version("2.0.0");
+    f.write("notes.scrippo", "-> no-metadata\n");
+    f.write("tools/legacy.scrippo", "@info legacy 2.0.0\n-> untyped\n");
+    f.write(
+        "deep/er/other.scrippo",
+        "@info(--name other --version 2.0.0 --package)\nother() -> deep\n",
+    );
+    f.tag("2.0.0");
+    success(&f.install(&["-p"], None));
+    assert!(f.lib().join("greet.bash").is_file());
+    assert!(f.lib().join("other.bash").is_file());
+    assert!(!f.lib().join("hello.bash").exists());
+    assert!(!f.lib().join("legacy.bash").exists());
+    success(&f.install(&["-s"], None));
+    assert!(f.project.join("hello.scrippo").is_file());
+    assert!(!f.project.join("greet.scrippo").exists());
+}
+
+#[test]
+fn directory_argument_limits_the_scan_and_rejects_escapes() {
+    let f = Fixture::new();
+    f.write(
+        "tools/extra.scrippo",
+        "@info(--name extra --version 2.0.0 --package)\nextra() -> extra\n",
+    );
+    f.write(
+        "tools/support.scrippo",
+        "@info(--name support --version 2.0.0 --package)\nsupport() -> extra\n",
+    );
+    f.write("greet.scrippo", "@info(--name greet --version 2.0.0 --package)\ngreet() -> hi\n");
+    f.tag("2.0.0");
+    let output = f
+        .command()
+        .args(["-i", "-p"])
+        .arg(&f.repo)
+        .arg("tools")
+        .output()
+        .unwrap();
+    success(&output);
+    assert!(f.lib().join("extra.bash").is_file());
+    assert!(f.lib().join("support.bash").is_file());
+    assert!(!f.lib().join("greet.bash").exists());
+    for bad in ["../x", "/etc", "missing"] {
+        let output = f
+            .command()
+            .args(["-i", "-p", "--tag", "2.0.0"])
+            .arg(&f.repo)
+            .arg(bad)
+            .arg(f.root.join("other-lib"))
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "{bad}: {}", text(&output));
+    }
+}
+
+#[test]
 fn a_bad_second_package_rejects_the_entire_installation() {
     let f = Fixture::new();
     f.version("2.0.0");
-    f.write("packages/zbad.scrippo", "@info zbad 2.0.0\n@unknown\n");
+    f.write(
+        "zbad.scrippo",
+        "@info(--name zbad --version 2.0.0 --package)\n@unknown\n",
+    );
     f.tag("2.0.0");
     failure(&f.install(&["-p"], None), "unknown macro");
     assert!(!f.lib().join("greet.bash").exists());
@@ -422,20 +505,14 @@ fn outside_imports_and_host_package_dependencies_are_blocked() {
         } else {
             outside.display().to_string()
         };
-        f.write(
-            "packages/greet.scrippo",
-            &format!("@info greet 2.0.0\n@import \"{pattern}\"\n"),
-        );
+        f.write("greet.scrippo", &format!("{PKG_2}\n@import \"{pattern}\"\n"));
         f.tag("2.0.0");
         failure(&f.install(&["-p"], None), "outside the package sandbox");
     }
     let f = Fixture::new();
     fs::create_dir_all(f.home.join("lib")).unwrap();
     fs::write(f.home.join("lib/private.scrippo"), "secret() -> private\n").unwrap();
-    f.write(
-        "packages/greet.scrippo",
-        "@info greet 2.0.0\n@import private\n",
-    );
+    f.write("greet.scrippo", &format!("{PKG_2}\n@import private\n"));
     f.tag("2.0.0");
     failure(&f.install(&["-p"], None), "package not found");
 }
@@ -445,10 +522,7 @@ fn home_imports_cannot_escape_the_package_sandbox() {
     for pattern in ["~/private.scrippo", "~/*.scrippo"] {
         let f = Fixture::new();
         fs::write(f.home.join("private.scrippo"), "secret() -> private\n").unwrap();
-        f.write(
-            "packages/greet.scrippo",
-            &format!("@info greet 2.0.0\n@import {pattern}\n"),
-        );
+        f.write("greet.scrippo", &format!("{PKG_2}\n@import {pattern}\n"));
         f.tag("2.0.0");
         let output = f
             .command()
@@ -538,8 +612,8 @@ fn existing_source_or_compiled_installations_are_preserved() {
 fn cli_errors_are_reported_without_changing_normal_script_arguments() {
     let f = Fixture::new();
     failure(
-        &f.run(&["-i", f.repo.to_str().unwrap()]),
-        "requires --package or --script",
+        &f.install(&[], Some(&f.root.join("other"))),
+        "explicit destination requires",
     );
     failure(
         &f.run(&["-i", "-p", "-s", f.repo.to_str().unwrap()]),
@@ -577,9 +651,9 @@ fn missing_tags_empty_selection_and_failed_clone_do_not_publish() {
     let f = Fixture::new();
     f.git(&["tag", "-d", "v1.0.0"]);
     failure(&f.install(&["-p"], None), "no stable version tags");
-    f.git(&["rm", "-r", "packages"]);
+    f.git(&["rm", "-q", "greet.scrippo"]);
     f.tag("2.0.0");
-    failure(&f.install(&["-p"], None), "no .scrippo files in packages/");
+    failure(&f.install(&["-p"], None), "no installable packages found");
     failure(
         &f.run(&["-i", "-p", f.root.join("missing.git").to_str().unwrap()]),
         "git failed",
@@ -592,8 +666,8 @@ fn plain_directory_installs_without_git() {
     let f = Fixture::new();
     let dir = plain_helpers(&f.root);
     fs::write(
-        dir.join("packages/greet.scrippo"),
-        "@info greet 1.2.3 \"Greeting library\"\n@import \"../support/message.scrippo\"\n.greet()\n  message\n",
+        dir.join("greet.scrippo"),
+        "@info(--name greet --version 1.2.3 --description \"Greeting library\" --package)\n@import \"./support/message.scrippo\"\n.greet()\n  message\n",
     )
     .unwrap();
     fs::write(dir.join("support/message.scrippo"), "message() -> \"from-dir\"\n").unwrap();
@@ -614,11 +688,10 @@ fn plain_directory_installs_without_git() {
 
 fn plain_helpers(root: &Path) -> PathBuf {
     let dir = root.join("helpers");
-    fs::create_dir_all(dir.join("packages")).unwrap();
     fs::create_dir_all(dir.join("support")).unwrap();
     fs::write(
-        dir.join("packages/greet.scrippo"),
-        "@info greet 1.0.0 \"Greeting library\"\n@import \"../support/message.scrippo\"\n.greet()\n  message\n",
+        dir.join("greet.scrippo"),
+        "@info(--name greet --version 1.0.0 --description \"Greeting library\" --package)\n@import \"./support/message.scrippo\"\n.greet()\n  message\n",
     )
     .unwrap();
     fs::write(dir.join("support/message.scrippo"), "message() -> \"1.0.0\"\n").unwrap();

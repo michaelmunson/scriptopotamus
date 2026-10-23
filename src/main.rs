@@ -213,27 +213,53 @@ fn run_install(cli: &Cli) -> Result<()> {
         .to_str()
         .context("repository must be UTF-8")?
         .to_string();
-    let kind = kind_flag(cli).map_err(|_| anyhow::anyhow!("--install requires --package or --script"))?;
-    if cli.input.len() > 2
+    let kinds = match (cli.package, cli.script) {
+        (true, false) => vec![paths::NewKind::Package],
+        (false, true) => vec![paths::NewKind::Script],
+        (false, false) => vec![paths::NewKind::Package, paths::NewKind::Script],
+        (true, true) => unreachable!("clap conflicts_with"),
+    };
+    if cli.input.len() > 3
         || cli
             .input
-            .get(1)
-            .is_some_and(|arg| arg.to_string_lossy().starts_with('-'))
+            .iter()
+            .skip(1)
+            .any(|arg| arg.to_string_lossy().starts_with('-'))
     {
         bail!(
-            "usage: scrippo -i (-p|-s) [-g] [--tag VERSION] <repository|directory> [destination]; put options before the source"
+            "usage: scrippo -i [-p|-s] [-g] [--tag VERSION] <repository|directory> [source-subdirectory] [destination]; put options before the source"
         );
     }
-    let result = packages::install(&packages::InstallOptions {
-        repository,
-        kind,
-        global: cli.global,
-        destination: cli.input.get(1).map(PathBuf::from),
-        tag: cli.tag.clone(),
-    })?;
-    println!("installed {} ({})", result.tag, result.commit);
-    for file in result.files {
-        println!("  {}", file.display());
+    if kinds.len() > 1 && cli.input.len() > 2 {
+        bail!("an explicit destination requires --package or --script");
+    }
+    let mut installed = false;
+    let mut missing = Vec::new();
+    for kind in kinds.iter().copied() {
+        let result = packages::install(&packages::InstallOptions {
+            repository: repository.clone(),
+            kind,
+            global: cli.global,
+            directory: cli.input.get(1).map(PathBuf::from),
+            destination: cli.input.get(2).map(PathBuf::from),
+            tag: cli.tag.clone(),
+        });
+        match result {
+            Ok(result) => {
+                installed = true;
+                println!("installed {} ({})", result.tag, result.commit);
+                for file in result.files {
+                    println!("  {}", file.display());
+                }
+            }
+            Err(err) if kinds.len() > 1 && err.is::<packages::NoInstallable>() => {
+                missing.push(err.to_string());
+            }
+            Err(err) => return Err(err),
+        }
+    }
+    if !installed {
+        bail!("{}", missing.join("; "));
     }
     Ok(())
 }

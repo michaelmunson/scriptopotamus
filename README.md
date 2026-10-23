@@ -64,23 +64,34 @@ Project commands live in `.scrippo/commands.scrippo` (a legacy `.scrippo` file s
 ### Installing from Git or a directory
 
 ```bash
+scrippo -i https://github.com/owner/helpers.git            # both packages and scripts
 scrippo -i -p https://github.com/owner/helpers.git         # project .scrippo/lib
 scrippo -i -p -g https://github.com/owner/helpers.git      # ~/.scrippo/lib
 scrippo -i -s -g https://github.com/owner/helpers.git      # ~/.scrippo/scripts
-scrippo -i -s https://github.com/owner/helpers.git ./tools # explicit destination
+scrippo -i -p https://github.com/owner/helpers.git lib     # only scan lib/ in the repo
+scrippo -i -s https://github.com/owner/helpers.git . ./tools # explicit destination
 scrippo -i -p ./helpers                                    # plain local directory
 scrippo --install --package --tag v1.2.0 https://github.com/owner/helpers.git
 ```
 
-Use `-p | --package` or `-s | --script`. Installs default to local: packages go
+Use `-p | --package` or `-s | --script` to install only one kind; with neither,
+`--install` installs both (a kind the source does not contain is skipped, and an
+explicit destination is not allowed). Installs default to local: packages go
 in the nearest project's `.scrippo/lib` (created in the current directory if
 needed), and scripts go in the current directory. `-g | --global` follows
 `SCRIPPO_HOME`; it cannot be combined with an explicit destination. Put scrippo
 options before the source path; arguments after a script filename belong to that
 script.
 
-The source may be a Git URL/repository or a plain directory with the same
-`packages/` and `scripts/` layout. Git installs need Git and Bash and select the
+The full form is `scrippo -i [-p|-s] <source> [directory] [destination]`.
+`directory` is a path inside the source to scan (default: the source root);
+use `.` to keep the root when you only need a destination.
+
+The source may be a Git URL/repository or a plain directory, with no required
+layout. The installer scans the source root (or `directory`) recursively and
+installs every `.scrippo` file whose `@info` declares `--package` (with `-p`) or
+`--script` (with `-s`). Files without `@info`, or with the other kind, are
+support files and are skipped, as are hidden files and directories. Git installs need Git and Bash and select the
 highest stable `MAJOR.MINOR.PATCH` tag (with or without a `v` prefix), ignoring
 prereleases and untagged commits. `--tag` selects an exact tag. Plain directories
 skip Git and use each entry's `@info` version when `--tag` is omitted (all
@@ -127,17 +138,18 @@ not an operating system sandbox.
 
 ### Publishing installable entries
 
-Use this repository layout (nested directories are allowed, with unique names):
+Lay the repository out however you like (nested directories are allowed, with
+unique names per kind):
 
 ```text
 helpers/
-├── packages/is-even.scrippo
-├── scripts/greet.scrippo
+├── is-even.scrippo
+├── greet.scrippo
 └── support/common.scrippo
 ```
 
-Every `.scrippo` file under the selected `packages/` or `scripts/` tree needs
-exactly one metadata declaration at the top (after any shebang and comments):
+Each installable `.scrippo` file needs exactly one metadata declaration at the
+top (after any shebang and comments) with `--package` or `--script`:
 
 ```scrippo
 @info(
@@ -162,16 +174,15 @@ value; quote text containing spaces or punctuation. Shell interpolation and
 command substitutions are rejected. Options may share a line or span lines;
 trailing `#` comments are allowed. Metadata emits no runtime code.
 
-All options are optional for ordinary files. Installable entries require a name
-matching the filename without `.scrippo` and a stable `MAJOR.MINOR.PATCH` version
-matching the selected tag without its optional `v`. If a kind is declared, it
-must match the `packages/` or `scripts/` directory. All metadata is retained in
-the installation manifest. The original `@info <name> <version> [<description>]`
-form and the single-line `@info --name ... --version ...` form also work.
-Shared support files without metadata belong outside the entry directories.
-Bare package imports during compilation resolve from the repository's
-`packages/` or `.scrippo/lib/`; relative imports and file globs can reference
-other files inside the repository.
+All options are optional for ordinary files. Installable entries require a kind
+(`--package` or `--script`), a name matching the filename without `.scrippo`, and
+a stable `MAJOR.MINOR.PATCH` version matching the selected tag without its
+optional `v`. All metadata is retained in the installation manifest. The
+original `@info <name> <version> [<description>]` form still parses but declares
+no kind, so such files are not installed. Shared support files simply omit
+`@info`. Bare package imports during compilation resolve from the importing
+file's directory, the repository root, `packages/`, or `.scrippo/lib/`; relative
+imports and file globs can reference other files inside the repository.
 
 Commit the source, create a tag such as `git tag v1.2.0`, then push the commit
 and tag to your Git host. No registry or build hook is required.

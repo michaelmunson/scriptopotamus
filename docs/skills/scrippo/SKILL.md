@@ -38,10 +38,10 @@ scrippo -n -p [-g] <name>   # package; local unless -g
 scrippo -n -s [-g] <name>   # script; local unless -g
 scrippo -ls -s | -ls -p [-g]
 scrippo -rm -s <name> | -rm -p [-g] <name>
-scrippo -i -p <git-url|directory>   # install packages (or -s for scripts)
+scrippo -i <git-url|directory>      # install packages and scripts (-p / -s for only one kind)
 ```
 
-Install sources may be a Git repo or a plain directory with `packages/` / `scripts/`. Optional `.install.scrippo` at the source root runs automatically: top-level code on both passes, `.before()` before publish, `.after()` after.
+Install sources may be a Git repo or a plain directory. The installer scans the source root (or the directory given as the second argument: `scrippo -i -p <source> [dir] [destination]`; a destination requires `-p` or `-s`) recursively and installs every `.scrippo` file whose top `@info(--name … --version … --package|--script)` matches `-p` / `-s` (both kinds when neither is given); files without a matching `@info` are support files and skipped. Optional `.install.scrippo` at the source root runs automatically: top-level code on both passes, `.before()` before publish, `.after()` after.
 
 Optional shebang on runnable scripts:
 

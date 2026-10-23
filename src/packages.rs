@@ -1,6 +1,6 @@
 //! Tagged Git (or plain directory) installs into package and script search paths.
 use crate::ast::{Program, Stmt};
-use crate::macros::info::{FileKind, PackageInfo, Version};
+use crate::macros::info::{FileInfo, FileKind, PackageInfo, Version};
 use crate::paths::{self, NewKind};
 use anyhow::{Context, Result, bail};
 use serde_json::json;
@@ -13,6 +13,8 @@ pub struct InstallOptions {
     pub repository: String,
     pub kind: NewKind,
     pub global: bool,
+    /// Directory inside the source to scan (default: the source root).
+    pub directory: Option<PathBuf>,
     pub destination: Option<PathBuf>,
     pub tag: Option<String>,
 }
@@ -22,6 +24,18 @@ pub struct InstallResult {
     pub commit: String,
     pub files: Vec<PathBuf>,
 }
+
+/// The source holds no entries of the requested kind (not an error when installing both kinds).
+#[derive(Debug)]
+pub struct NoInstallable(String);
+
+impl std::fmt::Display for NoInstallable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for NoInstallable {}
 
 pub fn install(options: &InstallOptions) -> Result<InstallResult> {
     if options.global && options.destination.is_some() {
@@ -41,40 +55,47 @@ pub fn install(options: &InstallOptions) -> Result<InstallResult> {
     let source = staged.join("source");
     fs::create_dir_all(&source)?;
 
-    let (tag, commit, entries) = stage_source(options, scratch.path(), &source)?;
-    let version = version_tag(&tag).unwrap();
+    let (staged_tag, commit, entries) = stage_source(options, scratch.path(), &source)?;
     let kind = match options.kind {
         NewKind::Package => "packages",
         NewKind::Script => "scripts",
     };
-    let selected: Vec<_> = entries
-        .iter()
-        .filter(|path| {
-            path.starts_with(kind) && path.extension().is_some_and(|ext| ext == "scrippo")
-        })
-        .cloned()
-        .collect();
+    let expected_kind = match options.kind {
+        NewKind::Package => FileKind::Package,
+        NewKind::Script => FileKind::Script,
+    };
+    let root = source_root(options.directory.as_deref())?;
+    let selected = select_entries(&source, &entries, &root, expected_kind)?;
     if selected.is_empty() {
-        bail!("repository has no .scrippo files in {kind}/");
+        let location = if root.as_os_str().is_empty() {
+            String::new()
+        } else {
+            format!(" in {}", root.display())
+        };
+        return Err(NoInstallable(format!(
+            "no installable {} found{location} (expected .scrippo files declaring @info with --{})",
+            kind,
+            expected_kind.as_str()
+        ))
+        .into());
     }
+    let tag = match staged_tag {
+        Some(tag) => tag,
+        None => directory_tag(&selected)?,
+    };
+    let version = version_tag(&tag).unwrap();
 
     run_install_hook(&source, "before")?;
 
     let mut names = BTreeSet::new();
     let mut artifacts = Vec::new();
     let mut metadata = Vec::new();
-    for relative in &selected {
+    for (relative, info) in &selected {
         let file = source.join(relative);
-        let info = entry_info(&file, &version)?;
-        let expected_kind = match options.kind {
-            NewKind::Package => FileKind::Package,
-            NewKind::Script => FileKind::Script,
-        };
-        if info.metadata.kind.is_some_and(|kind| kind != expected_kind) {
+        if info.version != version {
             bail!(
-                "{}: @info kind must match the selected {} directory",
-                file.display(),
-                kind
+                "{}: @info version must match the selected tag",
+                file.display()
             );
         }
         if !names.insert(info.name.clone()) {
@@ -160,12 +181,11 @@ fn stage_source(
     options: &InstallOptions,
     scratch: &Path,
     source: &Path,
-) -> Result<(String, String, Vec<PathBuf>)> {
+) -> Result<(Option<String>, String, Vec<PathBuf>)> {
     let path = Path::new(&options.repository);
     if path.is_dir() && !path.join(".git").exists() {
         let entries = snapshot_directory(path, source)?;
-        let tag = directory_tag(options, source, &entries)?;
-        return Ok((tag, "local".into(), entries));
+        return Ok((options.tag.clone(), "local".into(), entries));
     }
 
     let git_dir = scratch.join("git");
@@ -200,33 +220,60 @@ fn stage_source(
         .trim()
         .to_string();
     let entries = snapshot(&git_dir, &commit, source)?;
-    Ok((tag, commit, entries))
+    Ok((Some(tag), commit, entries))
 }
 
-fn directory_tag(
-    options: &InstallOptions,
+/// Normalize the optional directory inside the source to a relative path
+/// (empty means the source root).
+fn source_root(directory: Option<&Path>) -> Result<PathBuf> {
+    let mut root = PathBuf::new();
+    for part in directory.into_iter().flat_map(Path::components) {
+        match part {
+            Component::CurDir => {}
+            Component::Normal(part) if part != ".git" => root.push(part),
+            _ => bail!(
+                "directory must be a relative path inside the source: {}",
+                directory.unwrap().display()
+            ),
+        }
+    }
+    Ok(root)
+}
+
+/// Find every `.scrippo` file under `root` whose `@info` declares the wanted kind.
+/// Files without `@info`, or declaring another kind, are support files and skipped.
+fn select_entries(
     source: &Path,
     entries: &[PathBuf],
-) -> Result<String> {
-    let kind = match options.kind {
-        NewKind::Package => "packages",
-        NewKind::Script => "scripts",
-    };
-    let selected: Vec<_> = entries
+    root: &Path,
+    kind: FileKind,
+) -> Result<Vec<(PathBuf, PackageInfo)>> {
+    if !root.as_os_str().is_empty() && !entries.iter().any(|path| path.starts_with(root)) {
+        bail!("directory not found in source: {}", root.display());
+    }
+    let mut sorted: Vec<_> = entries
         .iter()
         .filter(|path| {
-            path.starts_with(kind) && path.extension().is_some_and(|ext| ext == "scrippo")
+            path.starts_with(root)
+                && path.extension().is_some_and(|ext| ext == "scrippo")
+                && path.components().all(
+                    |part| !matches!(part, Component::Normal(s) if s.to_string_lossy().starts_with('.')),
+                )
         })
         .collect();
-    if selected.is_empty() {
-        bail!("repository has no .scrippo files in {kind}/");
+    sorted.sort();
+    let mut selected = Vec::new();
+    for relative in sorted {
+        if let Some(info) = read_entry_info(&source.join(relative), kind)? {
+            selected.push((relative.clone(), info));
+        }
     }
-    if let Some(tag) = &options.tag {
-        return Ok(tag.clone());
-    }
+    Ok(selected)
+}
+
+fn directory_tag(selected: &[(PathBuf, PackageInfo)]) -> Result<String> {
     let mut found: Option<Version> = None;
-    for relative in selected {
-        let info = read_entry_info(&source.join(relative))?;
+    for (_, info) in selected {
         match &found {
             None => found = Some(info.version.clone()),
             Some(version) if version != &info.version => {
@@ -283,7 +330,7 @@ fn repository_name(repository: &str) -> Result<&str> {
     Ok(name)
 }
 
-fn read_entry_info(file: &Path) -> Result<PackageInfo> {
+fn read_entry_info(file: &Path, kind: FileKind) -> Result<Option<PackageInfo>> {
     let program = crate::parse::parse_file(file)?;
     let declarations: Vec<_> = program
         .body
@@ -293,26 +340,20 @@ fn read_entry_info(file: &Path) -> Result<PackageInfo> {
             _ => None,
         })
         .collect();
-    if declarations.len() != 1 {
+    if declarations.len() > 1 {
         bail!("{}: expected exactly one top-level @info", file.display());
     }
-    let (args, line) = declarations[0];
+    let Some(&(args, line)) = declarations.first() else {
+        return Ok(None);
+    };
+    if FileInfo::parse(file, *line, args)?.kind != Some(kind) {
+        return Ok(None);
+    }
     let info = PackageInfo::parse(file, *line, args)?;
     if file.file_stem().and_then(|s| s.to_str()) != Some(&info.name) {
         bail!("{}: @info name must match the filename", file.display());
     }
-    Ok(info)
-}
-
-fn entry_info(file: &Path, version: &Version) -> Result<PackageInfo> {
-    let info = read_entry_info(file)?;
-    if &info.version != version {
-        bail!(
-            "{}: @info version must match the selected tag",
-            file.display()
-        );
-    }
-    Ok(info)
+    Ok(Some(info))
 }
 
 /// Read blob objects directly, never checking out hooks, filters, or links.
@@ -363,7 +404,8 @@ fn snapshot_directory(root: &Path, destination: &Path) -> Result<Vec<PathBuf>> {
         {
             let item = item?;
             let name = item.file_name();
-            if name == ".git" {
+            // Installer scratch/state may live inside the source (e.g. `-i -s .`).
+            if name == ".git" || name.to_string_lossy().starts_with(".scrippo-install") {
                 continue;
             }
             let path = item.path();
