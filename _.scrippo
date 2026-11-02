@@ -32,7 +32,17 @@
 		else
 			throw 1 "Invalid version: $version"
 
-.build()
+.build(
+	[--install [--sudo]]
+)
 	make build
-	make install
-	make build-extension
+	if $install
+		if $sudo
+			sudo make install
+		else
+			make install
+
+	.extension(@inherit)
+		make build-extension
+		if $install
+			-> hello

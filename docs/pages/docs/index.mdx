@@ -1,0 +1,50 @@
+---
+slug: /
+sidebar_label: Overview
+title: Scriptopotamus
+description: scrippo compiles .scrippo files to bash. This is the language reference.
+---
+
+import Link from '@docusaurus/Link';
+
+`scrippo` is a language for shell programs. You write `.scrippo` files with typed variables, indentation-scoped blocks, functions, and commands. The compiler emits bash, then runs it. Imports are resolved at compile time, so a finished script is one bash program with its libraries already inlined.
+
+A script can be a single file you run, a package other files import, or a command tree with usage text and tab completion generated from the same declarations.
+
+```
+PI<const float>=3.14
+
+circumference(diameter<float>)
+  -> $PI * $diameter
+
+-> "$(circumference 10)"
+```
+
+```bash
+scrippo circumference.scrippo
+```
+
+## Where to go
+
+<div className="cards">
+  <Link to="/installation"><strong>Install the compiler</strong><span>Build scrippo and put it on your PATH.</span></Link>
+  <Link to="/getting-started"><strong>Write a first script</strong><span>Compile, check, and run.</span></Link>
+  <Link to="/commands"><strong>Commands and arguments</strong><span>Subcommands, options, and usage text.</span></Link>
+  <Link to="/packages"><strong>Packages</strong><span>Create, publish, and install libraries.</span></Link>
+</div>
+
+## The manual
+
+**Start.** [Installation](/installation), [getting started](/getting-started), the [command line](/cli), and the [examples](/examples) in this repository.
+
+**Language.** [Files and syntax](/syntax), [variables and types](/variables), [values and output](/values), [control flow](/control-flow), [functions](/functions), [commands](/commands), [parameters](/parameters), [usage text](/usage), [`@inherit`](/inherit), [macros](/macros), [imports](/imports), the [standard library](/standard-library), and [bash passthrough](/bash).
+
+**Distribution.** [Project layout](/layout), [packages](/packages), [scripts](/scripts), [`@info` metadata](/metadata), [publishing](/publishing), and [installing from Git](/installing).
+
+**Tooling.** [Configuration](/configuration), [shell integration](/shell), [editors](/editors), and the [compilation model](/compilation).
+
+## What you need
+
+Running a compiled script needs Bash. Installing from Git needs Git and Bash. Building the compiler needs a Rust toolchain and `make`. The compiler version in this tree is 0.6.2.
+
+These pages live in `docs/pages` and are a [Docusaurus](https://docusaurus.io) site published with GitHub Pages. Local preview needs Node.js 20 or newer: from `docs/pages`, run `npm install` and `npm start`. In the repository settings, set Pages to deploy from GitHub Actions. The workflow is `.github/workflows/pages.yml`.

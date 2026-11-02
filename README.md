@@ -1,6 +1,6 @@
 # Scriptopotamus
 
-Scriptopotamus (`scrippo`) compiles `.scrippo` to bash. See [docs/vision.md](docs/vision.md) for the language.
+Scriptopotamus (`scrippo`) compiles `.scrippo` to bash. The language reference is published from [docs/pages](docs/pages/).
 
 ## Build
 

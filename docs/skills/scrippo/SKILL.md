@@ -10,7 +10,7 @@ description: >-
 
 Scrippo compiles to bash. Prefer scrippo syntax over raw bash unless a construct has no scrippo form yet.
 
-When this skill is referenced, also skim [docs/vision.md](../../vision.md) and [docs/examples/](../../examples/) if unsure about a construct.
+When this skill is referenced, also skim [docs/pages](../../pages/) and [docs/examples/](../../examples/) if unsure about a construct.
 
 ## Style
 

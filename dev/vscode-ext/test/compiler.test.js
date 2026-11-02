@@ -27,6 +27,25 @@ test('parseErrors reads compiler diagnostics', () => {
 test('findCompiler walks up to the workspace root', () => {
   assert.equal(compiler.findCompiler(path.join(REPO, 'docs', 'examples'), REPO), COMPILER);
   assert.equal(compiler.findCompiler(path.join(REPO, 'docs'), path.join(REPO, 'docs')), null);
+  if (COMPILER) assert.match(COMPILER, /scrippo-core$/);
+});
+
+test('findCompiler prefers scrippo-core over a stale scrippo binary', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scrippo-compiler-'));
+  try {
+    fs.mkdirSync(path.join(root, 'target', 'debug'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'target', 'release'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'target', 'debug', 'scrippo'), '');
+    fs.writeFileSync(path.join(root, 'target', 'release', 'scrippo'), '');
+    const core = path.join(root, 'target', 'release', 'scrippo-core');
+    fs.writeFileSync(core, '');
+    assert.equal(compiler.findCompiler(root, root), core);
+    const debugCore = path.join(root, 'target', 'debug', 'scrippo-core');
+    fs.writeFileSync(debugCore, '');
+    assert.equal(compiler.findCompiler(path.join(root, 'src'), root), debugCore);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('compiles the simple example', { skip }, async () => {
@@ -63,6 +82,24 @@ test('@import globs expand from the source directory', { skip }, async () => {
     assert.match(missing.errors.map((e) => e.message).join('\n'), /no matches/);
     const dynamic = await run(['@import $path'], { sourceFile: main });
     assert.match(dynamic.errors.map((e) => e.message).join('\n'), /must be a literal/);
+  } finally {
+    fs.rmSync(importDir, { recursive: true, force: true });
+  }
+});
+
+test('@usage and @import --as compile', { skip }, async () => {
+  const usage = await run(['@usage --no-exit', '-> continued']);
+  assert.equal(usage.ok, true, usage.stderr);
+  assert.match(usage.stdout, /_scrippo_usage/);
+  assert.match(usage.stdout, /continued/);
+  const importDir = fs.mkdtempSync(path.join(os.tmpdir(), 'scrippo-as-'));
+  const main = path.join(importDir, 'main.scrippo');
+  try {
+    fs.writeFileSync(path.join(importDir, 'child.scrippo'), '.greet(name)\n  -> "hi $name"\n');
+    const scoped = await run(['@import ./child.scrippo --as .demo'], { sourceFile: main });
+    assert.equal(scoped.ok, true, scoped.stderr);
+    assert.match(scoped.stdout, /demo/);
+    assert.match(scoped.stdout, /greet/);
   } finally {
     fs.rmSync(importDir, { recursive: true, force: true });
   }

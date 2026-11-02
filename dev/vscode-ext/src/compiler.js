@@ -6,7 +6,14 @@ const os = require('os');
 const path = require('path');
 
 const ERROR_LINE = /^(?:Error:\s*)?(.*):(\d+): (.*)$/;
-const COMPILER_CANDIDATES = [path.join('target', 'debug', 'scrippo'), path.join('target', 'release', 'scrippo')];
+// The compiler binary is scrippo-core. A leftover target/*/scrippo from before that
+// split is the old compiler and rejects @usage and @import --as, so core comes first.
+const COMPILER_CANDIDATES = [
+  path.join('target', 'debug', 'scrippo-core'),
+  path.join('target', 'release', 'scrippo-core'),
+  path.join('target', 'debug', 'scrippo'),
+  path.join('target', 'release', 'scrippo'),
+];
 
 function parseErrors(stderr) {
   const errors = [];

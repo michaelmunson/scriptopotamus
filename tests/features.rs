@@ -127,6 +127,25 @@ fn scoped_imports_dispatch_and_complete_without_leaking_commands() {
 }
 
 #[test]
+fn parent_body_runs_when_no_subcommand_is_chosen() {
+    let src = ".build([--install])\n  -> parent $install\n  .extension()\n    -> extension\n";
+    assert_eq!(stdout(&run(src, &["build"])), "parent false\n");
+    assert_eq!(stdout(&run(src, &["build", "--install"])), "parent true\n");
+    assert_eq!(stdout(&run(src, &["build", "extension"])), "extension\n");
+
+    let src = ".build()\n  -> parent\n  .extension()\n    -> extension\n";
+    assert_eq!(stdout(&run(src, &["build"])), "parent\n");
+    let out = run(src, &["build", "nope"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("unknown command"));
+
+    let src = ".math()\n  .add()\n    -> add\n";
+    let out = run(src, &["math"]);
+    assert_eq!(out.status.code(), Some(1));
+    assert!(stderr(&out).contains("Usage:"));
+}
+
+#[test]
 fn help_after_arguments_skips_validation_and_unknown_subcommands_fail() {
     let out = run(
         ".cmd(value<int>)\n  -> $value\n",

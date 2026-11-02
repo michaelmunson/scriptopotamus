@@ -144,7 +144,7 @@ function activate(context) {
     }
     const resolved = resolveCompilerPath(doc);
     if (!resolved) {
-      const message = `Could not find the scrippo binary (${compiler.COMPILER_CANDIDATES.join(' or ')}) in this workspace. Set scriptopotamus.compiler.path to use it.`;
+      const message = `Could not find the scrippo compiler (${compiler.COMPILER_CANDIDATES.join(' or ')}) in this workspace. Set scriptopotamus.compiler.path to use it.`;
       if (interactive) notify(message, 'missing-compiler', true);
       else output.appendLine(message);
       return null;

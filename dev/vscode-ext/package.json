@@ -2,7 +2,7 @@
   "name": "scriptopotamus",
   "displayName": "Scriptopotamus",
   "description": "Syntax highlighting, autocomplete, linting, and compiler diagnostics for Scriptopotamus (.scrippo) scripts",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "publisher": "michaelmunson",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -132,7 +132,7 @@
           "type": "string",
           "default": "",
           "scope": "resource",
-          "description": "Path to the scrippo binary. Supports ${workspaceFolder} and ~. When empty, target/debug/scrippo or target/release/scrippo is looked up in the workspace."
+          "description": "Path to the scrippo compiler (scrippo-core, or the scrippo wrapper). Supports ${workspaceFolder} and ~. When empty, target/debug/scrippo-core and target/release/scrippo-core are looked up first, then target/debug/scrippo and target/release/scrippo."
         }
       }
     },

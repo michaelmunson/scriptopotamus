@@ -1,0 +1,110 @@
+:root {
+  --ifm-color-primary: #b5521a;
+  --ifm-color-primary-dark: #a34a17;
+  --ifm-color-primary-darker: #9a4616;
+  --ifm-color-primary-darkest: #7f3912;
+  --ifm-color-primary-light: #c75d1e;
+  --ifm-color-primary-lighter: #d06524;
+  --ifm-color-primary-lightest: #e0894e;
+  --ifm-background-color: #f6f3ee;
+  --ifm-font-color-base: #1c1915;
+  --ifm-font-family-base: Palatino, "Palatino Linotype", "Iowan Old Style", Georgia, serif;
+  --ifm-heading-font-family: Palatino, "Palatino Linotype", Georgia, serif;
+  --ifm-font-family-monospace: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ifm-navbar-background-color: #fffdf9;
+  --ifm-code-background: #f3eee6;
+  --ifm-pre-background: #241f1b;
+  --ifm-global-radius: 8px;
+  --ifm-toc-border-color: #e4ddd3;
+  --ifm-hr-background-color: #e4ddd3;
+  --ifm-color-emphasis-300: #e4ddd3;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #e0894e;
+  --ifm-color-primary-dark: #db7634;
+  --ifm-color-primary-darker: #d46c28;
+  --ifm-color-primary-darkest: #af5618;
+  --ifm-color-primary-light: #e59c68;
+  --ifm-color-primary-lighter: #e8a574;
+  --ifm-color-primary-lightest: #efc09a;
+  --ifm-background-color: #1c1915;
+  --ifm-font-color-base: #f6f1ea;
+  --ifm-navbar-background-color: #141210;
+  --ifm-code-background: #2a241e;
+  --ifm-pre-background: #141210;
+}
+
+html[data-theme='light'] .theme-doc-sidebar-container {
+  background: #1c1915;
+  border-right: none;
+}
+
+html[data-theme='light'] .menu {
+  background: transparent;
+}
+
+html[data-theme='light'] .menu__link {
+  color: #e7e1d8;
+}
+
+html[data-theme='light'] .menu__link:hover,
+html[data-theme='light'] .menu__list-item-collapsible:hover {
+  background: #2a241e;
+  color: #fff;
+}
+
+html[data-theme='light'] .menu__link--active:not(.menu__link--sublist) {
+  background: #3a2a22;
+  color: #ffd7c2;
+}
+
+html[data-theme='light'] .menu__link--sublist {
+  color: #b3aa9e;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+html[data-theme='light'] .menu__caret:before,
+html[data-theme='light'] .menu__link--sublist-caret:after {
+  filter: invert(0.85);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin: 1.2rem 0 1.6rem;
+}
+
+.cards a {
+  display: block;
+  background: var(--ifm-navbar-background-color);
+  border: 1px solid var(--ifm-toc-border-color);
+  border-radius: 12px;
+  padding: 0.85rem 0.95rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.cards a:hover {
+  border-color: var(--ifm-color-primary);
+  color: inherit;
+  text-decoration: none;
+}
+
+.cards strong {
+  display: block;
+  color: var(--ifm-color-primary);
+}
+
+.cards span {
+  color: var(--ifm-color-emphasis-700);
+}
+
+@media (max-width: 600px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}

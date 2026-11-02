@@ -350,13 +350,33 @@ fn emit_function(
         }
     }
 
+    let has_body = body.iter().any(|s| {
+        !matches!(
+            s,
+            Stmt::Function {
+                is_command: true,
+                ..
+            }
+        )
+    });
     if !subcommands.is_empty() {
-        em.emit_line("if [[ $# == 0 ]]; then");
-        em.emit_line("  _scrippo_usage >&2; exit 1");
-        em.emit_line("fi");
+        if !has_body {
+            em.emit_line("if [[ $# == 0 ]]; then");
+            em.emit_line("  _scrippo_usage >&2; exit 1");
+            em.emit_line("fi");
+        }
         if params.is_empty() {
-            em.emit_line(&format!("echo \"{usage_name}: unknown command '$1'\" >&2"));
-            em.emit_line("_scrippo_usage >&2; exit 1");
+            let pad = if has_body { "  " } else { "" };
+            if has_body {
+                em.emit_line("if [[ $# != 0 ]]; then");
+            }
+            em.emit_line(&format!(
+                "{pad}echo \"{usage_name}: unknown command '$1'\" >&2"
+            ));
+            em.emit_line(&format!("{pad}_scrippo_usage >&2; exit 1"));
+            if has_body {
+                em.emit_line("fi");
+            }
         }
     }
     emit_function_params(em, &label, params)?;
