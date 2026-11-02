@@ -63,3 +63,32 @@ A project command alias such as `build` completes as if you had typed `scrippo .
 ## Managed names
 
 The hook records the aliases it created and deletes those names before defining a new set. Aliases you defined yourself, under other names, are left in place. A name that collides with an autoload alias is redefined on each refresh while you remain in a directory that provides it.
+
+## Editable command input
+
+The repository's `packages/shell/shell.scrippo` package exports `shell(text)`.
+Copy it to your project's `.scrippo/lib/shell.scrippo` (or your global
+`~/.scrippo/lib/shell.scrippo`), and enable the hook above. Then:
+
+```scrippo
+@import shell
+
+text='echo "Hello"'
+shell "$text"
+```
+
+After the script finishes, the calling shell shows `echo "Hello"` as editable
+input. Edit it and press Enter to run it in that shell; the accepted command is
+added to its history, subject to the shell's history settings. Commands such as
+`cd` and variable assignments therefore affect the calling shell.
+
+The hook creates a private temporary file and exports its path as
+`SCRIPPO_SHELL_INPUT` to child scripts. `shell` only writes text; it does not
+execute it. The next prompt consumes the file. The last call before that prompt
+wins. Without the hook, `shell` reports an error and returns status 1.
+
+Zsh places the text in its normal editor buffer. Bash uses a Readline prompt
+before the next normal prompt, records accepted input, and evaluates it in the
+calling shell. Press Ctrl-D to discard the Bash input. Handoffs require an
+interactive shell; they are not consumed in batch runs. Temporary handoff files
+are empty after consumption and may be removed after closing the shell.

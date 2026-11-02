@@ -635,12 +635,32 @@ _SCRIPPO_FILES=()
 _SCRIPPO_PREFIX=()
 "#;
 
-const HOOK_UNIVERSAL: &str = r#"if [ -n "${ZSH_VERSION-}" ]; then
+const HOOK_UNIVERSAL: &str = r#"# Each interactive shell owns a private handoff file, even in nested shells.
+if [ "${_SCRIPPO_INPUT_OWNER-}" != "$$" ]; then
+  SCRIPPO_SHELL_INPUT=$(mktemp "${TMPDIR:-/tmp}/scrippo-input.XXXXXXXXXX") || return 1
+  export SCRIPPO_SHELL_INPUT
+  _SCRIPPO_INPUT_OWNER=$$
+fi
+_scrippo_input() {
+  [ -s "$SCRIPPO_SHELL_INPUT" ] || return 0
+  local _scrippo_text
+  _scrippo_text=$(cat -- "$SCRIPPO_SHELL_INPUT")
+  : > "$SCRIPPO_SHELL_INPUT"
+  if [ -n "${ZSH_VERSION-}" ]; then
+    print -z -- "$_scrippo_text"
+  elif IFS= read -r -e -i "$_scrippo_text" -p "> " _scrippo_text; then
+    [ -n "$_scrippo_text" ] || return 0
+    history -s -- "$_scrippo_text"
+    eval -- "$_scrippo_text"
+  fi
+}
+if [ -n "${ZSH_VERSION-}" ]; then
   setopt COMPLETE_ALIASES
   _scrippo_hook() {
     eval "$(SCRIPPO_SHELL=zsh scrippo --env)"
   }
   autoload -Uz add-zsh-hook
+  add-zsh-hook precmd _scrippo_input
   add-zsh-hook chpwd _scrippo_hook
   _scrippo_hook
 elif [ -n "${BASH_VERSION-}" ]; then
@@ -650,7 +670,7 @@ elif [ -n "${BASH_VERSION-}" ]; then
     eval "$(SCRIPPO_SHELL=bash scrippo --env)"
   }
   if [[ ${PROMPT_COMMAND-} != *_scrippo_hook* ]]; then
-    PROMPT_COMMAND="_scrippo_hook${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+    PROMPT_COMMAND="_scrippo_input;_scrippo_hook${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
   fi
   _scrippo_hook
 else

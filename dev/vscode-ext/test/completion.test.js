@@ -125,6 +125,7 @@ test('packages complete after @import', () => {
   assert.deepEqual(
     found.items.filter((item) => item.detail !== 'local file').map((item) => item.label),
     [
+      'shell',
       'scrippo/std',
       'scrippo/std/io',
       'scrippo/std/types',
@@ -180,4 +181,11 @@ test('scoped imports and usage macros complete', () => {
   assert.deepEqual(labels([], '@import tools.scrippo --as '), ['.command', 'function']);
   assert.ok(labels([], '@').includes('usage'));
   assert.ok(labels([], '.child(@').includes('inherit'));
+});
+
+test('shell helper completes only with its package imported', () => {
+  assert.ok(!labels([], 'sh').includes('shell'));
+  assert.ok(labels(['@import shell'], 'sh').includes('shell'));
+  const item = at(['@import shell'], 'sh').items.find((i) => i.label === 'shell');
+  assert.match(item.documentation, /calling shell prompt/);
 });

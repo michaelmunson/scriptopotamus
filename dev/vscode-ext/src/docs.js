@@ -1,6 +1,13 @@
 'use strict';
 
 const BUILTINS = {
+  shell: {
+    signature: 'shell(text)',
+    description: 'Queue text at the calling shell prompt for editing and execution in that shell, with history. Requires scrippo-core --init shell integration. From @import shell.',
+    snippet: 'shell "${1:text}"',
+    flags: [],
+    pkg: 'shell',
+  },
   throw: {
     signature: 'throw(code<int> msg...)',
     description: 'Exits with `code`, printing `msg` as a red error message. From `@import scrippo/std/io`.',
@@ -95,6 +102,7 @@ const TYPES = {
 };
 
 const PACKAGES = [
+  { path: 'shell', detail: 'shell(text)', description: 'Editable input in the calling shell; requires shell integration.' },
   { path: 'scrippo/std', detail: 'io, types, path', description: 'The whole standard library.' },
   { path: 'scrippo/std/io', detail: 'throw, prt, input', description: 'Styled printing, prompts, and throw.' },
   { path: 'scrippo/std/types', detail: 'list, dict, str', description: 'List, dict, and string helpers.' },
@@ -106,6 +114,8 @@ const PACKAGES = [
 ];
 
 const PACKAGE_MODULES = {
+  'shell': ['shell'],
+  'shell.scrippo': ['shell'],
   'scrippo/std': ['io', 'types', 'path'],
   'scrippo/std.scrippo': ['io', 'types', 'path'],
   'scrippo/*': ['io', 'types', 'path'],

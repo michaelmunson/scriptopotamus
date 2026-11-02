@@ -90,7 +90,7 @@ function functionItems(analysis) {
   const items = analysis.callable.map(callableItem);
   for (const [name, builtin] of Object.entries(docs.BUILTINS)) {
     if (builtin.macro || !imported.has(builtin.pkg) || analysis.callable.some((fn) => fn.name === name)) continue;
-    items.push({ label: name, kind: 'function', detail: `scrippo/std/${builtin.pkg}`, documentation: `${codeblock(builtin.signature)}\n\n${builtin.description}` });
+    items.push({ label: name, kind: 'function', detail: builtin.pkg === 'shell' ? 'shell' : `scrippo/std/${builtin.pkg}`, documentation: `${codeblock(builtin.signature)}\n\n${builtin.description}` });
   }
   return items;
 }

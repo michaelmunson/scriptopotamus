@@ -312,3 +312,52 @@ fn env_emits_alias_with_completion() {
     assert!(text.contains("alias s=scrippo"), "{text}");
     assert!(!text.contains("_SCRIPPO_FILES[s]"), "{text}");
 }
+
+#[test]
+fn shell_package_handoff_is_literal_and_consumed_by_parent() {
+    let dir = tempfile::tempdir().unwrap();
+    let package = Path::new(env!("CARGO_MANIFEST_DIR")).join("packages/shell/shell.scrippo");
+    let compiled = scriptopotamus::compile_package(&package, package.parent().unwrap()).unwrap();
+    let package_bash = dir.path().join("shell.bash");
+    std::fs::write(&package_bash, compiled).unwrap();
+    let hook = Command::new(bin()).arg("--init").output().unwrap();
+    let hook_path = dir.path().join("hook");
+    std::fs::write(&hook_path, hook.stdout).unwrap();
+    for shell in ["bash", "zsh"] {
+        let script = r#"
+scrippo() { :; }
+. "$1"
+trap 'rm -f "$SCRIPPO_SHELL_INPUT"' EXIT
+bash -c '. "$1"; shell "$2"' test "$2" 'echo "Hello"; $(touch should-not-exist)'
+[ ! -e should-not-exist ] || exit 10
+[ "$(cat "$SCRIPPO_SHELL_INPUT")" = 'echo "Hello"; $(touch should-not-exist)' ] || exit 11
+if [ -n "${ZSH_VERSION-}" ]; then
+  _scrippo_input
+  read -rz queued
+  [ "$queued" = 'echo "Hello"; $(touch should-not-exist)' ] || exit 12
+else
+  printf '%s\n' 'SCRIPPO_TEST_ACCEPTED=yes' | cat > edited
+  _scrippo_input < edited
+  [ "$SCRIPPO_TEST_ACCEPTED" = yes ] || exit 13
+  history 1 | grep 'SCRIPPO_TEST_ACCEPTED=yes' || exit 14
+fi
+[ ! -s "$SCRIPPO_SHELL_INPUT" ] || exit 15
+unset SCRIPPO_SHELL_INPUT
+bash -c '. "$1"; shell test' test "$2" && exit 16
+exit 0
+"#;
+        let output = Command::new(shell)
+            .args(["-c", script, "test"])
+            .arg(&hook_path)
+            .arg(&package_bash)
+            .current_dir(dir.path())
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{shell}: {} {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
