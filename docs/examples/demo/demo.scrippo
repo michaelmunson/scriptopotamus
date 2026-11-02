@@ -24,3 +24,11 @@
 	prt "Optional:" -s yellow $optional
 	prt "Many:" -s yellow "${many[@]}"
 	prt "Rest:" -s yellow "${rest[@]}"
+
+.dicts()
+	mydict<dict>=(a=1 b=2 c=3)
+	for i in ${!mydict[@]}
+		prt "Key:" -s yellow $i
+		prt "Value:" -s yellow $mydict[$i]
+
+	-> $(dict --length mydict)
