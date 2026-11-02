@@ -12,3 +12,15 @@
 		if -n $age
 			prt  -s yellow "You are $age years old."
 	@usage 0
+
+#? example: args --many a b c --required 1 hello world 123
+.args(
+	--required<int>
+	[--optional]
+	[--many<str>...]
+	*rest
+)
+	prt "Required:" -s yellow $required
+	prt "Optional:" -s yellow $optional
+	prt "Many:" -s yellow "${many[@]}"
+	prt "Rest:" -s yellow "${rest[@]}"
