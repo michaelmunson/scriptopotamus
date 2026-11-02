@@ -17,7 +17,7 @@ build-release:
 	$(call wrapper,release)
 
 build-extension:
-	cd ./dev/vscode-ext && rm -f ./*.vsix && npm run build
+	cd ./dev/vscode-ext && rm -f ./*.vsix && npm run build && mv ./*.vsix ./scriptopotamus.vsix
 
 test:
 	cargo test
