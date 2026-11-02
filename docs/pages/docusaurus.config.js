@@ -18,7 +18,7 @@ const baseUrl = siteBaseUrl(process.env.DOCUSAURUS_BASE_URL);
 const config = {
   title: 'Scriptopotamus',
   tagline: 'scrippo compiles .scrippo to bash',
-  favicon: 'img/favicon.svg',
+  favicon: 'img/logo.png',
   url,
   baseUrl,
   organizationName: 'michaelmunson',
@@ -75,8 +75,8 @@ const config = {
       navbar: {
         title: 'Scriptopotamus',
         logo: {
-          alt: '',
-          src: 'img/favicon.svg',
+          alt: 'Scriptopotamus',
+          src: 'img/logo.png',
         },
         items: [
           {

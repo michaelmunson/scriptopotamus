@@ -11,7 +11,7 @@ description: The @info declaration for name, version, kind, and autoload.
 
 Two spellings parse. The parenthesized form is the one install understands:
 
-```
+```scrippo
 @info(
   --name is-even
   --version 1.2.0

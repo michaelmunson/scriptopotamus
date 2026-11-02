@@ -11,7 +11,7 @@ A condition is the text after `if`, `elif`, or `while`. A leading `! ` (bang and
 
 **Bool.** A condition that is only `$name`, `${name}`, `$--flag`, or `$-flag` becomes `[[ $name == true ]]`.
 
-```
+```scrippo
 if $loud
   -> "HELLO"
 if ! $dry_run
@@ -20,14 +20,14 @@ if ! $dry_run
 
 **Command.** A condition that starts with a letter, `_`, or another character outside `$`, quotes, digits, and `-` is emitted as a command. Its exit status is the condition.
 
-```
+```scrippo
 if grep -q TODO NOTES.md
   -> "found"
 ```
 
 **Test.** Every other condition is wrapped in `[[ ]]`. A condition that already starts with `[` or `[[` is left alone.
 
-```
+```scrippo
 if $n -lt 3
   -> "small"
 if $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$
@@ -40,7 +40,7 @@ if [[ -f $path ]]
 
 ## if
 
-```
+```scrippo
 if $flag
   -> "yes"
 elif $other
@@ -51,13 +51,13 @@ else
 
 `elif` and `else` align with `if`. An `else` or `elif` without a matching `if` at that indent is a compile error. The one-line form uses semicolons:
 
-```
+```scrippo
 if $flag; -> "yes"; else -> "no"
 ```
 
 ## for
 
-```
+```scrippo
 for i in a b c
   -> $i
 
@@ -68,13 +68,13 @@ for i in $items
 
 The loop variable is a single identifier. Items are words. A word that is only `$name` expands to `"${name[@]}"`. Other words are copied with reference rewriting, so `$prefix/$name` stays a single word.
 
-```
+```scrippo
 for i in $items; -> $i
 ```
 
 ## while
 
-```
+```scrippo
 n<int>=0
 while $n -lt 3
   -> $n
@@ -87,7 +87,7 @@ The assignment on the last line is bash arithmetic written as a scalar. The cond
 
 `case` follows bash pattern syntax. The word `in` after the subject is optional.
 
-```
+```scrippo
 case $choice
   patch | minor)
     -> "ok"
@@ -110,7 +110,7 @@ The arm ends with a bash terminator:
 
 Put the terminator at the end of the arm's first line, or as its own indented line under the arm:
 
-```
+```scrippo
 case $choice
   patch)
     -> "patch"

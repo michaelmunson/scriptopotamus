@@ -9,7 +9,7 @@ A scrippo source file is a sequence of statements. A statement is one logical li
 
 Function, command, variable, and macro names are ASCII. A variable or function starts with a letter or `_`, then letters, digits, or `_`. Command names may also contain `-`. Package and script names used by the CLI start with a letter or `_` and may contain `-`.
 
-```
+```scrippo
 count<int>=1
 .bump-version()
   -> $count
@@ -19,7 +19,7 @@ count<int>=1
 
 The body of a function, command, `if`, `for`, `while`, `case` arm, or macro is every following statement indented deeper than the header. The block ends when a line returns to the header's indent or less. Spaces and tabs both count. One tab is one indent unit, the same as one space, so a file should pick one and keep it. Examples in this manual use two spaces.
 
-```
+```scrippo
 if $ready
   -> "yes"
 -> "after the if"
@@ -29,7 +29,7 @@ There is no `fi`, `done`, or `esac` in scrippo. A line that is exactly `fi` or `
 
 `else` and `elif` sit at the same indent as their `if`:
 
-```
+```scrippo
 if $n -lt 0
   -> "negative"
 elif $n -eq 0
@@ -42,7 +42,7 @@ else
 
 `#` starts a comment that runs to the end of the line, except inside quotes. `#?` is a documentation comment. Documentation comments immediately above a command, function, parameter, or option are copied into usage text. Ordinary `#` comments are discarded and never appear in the bash output.
 
-```
+```scrippo
 # ignored by the compiler
 #? Shown in --help
 .deploy(
@@ -57,7 +57,7 @@ else
 
 A shebang is a comment, because it starts with `#`:
 
-```
+```scrippo
 #! /usr/bin/env scrippo
 ```
 
@@ -67,7 +67,7 @@ The compiler ignores it. The operating system uses it when you execute the file 
 
 `;` separates statements on one line. Quotes hide semicolons. This form works for `if`, `elif`, `else`, `for`, and `while`:
 
-```
+```scrippo
 if $flag; -> "yes"; else -> "no"
 for i in a b c; -> $i
 ```
@@ -89,6 +89,6 @@ The compiler classifies each statement in this order:
 
 A function header may span lines until its parentheses balance. Parameters may be laid out one per line. A header may end with `->` and an expression, which becomes the whole body:
 
-```
+```scrippo
 double(n<int>) -> $n * 2
 ```

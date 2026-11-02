@@ -5,7 +5,7 @@ description: Arguments, options, aliases, groups, exclusive sets, defaults, repe
 
 Functions and commands share one parameter grammar. The text inside the parentheses is the grammar. It may span lines. `#` comments and `#?` documentation comments are allowed inside it.
 
-```
+```scrippo
 .serve(
   path
   [port<int=8080>]
@@ -54,7 +54,7 @@ The variable for an option is the first flag with leading dashes removed and `-`
 
 `/` joins flags that are the same option. It applies only when both sides are flags.
 
-```
+```scrippo
 .files([-ls / --list | -rm / --remove])
   if $list
     -> "listing"
@@ -74,7 +74,7 @@ Usage indents the group's later parameters under its first option. That is how `
 
 `|` separates alternatives. The caller may supply one of them.
 
-```
+```scrippo
 .ask(
   [
     --select<str>...
@@ -92,7 +92,7 @@ If every alternative is optional, the caller may supply none. If none of them is
 
 `*name` is an array. It must be the last parameter you care about. After every fixed positional is filled, the remaining words are appended as written, options included. `--` is kept as a word.
 
-```
+```scrippo
 .cmd(file [-v] *rest)
   -> "$v|$file|${rest[*]}"
 ```

@@ -5,7 +5,7 @@ description: prt, input, throw, list, dict, str, and here.
 
 The standard library is three modules compiled into `scrippo`. Import the pieces you need, or all of them:
 
-```
+```scrippo
 @import scrippo/std
 @import scrippo/std/io
 @import scrippo/std/types
@@ -18,19 +18,19 @@ Importing any of `prt`, `input`, or `throw` causes the compiler to embed the sha
 
 ### throw
 
-```
+```scrippo
 throw(code<int> msg...)
 ```
 
 Prints `msg` in red to stderr and exits with `code`. The words of `msg` are joined by the first character of `IFS`, normally a space.
 
-```
+```scrippo
 throw 1 "Bump aborted"
 ```
 
 ### prt
 
-```
+```scrippo
 prt(
   msg...
   [-s / --style<str>...]
@@ -43,7 +43,7 @@ Prints messages. `-j` / `--join` is the separator, defaulting to a space. `-n` o
 
 `-s` / `--style` applies ANSI styles to the next message. Several style names after one `-s` combine. A later `-s` styles a later message.
 
-```
+```scrippo
 prt -s green "ok" -s bold -s red "stop"
 prt -j "." a b c
 ```
@@ -52,7 +52,7 @@ Style names: `bold`, `dim`, `italic`, `underline`, `black`, `red`, `green`, `yel
 
 ### input
 
-```
+```scrippo
 input(
   prompt
   [-v<str>]
@@ -82,7 +82,7 @@ On a terminal, confirm is a `y` / `n` keypress (`enter` is no). Select is an arr
 
 ### list
 
-```
+```scrippo
 list(array<list> [--join<str>] [--length])
 ```
 
@@ -90,7 +90,7 @@ list(array<list> [--join<str>] [--length])
 
 The parameter is one positional word, bound with `local array=$word`, the same way as any other non-repeatable argument. It is not a repeatable `...` parameter, so the words of a list are not collected into an array by the call. Index a list variable, or loop over it, when you need its elements:
 
-```
+```scrippo
 items<list>=(a b c)
 -> $items[0]
 for i in $items
@@ -101,20 +101,20 @@ A line such as `list (1 2 3 4) --join "."` is bash text. Bash rejects the parent
 
 ### dict
 
-```
+```scrippo
 dict(dict<dict> [--keys] [--values] [--length])
 ```
 
 `--keys` prints `${!dict[@]}`. `--values` and the default form print `${dict[@]}`. `--length` prints `${#dict[@]}`. The positional is one word, bound to `dict`. Read an entry with an index:
 
-```
+```scrippo
 user<dict>=(name=ada year=1815)
 -> $user[name]
 ```
 
 ### str
 
-```
+```scrippo
 str(string<str> [--length] [--split<str>])
 ```
 
@@ -124,7 +124,7 @@ str(string<str> [--length] [--split<str>])
 
 ### here
 
-```
+```scrippo
 here([--file] [--rel])
 ```
 

@@ -14,7 +14,7 @@ scrippo -n -s -g greet
 
 A local script is created in the current directory:
 
-```
+```scrippo
 #! /usr/bin/env scrippo
 .main()
   -> "hello from greet"

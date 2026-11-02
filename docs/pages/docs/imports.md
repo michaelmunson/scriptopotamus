@@ -5,7 +5,7 @@ description: Compile-time @import of the standard library, packages, files, and 
 
 `@import` copies another program into the file being compiled. There is no runtime loader. By the time bash runs, every imported function and command is already in the script.
 
-```
+```scrippo
 @import scrippo/std
 @import mylib
 @import ./relative.scrippo
@@ -15,7 +15,7 @@ description: Compile-time @import of the standard library, packages, files, and 
 
 The path is one literal word. Quotes are allowed. `$` and command substitution in the path are rejected. An optional scope is exactly `--as` and a name:
 
-```
+```scrippo
 @import projects/project-one.scrippo --as .project-one
 @import projects/project-one.scrippo --as project-one-helper
 ```

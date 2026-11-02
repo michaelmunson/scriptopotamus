@@ -25,7 +25,7 @@ Removal deletes `mylib.scrippo` and `mylib.bash` in that directory when they are
 
 ## Write one
 
-```
+```scrippo
 @info(
   --name mylib
   --version 1.2.0
@@ -43,7 +43,7 @@ Export functions and, when useful, named commands (`.greet`). A root command `.(
 
 ## Import one
 
-```
+```scrippo
 @import mylib
 
 if is_even 4

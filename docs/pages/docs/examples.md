@@ -9,7 +9,7 @@ The repository keeps short programs under `docs/examples/`. Compile any of them 
 
 A constant, a function, and a top-level print. This is the smallest program that uses a type and arithmetic:
 
-```
+```scrippo
 PI<const float>=3.14
 
 circumference(diameter<float>)
@@ -33,7 +33,7 @@ Nested commands are invoked as extra words: `math add`, not `math.add`.
 
 ## imports.scrippo
 
-```
+```scrippo
 @import scrippo/std
 
 prt -s green "hello from stdlib" -s red "hello from imports"
@@ -47,7 +47,7 @@ list (1 2 3 4) --join "."
 
 ## macros.scrippo
 
-```
+```scrippo
 @say_hi()
   -> "hi from macro"
 

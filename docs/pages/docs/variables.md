@@ -7,7 +7,7 @@ A variable is a bash variable with an optional scrippo type. The type is checked
 
 ## Declarations and assignments
 
-```
+```scrippo
 n<int>=1
 label<str>="hello"
 flag<bool>=true
@@ -19,7 +19,7 @@ loose<any>
 
 `name<type>` declares without a value. `name<type>=value` declares and assigns. `name=value` assigns. A later assignment to a name that already has a type is checked against that type.
 
-```
+```scrippo
 n<int>=1
 n=2
 n=two
@@ -41,7 +41,7 @@ The last line compiles, and the generated bash exits 1 at runtime with `n: expec
 
 `const` may appear before the kind. `const` with no kind is `const any`.
 
-```
+```scrippo
 PI<const float>=3.14
 limit<const int>=3
 ```
@@ -52,7 +52,7 @@ Reassigning a const is a compile error: `cannot reassign const 'PI'`. Const inte
 
 A type may list the only values it accepts, in braces or parentheses:
 
-```
+```scrippo
 bump<str {patch minor major}>
 mode<str (fast slow)>
 level<int {1 2 3}>=1

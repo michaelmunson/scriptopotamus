@@ -5,7 +5,7 @@ description: Scalars, lists, dicts, indexes, math, and the -> statement.
 
 `->` prints a value with `echo` and a trailing newline. A bare `->` prints a blank line.
 
-```
+```scrippo
 -> "hello"
 -> $name
 ->
@@ -17,7 +17,7 @@ The right-hand side of `->` and the right-hand side of an assignment use the sam
 
 A scalar is everything that is not a parenthesized list or dict and not recognized as math. Quotes are preserved and handed to bash.
 
-```
+```scrippo
 title<str>="hello world"
 path<str>='$HOME/notes'
 message<str>="count is $n"
@@ -46,7 +46,7 @@ Option references drop leading dashes and turn remaining `-` into `_`. `--dry-ru
 
 A parenthesized value whose words do not all contain `=` is a list.
 
-```
+```scrippo
 items<list>=(a b "c d")
 -> $items[0]
 ```
@@ -57,7 +57,7 @@ In `for i in $items`, a lone `$items` is expanded as `"${items[@]}"`, so each el
 
 If every word inside the parentheses contains `=`, the value is a dict. Keys become bash associative-array keys.
 
-```
+```scrippo
 user<dict>=(name=ada year=1815)
 -> $user[name]
 ```
@@ -68,7 +68,7 @@ Quote a key or value that has spaces. The compiler emits `[key]=value` entries.
 
 A value is math when it contains no quotes or parentheses and has a `+`, `-`, `*`, `/`, or `%` with whitespace on both sides. Math is emitted as `$(bc <<< "...")`.
 
-```
+```scrippo
 n<int>=2
 -> $n + 3
 area<float>=$width * $height

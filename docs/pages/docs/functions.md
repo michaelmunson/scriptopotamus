@@ -5,7 +5,7 @@ description: Named functions, calls, and how they differ from commands.
 
 A function is a name, parentheses, optional parameters, and an indented body. It compiles to a bash function. Call it the way you call a bash function: `name arg arg`.
 
-```
+```scrippo
 circumference(diameter<float>)
   -> $PI * $diameter
 
@@ -14,7 +14,7 @@ circumference(diameter<float>)
 
 A one-line body may sit after the header when it is a `->` expression:
 
-```
+```scrippo
 double(n<int>) -> $n * 2
 ```
 
@@ -28,7 +28,7 @@ Parameters inside the function are local bash variables. The original `"$@"` is 
 
 Function parameters use the same grammar as command parameters: positional arguments, options, groups, exclusive sets, defaults, repeats, and `*rest`. See [Parameters](/parameters).
 
-```
+```scrippo
 choose(
   path
   [optional_arg<int>]

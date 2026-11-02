@@ -1,11 +1,11 @@
 ---
 title: Inherit
-description: Copy a parent command's parameters into a nested command with @inherit.
+description: The @inherit macro copies a parent command's parameters into a nested command.
 ---
 
-`@inherit` in a parameter list copies the enclosing function or command's parameters into the child. Nested commands use it so a subcommand can take the same arguments as its parent without repeating them.
+`@inherit` is a built-in macro. In a parameter list it expands to the enclosing function or command's parameters. Nested commands use it so a subcommand can take the same arguments as its parent without repeating them. See [Macros](/macros) for macros you define yourself.
 
-```
+```scrippo
 #? get a path
 .path(
   #? input path
@@ -28,9 +28,9 @@ scrippo app.scrippo path abs hello --verbose
 
 ## What is copied
 
-`@inherit` is a positional stand-in. It is replaced by the parent's parameter list, in order, at the place you wrote it. You may add parameters before or after it:
+The macro expands where you write it. The parent's parameter list is pasted in order, and you may add parameters before or after the call:
 
-```
+```scrippo
 .world(@inherit [--age<int>])
   -> "$name $age"
 ```

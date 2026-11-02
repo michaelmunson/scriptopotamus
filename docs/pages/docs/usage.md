@@ -9,7 +9,7 @@ Usage is generated from the command tree, the parameter grammar, and `#?` commen
 
 `#?` immediately above a function or command documents that entry. `#?` above a parameter, or on its line, documents that parameter. The key is the parameter's first token. Several comments for the same key are joined with `; `.
 
-```
+```scrippo
 #? Resolve a path
 .get-path(
   path #? Path to resolve
@@ -43,7 +43,7 @@ Colors are used when stdout is a terminal and `NO_COLOR` is unset. Set `NO_COLOR
 
 `@usage` prints the usage for the command or function that contains it.
 
-```
+```scrippo
 .hello(name)
   .world(@inherit)
     @usage 0

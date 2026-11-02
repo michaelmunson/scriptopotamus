@@ -23,7 +23,7 @@ helpers/
 
 The first statement is `@info` with a kind, a name, and a version. The name matches the file stem. The version matches the Git tag you are about to push, without a leading `v`.
 
-```
+```scrippo
 @info(
   --name is-even
   --version 1.2.0

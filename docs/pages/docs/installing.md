@@ -77,7 +77,7 @@ If the source root contains `.install.scrippo`, it runs twice: phase `before` be
 
 Top-level statements run on both passes. Put phase-specific work in `.before()` and `.after()`:
 
-```
+```scrippo
 -> "runs before and after"
 
 .before()

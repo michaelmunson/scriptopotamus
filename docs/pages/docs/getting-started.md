@@ -7,7 +7,7 @@ A scrippo file is text with a `.scrippo` extension. Blocks are indented. `->` pr
 
 Create `hello.scrippo`:
 
-```
+```scrippo
 #! /usr/bin/env scrippo
 
 .greet(name [--loud])
@@ -68,7 +68,7 @@ chmod +x hello.scrippo
 
 Top-level statements run as the program:
 
-```
+```scrippo
 name<str>="ada"
 -> "hello $name"
 ```

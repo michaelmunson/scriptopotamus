@@ -9,13 +9,12 @@ description: How a .scrippo file becomes bash, and what the generated program co
 
 1. **Parse.** Indentation builds the tree. `@info` is validated and kept only as metadata.
 2. **Import.** `@import` loads the standard library, packages, and files. Each imported scrippo file repeats this step.
-3. **Macros.** Definitions are collected and calls are replaced by bodies.
-4. **Inherit.** `@inherit` is replaced by the parent parameter list.
-5. **Check.** Duplicate command names and const reassignment fail here.
-6. **Emit.** The tree becomes bash. Parameter binding, type tests, usage text, and command dispatch are generated.
-7. **Run.** The bash is written to a temporary executable. `_SCRIPPO_FILE` is the source path. The script's arguments are passed through. A non-zero status from bash becomes scrippo's status. The temp file is removed after the process exits.
+3. **Macros.** Definitions are collected and calls are replaced by bodies. `@inherit` in a parameter list is replaced by the parent parameter list.
+4. **Check.** Duplicate command names and const reassignment fail here.
+5. **Emit.** The tree becomes bash. Parameter binding, type tests, usage text, and command dispatch are generated.
+6. **Run.** The bash is written to a temporary executable. `_SCRIPPO_FILE` is the source path. The script's arguments are passed through. A non-zero status from bash becomes scrippo's status. The temp file is removed after the process exits.
 
-Libraries compiled during install skip step 7. They also skip command dispatch and the automatic top-level `--help`. A library that contains `.()` is rejected.
+Libraries compiled during install skip the run step. They also skip command dispatch and the automatic top-level `--help`. A library that contains `.()` is rejected.
 
 ## The bash file
 

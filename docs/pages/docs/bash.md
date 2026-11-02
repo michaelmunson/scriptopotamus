@@ -5,7 +5,7 @@ description: Lines the compiler copies through to the generated bash program.
 
 Any statement the compiler does not recognize as scrippo syntax is bash. The line is emitted as written, after `$` references are rewritten. Lines indented under that statement belong to the same bash snippet. Their shared leading indent, equal to the statement's indent, is removed.
 
-```
+```scrippo
 if $ready
   grep -n "$pattern" "$file" \
     | head
@@ -21,7 +21,7 @@ A bash line that begins with `@name` expands that macro when it exists. See [Mac
 
 ## Patterns that belong here
 
-```
+```scrippo
 n=$((n + 1))
 [[ -f $path ]] && -> "present"
 result="$(realpath "$path")"

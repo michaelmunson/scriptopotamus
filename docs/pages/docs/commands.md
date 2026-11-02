@@ -5,7 +5,7 @@ description: CLI commands, nesting, the root command, and dispatch.
 
 A command is a function whose name starts with `.`. The dot is not part of the name the user types. Commands are how a script takes subcommands on its command line.
 
-```
+```scrippo
 .greet(name [--loud])
   if $loud
     -> "HELLO $name"
@@ -41,7 +41,7 @@ Duplicate command names in the same command list are a compile error, including 
 
 `.()` is the root command. It is the behavior of the script itself.
 
-```
+```scrippo
 #? Root documentation
 .(value<int>)
   -> $value
@@ -65,7 +65,7 @@ A package compiled for install cannot contain `.()`. Put executable root command
 
 Every command accepts `--help` unless its parameter list declares `--help`. Declared `--help` is a normal bool option and your body decides what it does.
 
-```
+```scrippo
 .cmd([--help])
   -> "custom $--help"
 ```
