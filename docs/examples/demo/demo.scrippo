@@ -1,6 +1,6 @@
-@import "./fs.scrippo" --as .fs
 @import scrippo/std
-
+@import "./fs.scrippo" --as .fs
+@import "./stdlib.scrippo" --as .stdlib
 #? hello world function
 .hello(
 	name #? Name of the person to greet

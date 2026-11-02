@@ -118,7 +118,11 @@ test('empty blocks are flagged', () => {
 });
 
 test('unknown and malformed types', () => {
-  assert.deepEqual(codes(['x<integer>=1', 'y<string>=a', 'z<array>=(1)', 'w<const>=1', 'v<any>=1']), []);
+  assert.deepEqual(codes(['x<integer>=1', 'y<string>=a', 'z<array>=(1)', 'w<const>=1', 'v<any>=1', 'r<ref>=n', 's<ref list>=n', 't<const ref str>=n']), []);
+  assert.deepEqual(codes(['x<list ref>=n']), ['1:type']);
+  assert.deepEqual(codes(['f(items<ref list>...)', '  echo']), ['1:param']);
+  assert.deepEqual(codes(['n<ref int>=count']), []);
+  assert.deepEqual(codes(['n<ref list>=(a b)']), ['1:type-mismatch']);
   assert.deepEqual(codes(['x<int const>=1']), ['1:type']);
   assert.deepEqual(codes(['x<int str>=1']), ['1:type']);
   assert.deepEqual(codes(['x<list list>']), ['1:type']);

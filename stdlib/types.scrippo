@@ -1,10 +1,26 @@
 list(
-  array<list>
+  array<ref list>
+  [item]
   [--join<str>]
   [--length]
+  [--reverse]
+  [--contains]
 )
   if $--length
     -> ${#array[@]}
+  elif $--reverse
+    local -a _scrippo_rev=()
+    local _scrippo_i=$(( ${#array[@]} - 1 ))
+    while [[ $_scrippo_i -ge 0 ]]
+      _scrippo_rev+=("${array[_scrippo_i]}")
+      _scrippo_i=$(( _scrippo_i - 1 ))
+    -> "${_scrippo_rev[@]}"
+  elif $--contains
+    for _scrippo_item in $array
+      if [[ "$_scrippo_item" == "$item" ]]
+        -> true
+        return
+    -> false
   elif -n $join
     local IFS=$join
     -> "${array[*]}"
@@ -12,10 +28,12 @@ list(
     -> "${array[@]}"
 
 dict(
-  dict<dict>
+  dict<ref dict>
+  [key]
   [--keys]
   [--values]
   [--length]
+  [--contains]
 )
   if $--keys
     -> "${!dict[@]}"
@@ -23,18 +41,38 @@ dict(
     -> "${dict[@]}"
   elif $--length
     -> ${#dict[@]}
+  elif $--contains
+    if [[ -v dict["$key"] ]]
+      -> true
+    else
+      -> false
   else
     -> "${dict[@]}"
 
 str(
-  string<str>
+  string<ref str>
+  [text]
   [--length]
-  [--split<str>]
+  [--split]
+  [--reverse]
+  [--contains]
 )
   if $--length
     -> ${#string}
-  elif -n $split
-    local IFS=$split
+  elif $--reverse
+    local _scrippo_out=""
+    local _scrippo_i=$(( ${#string} - 1 ))
+    while [[ $_scrippo_i -ge 0 ]]
+      _scrippo_out+="${string:_scrippo_i:1}"
+      _scrippo_i=$(( _scrippo_i - 1 ))
+    -> "$_scrippo_out"
+  elif $--contains
+    if [[ "$string" == *"$text"* ]]
+      -> true
+    else
+      -> false
+  elif $--split
+    local IFS=$text
     read -ra _scrippo_parts <<< "$string"
     -> "${_scrippo_parts[@]}"
   else

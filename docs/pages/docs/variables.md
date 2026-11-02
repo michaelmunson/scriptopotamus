@@ -39,7 +39,7 @@ The last line compiles, and the generated bash exits 1 at runtime with `n: expec
 | `dict` | | `declare -A` | entries are not pattern-checked on a dict literal |
 | `any` | | plain variable | none |
 
-`const` may appear before the kind. `const` with no kind is `const any`.
+`const` and `ref` may appear before the kind. `const` with no kind is `const any`. `ref` with no kind is `ref any`. Write `const` first when a type has both: `<const ref str>`.
 
 ```scrippo
 PI<const float>=3.14
@@ -47,6 +47,18 @@ limit<const int>=3
 ```
 
 Reassigning a const is a compile error: `cannot reassign const 'PI'`. Const integers and lists are bash readonly variables (`declare -r` combined with `-i` or `-a`).
+
+## ref
+
+`ref` declares a nameref. The value you assign is the name of another variable, and reads and writes follow that variable.
+
+```scrippo
+items<list>=(a b c)
+view<ref list>=items
+-> ${#view[@]}
+```
+
+`view=z` assigns through the nameref. On a list, that sets the first element. On a parameter, the caller passes the name and the parameter is the nameref. See [Parameters](/parameters).
 
 ## Literal sets
 

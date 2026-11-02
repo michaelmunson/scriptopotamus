@@ -156,9 +156,12 @@ function optionRefItems(analysis, line) {
 }
 
 function typeItems(before) {
-  const words = before.filter((w) => w !== 'const');
+  const words = before.filter((w) => w !== 'const' && w !== 'ref');
   if (words.length) return [];
-  const names = [...(before.includes('const') ? [] : ['const']), ...TYPE_NAMES];
+  const names = [];
+  if (!before.includes('const') && !before.includes('ref')) names.push('const');
+  if (!before.includes('ref')) names.push('ref');
+  names.push(...TYPE_NAMES);
   return names.map((name) => ({ label: name, kind: 'type', documentation: docs.TYPES[name] }));
 }
 

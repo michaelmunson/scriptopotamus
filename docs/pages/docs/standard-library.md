@@ -80,45 +80,60 @@ On a terminal, confirm is a `y` / `n` keypress (`enter` is no). Select is an arr
 
 ## types
 
+`list`, `dict`, and `str` take a [ref](/parameters): the argument is the variable's name. `list` names that parameter `array`, `dict` names it `dict`, and `str` names it `string`. Passing a variable with that same name prints a bash circular-nameref warning. The call uses that variable.
+
 ### list
 
 ```scrippo
-list(array<list> [--join<str>] [--length])
+list(array<ref list> [item] [--join<str>] [--length] [--reverse] [--contains])
 ```
 
-`--length` prints `${#array[@]}`. `--join` sets `IFS` to that string and prints `"${array[*]}"`. With neither flag, the function prints `"${array[@]}"`.
-
-The parameter is one positional word, bound with `local array=$word`, the same way as any other non-repeatable argument. It is not a repeatable `...` parameter, so the words of a list are not collected into an array by the call. Index a list variable, or loop over it, when you need its elements:
+`--length` prints the number of elements. `--reverse` prints the elements from last to first. `--contains` prints `true` when `item` equals an element and `false` otherwise. `--join` sets `IFS` to that string and prints the elements joined. With none of these, the function prints the elements.
 
 ```scrippo
-items<list>=(a b c)
--> $items[0]
-for i in $items
-  -> $i
+mylist<list>=(a b c)
+list --length mylist
+list --join "." mylist
+list --reverse mylist
+list --contains mylist b
 ```
 
-A line such as `list (1 2 3 4) --join "."` is bash text. Bash rejects the parentheses there, and the script stops at that line.
+`list --length mylist` prints `3`. `list --join "." mylist` prints `a.b.c`. `list --reverse mylist` prints `c b a`. `list --contains mylist b` prints `true`. `item` is the word after the variable name. A match is the whole element.
 
 ### dict
 
 ```scrippo
-dict(dict<dict> [--keys] [--values] [--length])
+dict(dict<ref dict> [key] [--keys] [--values] [--length] [--contains])
 ```
 
-`--keys` prints `${!dict[@]}`. `--values` and the default form print `${dict[@]}`. `--length` prints `${#dict[@]}`. The positional is one word, bound to `dict`. Read an entry with an index:
+`--keys` prints the keys. `--values` and the default form print the values. `--length` prints the number of entries. `--contains` prints `true` when `key` is a key and `false` otherwise.
 
 ```scrippo
-user<dict>=(name=ada year=1815)
--> $user[name]
+mydict<dict>=(a=1 b=2 c=3)
+dict --length mydict
+dict --keys mydict
+dict --contains mydict a
 ```
+
+`dict --length mydict` prints `3`. `dict --keys mydict` prints the keys `a`, `b`, and `c`. `dict --contains mydict a` prints `true`. `key` is the word after the variable name. A value that is not also a key does not match.
 
 ### str
 
 ```scrippo
-str(string<str> [--length] [--split<str>])
+str(string<ref str> [text] [--length] [--split] [--reverse] [--contains])
 ```
 
-`--length` prints the character count. `--split` splits on that separator and prints the parts. With neither option, prints the string.
+`--length` prints the character count. `--reverse` prints the characters from last to first. `--contains` prints `true` when `text` occurs in the string and `false` otherwise. `--split` splits the string on `text` and prints the parts. With none of these, prints the string.
+
+```scrippo
+mystr<str>="a.b.c"
+str --length mystr
+str --split mystr "."
+str --reverse mystr
+str --contains mystr "b."
+```
+
+`str --length mystr` prints `5`. `str --split mystr "."` prints `a b c`. `str --reverse mystr` prints `c.b.a`. `str --contains mystr "b."` prints `true`. `text` is the word after the variable name. `IFS` uses the first character of that word when splitting.
 
 ## path
 

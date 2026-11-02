@@ -195,8 +195,26 @@ fn emit_declare(
     value: Option<&Value>,
     line: usize,
 ) -> Result<()> {
-    let _ = line;
     em.types.insert(name.to_string(), ty.clone());
+    if ty.is_ref {
+        if matches!(value, Some(Value::List(_) | Value::Dict(_))) {
+            return Err(CompileError::new(
+                "<input>",
+                line,
+                format!("ref '{name}' expects a variable name"),
+            ));
+        }
+        let mut flags = String::from("n");
+        if ty.is_const {
+            flags.push('r');
+        }
+        if let Some(v) = value.map(emit_value) {
+            em.emit_line(&format!("declare -{flags} {name}={v}"));
+        } else {
+            em.emit_line(&format!("declare -{flags} {name}"));
+        }
+        return Ok(());
+    }
     let mut flags = String::new();
     if ty.is_const {
         flags.push('r');
@@ -328,6 +346,16 @@ fn emit_function(
         }
     }
 
+    if flatten_leaves(params)
+        .iter()
+        .any(|leaf| leaf.ty.is_ref && leaf.array)
+    {
+        return Err(CompileError::new(
+            "<input>",
+            line,
+            "ref parameters cannot be repeatable",
+        ));
+    }
     em.emit_line(&format!("function {fn_name} {{"));
     em.indent();
     let usage_name = if name.is_empty() {

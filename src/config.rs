@@ -1,5 +1,5 @@
 use crate::paths;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::fs;
 use std::path::PathBuf;
 
@@ -35,9 +35,8 @@ impl Config {
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
-            let (key, value) = parse_pair(line).with_context(|| {
-                format!("{}:{}: expected key=value", path.display(), idx + 1)
-            })?;
+            let (key, value) = parse_pair(line)
+                .with_context(|| format!("{}:{}: expected key=value", path.display(), idx + 1))?;
             cfg.set(&key, &value)?;
         }
         Ok(cfg)
@@ -102,9 +101,7 @@ fn resolve_config_file() -> Result<PathBuf> {
 }
 
 fn parse_pair(line: &str) -> Result<(String, String)> {
-    let (key, value) = line
-        .split_once('=')
-        .context("expected key=value")?;
+    let (key, value) = line.split_once('=').context("expected key=value")?;
     let key = key.trim();
     let value = value.trim();
     if key.is_empty() {

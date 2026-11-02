@@ -71,9 +71,10 @@ test('option references complete after $-', () => {
 });
 
 test('types complete inside annotations', () => {
-  assert.deepEqual(labels([], 'x<'), ['const', 'int', 'float', 'str', 'bool', 'list', 'dict', 'any']);
+  assert.deepEqual(labels([], 'x<'), ['const', 'ref', 'int', 'float', 'str', 'bool', 'list', 'dict', 'any']);
   assert.ok(!labels([], 'x<const ').includes('const'));
-  assert.deepEqual(labels([], 'x<const '), ['int', 'float', 'str', 'bool', 'list', 'dict', 'any']);
+  assert.deepEqual(labels([], 'x<const '), ['ref', 'int', 'float', 'str', 'bool', 'list', 'dict', 'any']);
+  assert.deepEqual(labels([], 'x<ref '), ['int', 'float', 'str', 'bool', 'list', 'dict', 'any']);
   assert.deepEqual(labels([], 'x<list '), []);
   assert.deepEqual(labels(['f('], '  --opt<', [')', '  echo']), labels([], 'x<'));
   assert.deepEqual(labels(['f(', '  [--opt<str>]', ')'], '  echo a<'), null);
@@ -87,6 +88,9 @@ test('function flags complete after a call', () => {
   assert.deepEqual(labels(SOURCE, 'input "Pick" --'), []);
   assert.deepEqual(labels(['@import scrippo/std/io'], 'input "Pick" --'), ['-v', '--select', '--multi', '--confirm']);
   assert.deepEqual(labels(['@import scrippo/io'], 'prt -'), ['-s', '--style', '-j', '--join', '-n']);
+  assert.deepEqual(labels(['@import scrippo/std/types'], 'list --'), ['--join', '--length', '--reverse', '--contains']);
+  assert.deepEqual(labels(['@import scrippo/std/types'], 'dict --'), ['--keys', '--values', '--length', '--contains']);
+  assert.deepEqual(labels(['@import scrippo/std/types'], 'str --'), ['--length', '--split', '--reverse', '--contains']);
   assert.deepEqual(labels(SOURCE, 'unknown --'), []);
   assert.equal(at(SOURCE, 'circumference 3'), null);
 });

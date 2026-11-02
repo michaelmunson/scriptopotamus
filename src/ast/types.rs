@@ -13,6 +13,7 @@ pub enum TypeKind {
 pub struct Type {
     pub kind: TypeKind,
     pub is_const: bool,
+    pub is_ref: bool,
     pub literals: Option<Vec<String>>,
 }
 
@@ -21,6 +22,7 @@ impl Type {
         Self {
             kind,
             is_const: false,
+            is_ref: false,
             literals: None,
         }
     }
@@ -38,6 +40,9 @@ impl Type {
         let mut parts = Vec::new();
         if self.is_const {
             parts.push("const".to_string());
+        }
+        if self.is_ref {
+            parts.push("ref".to_string());
         }
         parts.push(base.to_string());
         if let Some(lits) = &self.literals {

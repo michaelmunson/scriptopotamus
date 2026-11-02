@@ -226,13 +226,13 @@ fn import_pattern(
                 root.join(".scrippo/lib"),
             ]
             .into_iter()
-                .flat_map(|dir| {
-                    [
-                        dir.join(format!("{pattern}.scrippo")),
-                        dir.join(format!("{pattern}.bash")),
-                    ]
-                })
-                .find(|path| path.is_file()),
+            .flat_map(|dir| {
+                [
+                    dir.join(format!("{pattern}.scrippo")),
+                    dir.join(format!("{pattern}.bash")),
+                ]
+            })
+            .find(|path| path.is_file()),
             None => paths::resolve_package(&pattern, &ctx.source_path),
         };
         if let Some(pkg) = package {

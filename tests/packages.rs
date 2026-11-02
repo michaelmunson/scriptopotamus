@@ -128,9 +128,17 @@ fn new_package_and_script_default_local() {
         .args(["-n", "-p", "mylib"])
         .output()
         .unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let path = project.join(".scrippo").join("lib").join("mylib.scrippo");
-    assert!(path.is_file(), "{}", String::from_utf8_lossy(&output.stdout));
+    assert!(
+        path.is_file(),
+        "{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
 
     let output = Command::new(bin())
         .env("SCRIPPO_HOME", &home)
@@ -138,7 +146,11 @@ fn new_package_and_script_default_local() {
         .args(["-n", "-s", "hello"])
         .output()
         .unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(project.join("hello.scrippo").is_file());
 
     let output = Command::new(bin())
@@ -147,7 +159,11 @@ fn new_package_and_script_default_local() {
         .args(["-n", "-s", "-g", "greet"])
         .output()
         .unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(home.join("scripts").join("greet.scrippo").is_file());
 }
 
@@ -167,7 +183,11 @@ fn run_global_script_by_name() {
         .arg("hello")
         .output()
         .unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("from-global"), "{stdout}");
 }
@@ -195,7 +215,11 @@ fn env_aliases_global_scripts() {
         .arg("--env")
         .output()
         .unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("alias hello="), "{stdout}");
 }
@@ -220,7 +244,11 @@ fn env_aliases_commands_from_scrippo_dir() {
         .arg("--env")
         .output()
         .unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("alias hello="), "{stdout}");
     assert!(stdout.contains("commands.scrippo"), "{stdout}");
@@ -248,7 +276,11 @@ fn run_local_script_by_name_from_subdirectory_overriding_global() {
 
     for cwd in [&project, &sub] {
         let output = run_script(&home, cwd, &["build"]);
-        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "from-local");
     }
 
@@ -260,7 +292,10 @@ fn run_local_script_by_name_from_subdirectory_overriding_global() {
     // Without a local script, the global one is used.
     let other = tempfile_dir();
     let output = run_script(&home, &other, &["build"]);
-    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "from-global");
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        "from-global"
+    );
 }
 
 #[test]

@@ -23,24 +23,24 @@ const BUILTINS = {
     pkg: 'io',
   },
   list: {
-    signature: 'list(\n  array<list>\n  [--join<str>]\n  [--length]\n)',
-    description: 'Prints a list, joins it with `--join`, or prints its length. From `@import scrippo/std/types`.',
-    snippet: 'list $${1:array}',
-    flags: ['--join', '--length'],
+    signature: 'list(\n  array<ref list>\n  [item]\n  [--join<str>]\n  [--length]\n  [--reverse]\n  [--contains]\n)',
+    description: 'Prints the list named by the argument, joins it with `--join`, prints its length, prints it reversed, or prints `true` when `[item]` equals an element. Pass the variable name. From `@import scrippo/std/types`.',
+    snippet: 'list ${1:array}',
+    flags: ['--join', '--length', '--reverse', '--contains'],
     pkg: 'types',
   },
   dict: {
-    signature: 'dict(\n  dict<dict>\n  [--keys]\n  [--values]\n  [--length]\n)',
-    description: 'Prints a dict, or its keys, values, or length. From `@import scrippo/std/types`.',
-    snippet: 'dict $${1:dict}',
-    flags: ['--keys', '--values', '--length'],
+    signature: 'dict(\n  dict<ref dict>\n  [key]\n  [--keys]\n  [--values]\n  [--length]\n  [--contains]\n)',
+    description: 'Prints the dict named by the argument, or its keys, values, or length, or `true` when `[key]` is a key. Pass the variable name. From `@import scrippo/std/types`.',
+    snippet: 'dict ${1:dict}',
+    flags: ['--keys', '--values', '--length', '--contains'],
     pkg: 'types',
   },
   str: {
-    signature: 'str(\n  string<str>\n  [--length]\n  [--split<str>]\n)',
-    description: 'Prints a string, its length, or the parts from splitting on `--split`. From `@import scrippo/std/types`.',
-    snippet: 'str "${1:text}"',
-    flags: ['--length', '--split'],
+    signature: 'str(\n  string<ref str>\n  [text]\n  [--length]\n  [--split]\n  [--reverse]\n  [--contains]\n)',
+    description: 'Prints the string named by the argument, its length, its reverse, `true` when `[text]` occurs in it, or the parts from `--split` on `[text]`. Pass the variable name. From `@import scrippo/std/types`.',
+    snippet: 'str ${1:text}',
+    flags: ['--length', '--split', '--reverse', '--contains'],
     pkg: 'types',
   },
   here: {
@@ -89,8 +89,9 @@ const TYPES = {
   list: 'Indexed array, e.g. `nums<list>=(1 2 3)`. `array` is an alias.',
   array: 'Alias of `list`.',
   dict: 'Associative array, e.g. `ages<dict>=(a=1 b=2)`.',
-  any: 'Any value. `<const>` with no other type is `<const any>`.',
+  any: 'Any value. `<const>` with no other type is `<const any>`. `<ref>` with no other type is `<ref any>`.',
   const: '`<const T>` is read-only. Reassigning it is a compile error. `<const>` alone means `<const any>`.',
+  ref: 'Nameref. The value is another variable\'s name, and reads and writes follow that variable. `<ref list>` on a parameter takes the variable name from the caller. `<ref>` alone means `<ref any>`.',
 };
 
 const PACKAGES = [

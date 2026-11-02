@@ -15,6 +15,7 @@ test('typed declarations', async () => {
   const src = 'PI<const float>=3.14';
   assert.match(await scopeOf(src, 'PI'), /variable\.other\.declaration/);
   assert.match(await scopeOf(src, 'const'), /storage\.modifier\.const/);
+  assert.match(await scopeOf('view<ref list>=items', 'ref'), /storage\.modifier\.ref/);
   assert.match(await scopeOf(src, 'float'), /support\.type\.primitive/);
   assert.match(await scopeOf(src, '3.14'), /constant\.numeric/);
 });

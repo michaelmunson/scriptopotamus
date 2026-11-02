@@ -167,7 +167,7 @@ Prefer `@import scrippo/std` for scripts that print, prompt, or touch paths.
 | Import | Helpers |
 |--------|---------|
 | `scrippo/std/io` | `throw code msg…`, `prt [-s style…]… [-j sep] [-n] msg…`, `input prompt -v var [--confirm \| --select … [--multi]]` |
-| `scrippo/std/types` | `list arr [--join\|--length]`, `dict d [--keys\|--values\|--length]`, `str s [--length\|--split]` |
+| `scrippo/std/types` | `list name [item] [--join sep\|--length\|--reverse\|--contains]`, `dict name [key] [--keys\|--values\|--length\|--contains]`, `str name [text] [--length\|--split\|--reverse\|--contains]` |
 | `scrippo/std/path` | `here [--file] [--rel]` — script dir/path, optional cwd-relative |
 
 `prt` styles: `bold dim italic underline black red green yellow blue magenta cyan white`.

@@ -90,12 +90,19 @@ fn env_emits_aliases_for_dot_scrippo_and_package() {
         .arg("--env")
         .output()
         .unwrap();
-    assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("alias package="), "{stdout}");
     assert!(stdout.contains("alias hello="), "{stdout}");
     assert!(stdout.contains("alias bye="), "{stdout}");
-    assert!(stdout.contains("scrippo ") && stdout.contains("package.scrippo"), "{stdout}");
+    assert!(
+        stdout.contains("scrippo ") && stdout.contains("package.scrippo"),
+        "{stdout}"
+    );
 }
 
 #[test]
@@ -107,9 +114,17 @@ fn env_inherits_parent_aliases_with_nearest_directory_winning() {
     std::fs::write(root.join("_.scrippo"), ".version()\n  -> parent\n").unwrap();
     std::fs::write(root.join("shared.scrippo"), "-> parent\n").unwrap();
     std::fs::write(child.join("shared.scrippo"), "-> child\n").unwrap();
-    std::fs::write(root.join(".scrippo"), ".build()\n  -> parent\n.deploy()\n  -> parent\n").unwrap();
+    std::fs::write(
+        root.join(".scrippo"),
+        ".build()\n  -> parent\n.deploy()\n  -> parent\n",
+    )
+    .unwrap();
     std::fs::create_dir(child.join(".scrippo")).unwrap();
-    std::fs::write(child.join(".scrippo/commands.scrippo"), ".build()\n  -> child\n").unwrap();
+    std::fs::write(
+        child.join(".scrippo/commands.scrippo"),
+        ".build()\n  -> child\n",
+    )
+    .unwrap();
     let cfg = root.join("config");
     std::fs::write(&cfg, "autoload=true\nautocomplete=true\n").unwrap();
     for shell in ["bash", "zsh"] {
@@ -122,7 +137,11 @@ fn env_inherits_parent_aliases_with_nearest_directory_winning() {
                 .arg("--env")
                 .output()
                 .unwrap();
-            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
             let stdout = String::from_utf8_lossy(&output.stdout);
             for (name, file) in [
                 ("_", root.join("_.scrippo")),
@@ -130,11 +149,25 @@ fn env_inherits_parent_aliases_with_nearest_directory_winning() {
                 ("build", child.join(".scrippo/commands.scrippo")),
                 ("deploy", root.join(".scrippo")),
             ] {
-                let aliases: Vec<_> = stdout.lines().filter(|line| line.starts_with(&format!("alias {name}="))).collect();
+                let aliases: Vec<_> = stdout
+                    .lines()
+                    .filter(|line| line.starts_with(&format!("alias {name}=")))
+                    .collect();
                 assert_eq!(aliases.len(), 1, "{stdout}");
-                assert!(aliases[0].contains(&file.display().to_string()), "{}", aliases[0]);
-                assert!(stdout.contains(&format!("_SCRIPPO_FILES[{name}]={}", file.display())), "{stdout}");
-                let completion = if shell == "bash" { "complete -o default -F _scrippo_comp" } else { "compdef -a _scrippo_comp" };
+                assert!(
+                    aliases[0].contains(&file.display().to_string()),
+                    "{}",
+                    aliases[0]
+                );
+                assert!(
+                    stdout.contains(&format!("_SCRIPPO_FILES[{name}]={}", file.display())),
+                    "{stdout}"
+                );
+                let completion = if shell == "bash" {
+                    "complete -o default -F _scrippo_comp"
+                } else {
+                    "compdef -a _scrippo_comp"
+                };
                 assert!(stdout.contains(&format!("{completion} {name}")), "{stdout}");
             }
         }
@@ -221,9 +254,17 @@ fn configure_alias_roundtrip_and_validation() {
             .unwrap()
     };
     let out = run(&["alias=s,sc"]);
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert!(String::from_utf8_lossy(&out.stdout).contains("alias=s,sc"));
-    assert!(std::fs::read_to_string(&cfg).unwrap().contains("alias=s,sc"));
+    assert!(
+        std::fs::read_to_string(&cfg)
+            .unwrap()
+            .contains("alias=s,sc")
+    );
 
     assert!(!run(&["alias=bad name"]).status.success());
     assert!(!run(&["alias=1x"]).status.success());
@@ -239,7 +280,10 @@ fn env_emits_alias_with_completion() {
     let cfg = dir.join("config");
     std::fs::write(&cfg, "autoload=false\nautocomplete=true\nalias=s\n").unwrap();
     for (shell, registration) in [
-        ("bash", "complete -o filenames -o default -F _scrippo_comp s"),
+        (
+            "bash",
+            "complete -o filenames -o default -F _scrippo_comp s",
+        ),
         ("zsh", "compdef -a _scrippo_comp s"),
     ] {
         let out = Command::new(bin())

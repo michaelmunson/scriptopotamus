@@ -116,7 +116,9 @@ pub fn find_local_script(name: &str, start: &Path) -> Option<PathBuf> {
 /// then to a global script in `~/.scrippo/scripts`, so local scripts override global ones.
 pub fn resolve_script_arg(arg: &Path) -> Result<PathBuf> {
     let bare_name = if arg.components().count() == 1 {
-        arg.file_name().and_then(|s| s.to_str()).filter(|s| !s.is_empty())
+        arg.file_name()
+            .and_then(|s| s.to_str())
+            .filter(|s| !s.is_empty())
     } else {
         None
     };
@@ -142,10 +144,7 @@ pub fn resolve_script_arg(arg: &Path) -> Result<PathBuf> {
 
     if let Ok(scripts) = global_scripts_dir() {
         let stem = strip_scrippo_ext(name);
-        for candidate in [
-            scripts.join(package_file_name(name)),
-            scripts.join(stem),
-        ] {
+        for candidate in [scripts.join(package_file_name(name)), scripts.join(stem)] {
             if candidate.is_file() {
                 return Ok(candidate);
             }
@@ -236,7 +235,9 @@ pub fn create_new(kind: NewKind, scope: NewScope, name: &str) -> Result<PathBuf>
 
     let body = match kind {
         NewKind::Package => format!("# {stem} package\n"),
-        NewKind::Script => format!("#! /usr/bin/env scrippo\n.main()\n\t-> \"hello from {stem}\"\n"),
+        NewKind::Script => {
+            format!("#! /usr/bin/env scrippo\n.main()\n\t-> \"hello from {stem}\"\n")
+        }
     };
     std::fs::write(&path, body).with_context(|| format!("failed to write {}", path.display()))?;
     Ok(path)
@@ -249,7 +250,8 @@ pub fn list_entries(kind: NewKind, scope: NewScope) -> Result<Vec<String>> {
         return Ok(Vec::new());
     }
     let mut names = std::collections::BTreeSet::new();
-    for item in std::fs::read_dir(&dir).with_context(|| format!("failed to read {}", dir.display()))?
+    for item in
+        std::fs::read_dir(&dir).with_context(|| format!("failed to read {}", dir.display()))?
     {
         let item = item?;
         let path = item.path();

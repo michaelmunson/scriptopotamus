@@ -38,28 +38,25 @@
 		else
 			throw 1 "Invalid version: $version"
 
-.build(
-	[--install [--sudo]]
+.build()
+	make build
+	make build-extension
+.install(
+	[--sudo]
 	[--with-extension]
 )
-	if $install
-		if $sudo
-			sudo make install
-		else
-			make install
+	if $sudo
+		sudo make install
 	else
-		make build
-
+		make install
 	if $with_extension
 		path_to_ext="./dev/vscode-ext/scriptopotamus.vsix"
 		make build-extension
-		if $install
-			if code --install-extension $path_to_ext 2> /dev/null
-				prt -s green "VSCode Extension Installed"
-			else
-				prt -s red "Failed to install VSCode Extension"
-			if cursor --install-extension $path_to_ext 2> /dev/null
-				prt -s green "Cursor Extension Installed"
-			else
-				prt -s red "Failed to install Cursor Extension"
-
+		if code --install-extension $path_to_ext 2> /dev/null
+			prt -s green "VSCode Extension Installed"
+		else
+			prt -s red "Failed to install VSCode Extension"
+		if cursor --install-extension $path_to_ext 2> /dev/null
+			prt -s green "Cursor Extension Installed"
+		else
+			prt -s red "Failed to install Cursor Extension"

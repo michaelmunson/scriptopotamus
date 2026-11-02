@@ -273,7 +273,13 @@ fn install_without_kind_skips_a_missing_kind_but_fails_when_both_are_missing() {
 fn package_compilation_never_runs_raw_bash_or_command_substitutions() {
     let f = Fixture::new();
     let sentinel = f.root.join("executed");
-    f.write("greet.scrippo", &format!("{PKG_2}\n@import \"./support/raw.bash\"\nx=$(touch '{}')\ngreet() -> hello\n", sentinel.display()));
+    f.write(
+        "greet.scrippo",
+        &format!(
+            "{PKG_2}\n@import \"./support/raw.bash\"\nx=$(touch '{}')\ngreet() -> hello\n",
+            sentinel.display()
+        ),
+    );
     f.write(
         "support/raw.bash",
         &format!("touch '{}'\n", sentinel.display()),
@@ -312,14 +318,26 @@ fn metadata_validation_rejects_invalid_entries_without_publishing_anything() {
             "@info(--name greet --version 2.0.0 --package)\n@info(--name greet --version 2.0.0 --package)\n",
             "exactly one top-level @info",
         ),
-        ("@info(--name other --version 2.0.0 --package)\n", "name must match"),
-        ("@info(--name greet --version 1.0.0 --package)\n", "version must match"),
-        ("@info(--name greet --version 02.0.0 --package)\n", "stable version"),
+        (
+            "@info(--name other --version 2.0.0 --package)\n",
+            "name must match",
+        ),
+        (
+            "@info(--name greet --version 1.0.0 --package)\n",
+            "version must match",
+        ),
+        (
+            "@info(--name greet --version 02.0.0 --package)\n",
+            "stable version",
+        ),
         (
             "@info(--name greet --version 2.0.0 --description \"$(touch sentinel)\" --package)\n",
             "values must be literals",
         ),
-        ("@info(--name greet --version 2.0.0 --package)\n@unknown\n", "unknown macro"),
+        (
+            "@info(--name greet --version 2.0.0 --package)\n@unknown\n",
+            "unknown macro",
+        ),
         (
             "@info(--name greet --version 2.0.0 --package)\n.() -> script\n",
             "packages must expose named",
@@ -454,7 +472,10 @@ fn directory_argument_limits_the_scan_and_rejects_escapes() {
         "tools/support.scrippo",
         "@info(--name support --version 2.0.0 --package)\nsupport() -> extra\n",
     );
-    f.write("greet.scrippo", "@info(--name greet --version 2.0.0 --package)\ngreet() -> hi\n");
+    f.write(
+        "greet.scrippo",
+        "@info(--name greet --version 2.0.0 --package)\ngreet() -> hi\n",
+    );
     f.tag("2.0.0");
     let output = f
         .command()
@@ -505,7 +526,10 @@ fn outside_imports_and_host_package_dependencies_are_blocked() {
         } else {
             outside.display().to_string()
         };
-        f.write("greet.scrippo", &format!("{PKG_2}\n@import \"{pattern}\"\n"));
+        f.write(
+            "greet.scrippo",
+            &format!("{PKG_2}\n@import \"{pattern}\"\n"),
+        );
         f.tag("2.0.0");
         failure(&f.install(&["-p"], None), "outside the package sandbox");
     }
@@ -670,11 +694,19 @@ fn plain_directory_installs_without_git() {
         "@info(--name greet --version 1.2.3 --description \"Greeting library\" --package)\n@import \"./support/message.scrippo\"\n.greet()\n  message\n",
     )
     .unwrap();
-    fs::write(dir.join("support/message.scrippo"), "message() -> \"from-dir\"\n").unwrap();
+    fs::write(
+        dir.join("support/message.scrippo"),
+        "message() -> \"from-dir\"\n",
+    )
+    .unwrap();
 
     let output = f.command().args(["-i", "-p"]).arg(&dir).output().unwrap();
     success(&output);
-    assert!(text(&output).contains("installed 1.2.3 (local)"), "{}", text(&output));
+    assert!(
+        text(&output).contains("installed 1.2.3 (local)"),
+        "{}",
+        text(&output)
+    );
     assert!(f.lib().join("greet.bash").is_file());
     fs::write(
         f.project.join("app.scrippo"),
@@ -694,7 +726,11 @@ fn plain_helpers(root: &Path) -> PathBuf {
         "@info(--name greet --version 1.0.0 --description \"Greeting library\" --package)\n@import \"./support/message.scrippo\"\n.greet()\n  message\n",
     )
     .unwrap();
-    fs::write(dir.join("support/message.scrippo"), "message() -> \"1.0.0\"\n").unwrap();
+    fs::write(
+        dir.join("support/message.scrippo"),
+        "message() -> \"1.0.0\"\n",
+    )
+    .unwrap();
     dir
 }
 

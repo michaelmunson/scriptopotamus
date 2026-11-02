@@ -155,6 +155,10 @@
           "name": "storage.modifier.const.scriptopotamus"
         },
         {
+          "match": "\\bref\\b",
+          "name": "storage.modifier.ref.scriptopotamus"
+        },
+        {
           "match": "\\b(?:int|integer|float|str|string|bool|boolean|any)\\b",
           "name": "support.type.primitive.scriptopotamus"
         },

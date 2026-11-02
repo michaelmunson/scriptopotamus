@@ -66,17 +66,9 @@ pub fn emit_env() -> Result<()> {
             cmd.push(' ');
             cmd.push_str(&shell_quote(part));
         }
-        println!(
-            "alias {}={}",
-            shell_quote(&entry.name),
-            shell_quote(&cmd)
-        );
+        println!("alias {}={}", shell_quote(&entry.name), shell_quote(&cmd));
         println!("_SCRIPPO_MANAGED+=({})", shell_quote(&entry.name));
-        println!(
-            "_SCRIPPO_FILES[{}]={}",
-            shell_quote(&entry.name),
-            file
-        );
+        println!("_SCRIPPO_FILES[{}]={}", shell_quote(&entry.name), file);
         let prefix = entry
             .prefix
             .iter()
@@ -118,10 +110,7 @@ pub fn emit_env() -> Result<()> {
                     println!("compdef -a _scrippo_comp {}", shell_quote(name));
                 }
                 for entry in &aliases {
-                    println!(
-                        "compdef -a _scrippo_comp {}",
-                        shell_quote(&entry.name)
-                    );
+                    println!("compdef -a _scrippo_comp {}", shell_quote(&entry.name));
                 }
             }
         }
@@ -468,7 +457,9 @@ fn positional_seen(params: &[Param], words: &[String]) -> bool {
 
 fn takes_value(params: &[Param], flag: &str) -> bool {
     params.iter().any(|p| match p {
-        Param::Opt { flags, ty, .. } => ty.kind != TypeKind::Bool && flags.iter().any(|f| f == flag),
+        Param::Opt { flags, ty, .. } => {
+            (ty.is_ref || ty.kind != TypeKind::Bool) && flags.iter().any(|f| f == flag)
+        }
         Param::Group { params, .. } => takes_value(params, flag),
         Param::Exclusive { options } => takes_value(options, flag),
         _ => false,
@@ -604,11 +595,7 @@ fn parent_comm(ppid: u32) -> Option<String> {
             return None;
         }
         let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if name.is_empty() {
-            None
-        } else {
-            Some(name)
-        }
+        if name.is_empty() { None } else { Some(name) }
     }
 }
 
@@ -616,8 +603,7 @@ fn shell_quote(s: &str) -> String {
     if s.is_empty() {
         return "''".to_string();
     }
-    if s
-        .chars()
+    if s.chars()
         .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '/' | ':'))
     {
         return s.to_string();

@@ -72,7 +72,11 @@ fn compile_expanded(path: &Path, expanded: macros::ExpandResult, library: bool) 
         let name = path
             .file_stem()
             .and_then(|s| s.to_str())
-            .filter(|s| !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.')))
+            .filter(|s| {
+                !s.is_empty()
+                    && s.chars()
+                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+            })
             .unwrap_or("script");
         emit::emit_program_named(&expanded.program, name)?
     };

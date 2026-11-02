@@ -9,9 +9,9 @@ pub fn parse_type(path: &Path, line: usize, raw: &str) -> Result<Type> {
     }
 
     let (base_part, literals) = if let Some(start) = raw.find('{') {
-        let end = raw
-            .rfind('}')
-            .ok_or_else(|| CompileError::at(path, line, format!("unclosed '{{' in type '{raw}'")))?;
+        let end = raw.rfind('}').ok_or_else(|| {
+            CompileError::at(path, line, format!("unclosed '{{' in type '{raw}'"))
+        })?;
         let inside = &raw[start + 1..end];
         let lits: Vec<String> = split_words(inside);
         (raw[..start].trim(), Some(lits))
@@ -27,10 +27,12 @@ pub fn parse_type(path: &Path, line: usize, raw: &str) -> Result<Type> {
     };
 
     let mut is_const = false;
+    let mut is_ref = false;
     let mut kind = None;
     for word in base_part.split_whitespace() {
         match word {
             "const" => is_const = true,
+            "ref" => is_ref = true,
             "str" | "string" => kind = Some(TypeKind::Str),
             "int" | "integer" => kind = Some(TypeKind::Int),
             "float" => kind = Some(TypeKind::Float),
@@ -50,7 +52,7 @@ pub fn parse_type(path: &Path, line: usize, raw: &str) -> Result<Type> {
 
     let kind = match kind {
         Some(k) => k,
-        None if is_const => TypeKind::Any,
+        None if is_const || is_ref => TypeKind::Any,
         None => {
             return Err(CompileError::at(
                 path,
@@ -63,6 +65,7 @@ pub fn parse_type(path: &Path, line: usize, raw: &str) -> Result<Type> {
     Ok(Type {
         kind,
         is_const,
+        is_ref,
         literals,
     })
 }
@@ -124,26 +127,20 @@ pub fn parse_condition(raw: &str) -> crate::ast::Condition {
         negated = true;
         raw = rest.trim().to_string();
     }
-    let bool_re =
-        regex::Regex::new(r"^\$(\{[A-Za-z_][A-Za-z0-9_]*\}|--?[A-Za-z_][A-Za-z0-9_-]*|[A-Za-z_][A-Za-z0-9_]*)$")
-            .unwrap();
+    let bool_re = regex::Regex::new(
+        r"^\$(\{[A-Za-z_][A-Za-z0-9_]*\}|--?[A-Za-z_][A-Za-z0-9_-]*|[A-Za-z_][A-Za-z0-9_]*)$",
+    )
+    .unwrap();
     let kind = if bool_re.is_match(&raw) {
         crate::ast::ConditionKind::Bool
     } else if !raw.is_empty()
-        && !matches!(
-            raw.chars().next(),
-            Some('$' | '"' | '\'' | '0'..='9' | '-')
-        )
+        && !matches!(raw.chars().next(), Some('$' | '"' | '\'' | '0'..='9' | '-'))
     {
         crate::ast::ConditionKind::Command
     } else {
         crate::ast::ConditionKind::Test
     };
-    crate::ast::Condition {
-        kind,
-        raw,
-        negated,
-    }
+    crate::ast::Condition { kind, raw, negated }
 }
 
 pub fn split_semicolons(text: &str) -> Vec<String> {

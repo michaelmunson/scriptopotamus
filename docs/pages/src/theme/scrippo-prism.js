@@ -71,7 +71,7 @@ function registerScrippo(Prism) {
     type: {
       pattern: /<[^>\n]*>/,
       inside: {
-        keyword: /\bconst\b/,
+        keyword: /\b(?:const|ref)\b/,
         builtin:
           /\b(?:int|integer|float|str|string|bool|boolean|any|list|dict|array)\b/,
         string,

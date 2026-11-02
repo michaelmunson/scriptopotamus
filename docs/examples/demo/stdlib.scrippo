@@ -1,0 +1,24 @@
+
+
+.strs()
+  input "Enter a String: " -v mystr
+  prt "Length of string: " -s yellow "$(str --length mystr)"
+  prt "Reversed string: " -s yellow "$(str mystr --reverse)"
+  input "Enter a delimiter: " -v delimiter
+  prt "Split string: " -s yellow "$(str mystr --split  "$delimiter")"
+  input "Enter a substring: " -v substring
+  prt "Contains string: " -s yellow "$(str mystr --contains substring)"
+
+
+.lists()
+  mylist<list>=(1 2 3 4 5)
+  prt "Length of list: " -s yellow $(list mylist --length)
+  prt "Joined list: " -s yellow $(list mylist --join ",")
+  prt "Reversed list: " -s yellow $(list mylist --reverse)
+  prt "Contains list: " -s yellow $(list mylist --contains 3)
+
+.dicts()
+  mydict<dict>=(a=1 b=2 c=3)
+  dict mydict --keys
+  dict mydict --values
+  dict mydict --contains a

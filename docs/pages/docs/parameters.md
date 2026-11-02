@@ -50,6 +50,20 @@ The variable for an option is the first flag with leading dashes removed and `-`
 
 `$--loud` and `$-v` are rewritten to those variable names, so `$--loud` and `$loud` are the same read. Later flags in an alias list become bash namerefs, which is why both spellings work.
 
+## ref parameters
+
+`ref` in a parameter type binds that parameter as a nameref. The caller passes a variable name. The parameter then reads and writes the named variable.
+
+```scrippo
+show(items<ref list>)
+  -> ${#items[@]}
+
+names<list>=(a b c)
+show names
+```
+
+`<ref list>` is a nameref to a list. `<ref>` alone is `<ref any>`. `const` still comes first: `<const ref str>`. `ref` is one parameter: `items<ref list>...` and `*rest<ref>` are compile errors. `show names` passes the name `names`. When that name is the parameter's own name, bash warns about a circular nameref. The call uses the caller's variable.
+
 ## Aliases
 
 `/` joins flags that are the same option. It applies only when both sides are flags.

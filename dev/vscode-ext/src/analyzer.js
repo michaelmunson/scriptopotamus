@@ -4,7 +4,7 @@ const TYPE_ALIASES = { string: 'str', integer: 'int', boolean: 'bool', array: 'l
 const SCALARS = ['int', 'float', 'str', 'bool'];
 const COLLECTIONS = ['list', 'dict'];
 const TYPE_NAMES = [...SCALARS, ...COLLECTIONS, 'any'];
-const TYPE_WORDS = new Set([...TYPE_NAMES, ...Object.keys(TYPE_ALIASES), 'const']);
+const TYPE_WORDS = new Set([...TYPE_NAMES, ...Object.keys(TYPE_ALIASES), 'const', 'ref']);
 const PATTERNS = {
   int: /^-?[0-9]+$/,
   float: /^-?[0-9]*\.?[0-9]+$/,
@@ -191,14 +191,17 @@ function parseType(raw) {
     literalText = raw.includes('{') ? ` {${literals.join(' ')}}` : ` (${literals.join(' ')})`;
   }
   const datatype = typePart.split(/\s+/).filter(Boolean).map(canonicalType);
-  const base = datatype.find((w) => w !== 'const') || (datatype.includes('const') ? 'any' : '');
-  const description = `${datatype.includes('const') ? 'const ' : ''}${base}${literalText}`.trim();
+  const isConst = datatype.includes('const');
+  const isRef = datatype.includes('ref');
+  const base = datatype.find((w) => w !== 'const' && w !== 'ref') || (isConst || isRef ? 'any' : '');
+  const description = `${isConst ? 'const ' : ''}${isRef ? 'ref ' : ''}${base}${literalText}`.trim();
   return {
     raw,
     datatype,
     literals,
     base,
-    isConst: datatype.includes('const'),
+    isConst,
+    isRef,
     description,
   };
 }
@@ -238,7 +241,7 @@ function leavesOf(params, groupRepeat = false, groupOptional = false, out = []) 
     } else if (p.kind === 'exclusive') {
       leavesOf(p.options, groupRepeat, groupOptional, out);
     } else if (p.kind === 'arg' || p.kind === 'opt' || p.kind === 'rest') {
-      const isBool = p.datatype.base === 'bool';
+      const isBool = p.datatype.base === 'bool' && !p.datatype.isRef;
       p.array = p.kind === 'rest' || ((p.repeat || groupRepeat) && !isBool);
       p.effectiveOptional = p.optional || groupOptional;
       out.push(p);
@@ -1018,13 +1021,15 @@ class Analyzer {
     const valueRange = span(node.line, node.valueCol, node.valueCol + node.value.length);
     if (info) {
       const value = classifyValue(node.value);
-      if ((value.kind === 'list' || value.kind === 'dict') && SCALARS.includes(info.base)) {
+      if (info.isRef && (value.kind === 'list' || value.kind === 'dict')) {
+        this.report('warning', valueRange, `ref expects a variable name, not a ${value.kind}`, 'type-mismatch');
+      } else if (!info.isRef && (value.kind === 'list' || value.kind === 'dict') && SCALARS.includes(info.base)) {
         this.report('warning', valueRange, `A ${value.kind} is assigned to '${node.name}', which is declared as <${info.description}>`, 'type-mismatch');
-      } else if (info.base === 'list' && value.kind === 'dict') {
+      } else if (!info.isRef && info.base === 'list' && value.kind === 'dict') {
         this.report('warning', valueRange, `Key=value pairs are assigned to '${node.name}', which is declared as a list`, 'type-mismatch');
-      } else if (info.base === 'dict' && value.kind === 'list' && value.items.length) {
+      } else if (!info.isRef && info.base === 'dict' && value.kind === 'list' && value.items.length) {
         this.report('warning', valueRange, `Dict values must be key=value pairs, e.g. (a=1 b=2)`, 'type-mismatch');
-      } else if (value.kind === 'scalar' && hasTypeTest(info)) {
+      } else if (!info.isRef && value.kind === 'scalar' && hasTypeTest(info)) {
         const literal = literalValue(node.value);
         if (literal !== null && !accepts(literal, info)) {
           this.report('error', valueRange, `${node.name}: expected ${info.description}, received ${node.value}`, 'type-mismatch');
@@ -1070,12 +1075,15 @@ class Analyzer {
         seen.set(leaf.name, leaf);
       }
       this.validateType(leaf.datatype, range);
+      if (leaf.datatype.isRef && (leaf.array || leaf.kind === 'rest')) {
+        this.report('error', range, 'ref parameters cannot be repeatable', 'param');
+      }
       if (leaf.default !== null) {
         if (leaf.array) {
           this.report('warning', range, 'Defaults are ignored for repeatable parameters', 'param-default');
         } else {
           const literal = literalValue(leaf.default);
-          if (literal !== null && hasTypeTest(leaf.datatype) && !accepts(literal, leaf.datatype)) {
+          if (literal !== null && !leaf.datatype.isRef && hasTypeTest(leaf.datatype) && !accepts(literal, leaf.datatype)) {
             this.report('error', range, `Default ${leaf.default} is not a valid ${leaf.datatype.description}`, 'param-default');
           }
         }
@@ -1092,7 +1100,7 @@ class Analyzer {
           rest = leaf;
         }
       }
-      if (!(leaf.kind === 'opt' && leaf.datatype.base === 'bool') && !leaf.array) {
+      if (!(leaf.kind === 'opt' && leaf.datatype.base === 'bool' && !leaf.datatype.isRef) && !leaf.array) {
         this.types.set(leaf.name, leaf.datatype);
       }
     }
@@ -1257,7 +1265,7 @@ class Analyzer {
         this.report('warning', range, `Unknown option '${arg.text}' for '${fn.name}'`, 'unknown-option');
         continue;
       }
-      if (leaf.datatype.base === 'bool' && !leaf.array) continue;
+      if (leaf.datatype.base === 'bool' && !leaf.datatype.isRef && !leaf.array) continue;
       if (leaf.repeat) {
         while (k + 1 < args.length && !/^-./.test(args[k + 1].text)) k++;
       } else {
@@ -1274,13 +1282,15 @@ class Analyzer {
       return this.report(
         'error',
         range,
-        `Unknown type '${unknown}': expected ${TYPE_NAMES.join(', ')}, optionally prefixed with const`,
+        `Unknown type '${unknown}': expected ${TYPE_NAMES.join(', ')}, optionally prefixed with const or ref`,
         'type',
       );
     }
-    const rest = words[0] === 'const' ? words.slice(1) : words;
-    const [base, ...args] = rest;
+    let rest = words[0] === 'const' ? words.slice(1) : words;
     if (rest.includes('const')) return this.report('error', range, "'const' must come first, e.g. <const int>", 'type');
+    rest = rest[0] === 'ref' ? rest.slice(1) : rest;
+    if (rest.includes('ref')) return this.report('error', range, "'ref' must come before the type, e.g. <ref list>", 'type');
+    const [base, ...args] = rest;
     if (args.length) return this.report('error', range, `'${base}' does not take type arguments, e.g. <${base}>`, 'type');
     if (!info.literals) return;
     if (!SCALARS.includes(info.base)) return this.report('error', range, 'Allowed values can only be listed for str, int, float, and bool', 'type');

@@ -400,7 +400,8 @@ fn snapshot_directory(root: &Path, destination: &Path) -> Result<Vec<PathBuf>> {
         .with_context(|| format!("failed to resolve {}", root.display()))?;
     let mut entries = Vec::new();
     fn walk(root: &Path, dir: &Path, destination: &Path, entries: &mut Vec<PathBuf>) -> Result<()> {
-        for item in fs::read_dir(dir).with_context(|| format!("failed to read {}", dir.display()))?
+        for item in
+            fs::read_dir(dir).with_context(|| format!("failed to read {}", dir.display()))?
         {
             let item = item?;
             let name = item.file_name();

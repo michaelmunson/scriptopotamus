@@ -198,7 +198,11 @@ fn nested_exclusive_sets_are_each_checked() {
     let src = ".cmd([[-a | -b] | [-c]])\n  -> ok\n";
     let out = run(src, &["cmd", "-a", "-b"]);
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("-a and -b are mutually exclusive"), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains("-a and -b are mutually exclusive"),
+        "{}",
+        stderr(&out)
+    );
     assert!(!run(src, &["cmd", "-a", "-c"]).status.success());
     assert!(run(src, &["cmd", "-b"]).status.success());
 }
@@ -206,8 +210,122 @@ fn nested_exclusive_sets_are_each_checked() {
 #[test]
 fn rest_takes_everything_after_the_last_positional_verbatim() {
     let src = ".cmd(file [-v] *rest)\n  -> \"$v|$file|${rest[*]}\"\n";
-    assert_eq!(stdout(&run(src, &["cmd", "-v", "a", "-v", "--x", "--", "b"])), "true|a|-v --x -- b\n");
-    assert_eq!(stdout(&run(src, &["cmd", "--other", "a", "b"])), "false|a|--other b\n");
+    assert_eq!(
+        stdout(&run(src, &["cmd", "-v", "a", "-v", "--x", "--", "b"])),
+        "true|a|-v --x -- b\n"
+    );
+    assert_eq!(
+        stdout(&run(src, &["cmd", "--other", "a", "b"])),
+        "false|a|--other b\n"
+    );
+}
+
+#[test]
+fn type_helpers_follow_refs() {
+    let src = r#"
+@import scrippo/std/types
+mylist<list>=(a b c)
+list --length mylist
+list --join "." mylist
+mydict<dict>=(a=1 b=2 c=3)
+dict --length mydict
+dict --keys mydict
+dict --values mydict
+mystr<str>="a.b.c"
+str --length mystr
+str --split mystr "."
+str mystr
+"#;
+    let out = run(src, &[]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let lines: Vec<_> = stdout(&out).lines().map(str::to_string).collect();
+    assert_eq!(lines[0], "3");
+    assert_eq!(lines[1], "a.b.c");
+    assert_eq!(lines[2], "3");
+    let mut keys: Vec<_> = lines[3].split_whitespace().collect();
+    keys.sort();
+    assert_eq!(keys, ["a", "b", "c"]);
+    let mut values: Vec<_> = lines[4].split_whitespace().collect();
+    values.sort();
+    assert_eq!(values, ["1", "2", "3"]);
+    assert_eq!(lines[5], "5");
+    assert_eq!(lines[6], "a b c");
+    assert_eq!(lines[7], "a.b.c");
+}
+
+#[test]
+fn type_helpers_reverse_and_contain() {
+    let src = r#"
+@import scrippo/std/types
+mylist<list>=(a b c)
+list --reverse mylist
+list mylist --contains b
+list --contains mylist z
+list --contains mylist "b*"
+words<list>=("a b" c)
+list --contains words "a b"
+list --contains words "a"
+empty<list>=()
+list --reverse empty
+list --contains empty ""
+mystr<str>="a.b.c"
+str --reverse mystr
+str mystr --contains "b."
+str --contains mystr z
+str --contains mystr "*"
+spaced<str>="ab c"
+str --reverse spaced
+str --contains spaced ""
+blank<str>=""
+str --reverse blank
+mydict<dict>=(a=1 b=2 "c d"=3)
+dict --contains mydict a
+dict mydict --contains z
+dict --contains mydict 1
+dict --contains mydict "c d"
+blankdict<dict>=(empty=)
+dict --contains blankdict empty
+stars<dict>=("*"=1)
+dict --contains stars "*"
+"#;
+    let out = run(src, &[]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "c b a\ntrue\nfalse\nfalse\ntrue\nfalse\n\nfalse\nc.b.a\ntrue\nfalse\nfalse\nc ba\ntrue\n\ntrue\nfalse\nfalse\ntrue\ntrue\ntrue\n"
+    );
+}
+
+#[test]
+fn ref_binds_empty_lists_and_the_parameter_name() {
+    let src = r#"
+@import scrippo/std/types
+empty<list>=()
+list --length empty
+array<list>=(a b c)
+len(array<ref list>)
+  -> ${#array[@]}
+len array
+"#;
+    let out = run(src, &[]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "0\n3\n");
+}
+
+#[test]
+fn ref_declaration_follows_its_target() {
+    let src = "items<list>=(a b c)\nview<ref list>=items\n-> ${#view[@]}\nview=z\n-> ${items[0]}\n";
+    let out = run(src, &[]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "3\nz\n");
+}
+
+#[test]
+fn repeatable_ref_is_rejected() {
+    let err = compile_source(Path::new("bad"), "f(items<ref list>...)\n  -> x\n").unwrap_err();
+    assert!(err.to_string().contains("cannot be repeatable"), "{err}");
+    let err = compile_source(Path::new("bad"), "alias<ref list>=(a b)\n").unwrap_err();
+    assert!(err.to_string().contains("expects a variable name"), "{err}");
 }
 
 #[test]

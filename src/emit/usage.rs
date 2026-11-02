@@ -55,10 +55,13 @@ struct View<'a> {
 impl View<'_> {
     fn line(&mut self, indent: usize, text: &str) {
         if std::mem::take(&mut self.bullet) {
-            self.out
-                .push_str(&format!("{}- {text}\n", " ".repeat(indent.saturating_sub(2))));
+            self.out.push_str(&format!(
+                "{}- {text}\n",
+                " ".repeat(indent.saturating_sub(2))
+            ));
         } else {
-            self.out.push_str(&format!("{}{text}\n", " ".repeat(indent)));
+            self.out
+                .push_str(&format!("{}{text}\n", " ".repeat(indent)));
         }
     }
 
@@ -90,7 +93,10 @@ impl View<'_> {
     }
 
     fn leaf(&mut self, param: &Param, indent: usize) {
-        let Some(leaf) = flatten_leaves(std::slice::from_ref(param)).into_iter().next() else {
+        let Some(leaf) = flatten_leaves(std::slice::from_ref(param))
+            .into_iter()
+            .next()
+        else {
             return;
         };
         let option = !leaf.flags.is_empty();
@@ -108,15 +114,22 @@ impl View<'_> {
             label.push_str("...");
         }
         let mut text = paint(&label, if option { 34 } else { 36 }, self.colored);
+        let implicit = if option {
+            TypeKind::Bool
+        } else {
+            TypeKind::Str
+        };
         if leaf.kind != LeafKind::Rest
-            && leaf.ty.kind
-                != if option {
-                    TypeKind::Bool
-                } else {
-                    TypeKind::Str
-                }
+            && (leaf.ty.kind != implicit
+                || leaf.ty.is_ref
+                || leaf.ty.is_const
+                || leaf.ty.literals.is_some())
         {
-            text.push_str(&paint(&format!("<{}>", leaf.ty.description()), 33, self.colored));
+            text.push_str(&paint(
+                &format!("<{}>", leaf.ty.description()),
+                33,
+                self.colored,
+            ));
         }
         let key = if option { &leaf.flags[0] } else { &leaf.name };
         text.push_str(&comments(self.docs, key, self.colored));
@@ -125,7 +138,10 @@ impl View<'_> {
 }
 
 fn is_leaf(param: &Param) -> bool {
-    matches!(param, Param::Arg { .. } | Param::Opt { .. } | Param::Rest { .. })
+    matches!(
+        param,
+        Param::Arg { .. } | Param::Opt { .. } | Param::Rest { .. }
+    )
 }
 pub fn text(
     name: &str,

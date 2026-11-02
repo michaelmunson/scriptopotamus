@@ -122,6 +122,15 @@ pub fn emit_function_params(em: &mut Emitter, fn_label: &str, params: &[Param]) 
             LeafKind::Opt => {
                 if leaf.array {
                     em.emit_line(&format!("local -a {}=()", leaf.name));
+                } else if leaf.ty.is_ref {
+                    let holder = format!("_scrippo_ref_{}", leaf.name);
+                    if let Some(d) = &leaf.default {
+                        em.emit_line(&format!("local {holder}={d}"));
+                        em.emit_line(&format!("local -n {}=${{{holder}}}", leaf.name));
+                    } else {
+                        em.emit_line(&format!("local {holder}="));
+                        em.emit_line(&format!("local {}=", leaf.name));
+                    }
                 } else if leaf.ty.kind == TypeKind::Bool {
                     let def = leaf.default.as_deref().unwrap_or("false");
                     em.emit_line(&format!("local {}={def}", leaf.name));
@@ -231,7 +240,18 @@ fn emit_option(em: &mut Emitter, fn_label: &str, leaf: &Leaf) {
     let pattern = leaf.flags.join("|");
     em.emit_line(&format!("{pattern})"));
     em.indent();
-    if leaf.ty.kind == TypeKind::Bool && !leaf.array {
+    if leaf.ty.is_ref {
+        em.emit_line(&format!(
+            "if (( $# < 2 )); then echo \"{fn_label}: {} requires a value\" >&2; _scrippo_usage >&2; exit 1; fi",
+            leaf.flags.first().map(|s| s.as_str()).unwrap_or("")
+        ));
+        em.emit_line(&format!("_scrippo_ref_{}=$2", leaf.name));
+        em.emit_line(&format!(
+            "local -n {}=${{_scrippo_ref_{}}}",
+            leaf.name, leaf.name
+        ));
+        em.emit_line("shift 2");
+    } else if leaf.ty.kind == TypeKind::Bool && !leaf.array {
         em.emit_line(&format!("{}=true", leaf.name));
         em.emit_line("shift");
     } else if leaf.repeat {
@@ -283,6 +303,20 @@ fn emit_assign_args(
                 leaf.name
             ));
             rest = true;
+        } else if leaf.ty.is_ref {
+            let holder = format!("_scrippo_ref_{}", leaf.name);
+            if let Some(d) = &leaf.default {
+                em.emit_line(&format!(
+                    "local {holder}=${{_scrippo_args[{position}]:-{d}}}"
+                ));
+            } else {
+                em.emit_line(&format!("local {holder}=${{_scrippo_args[{position}]}}"));
+            }
+            em.emit_line(&format!(
+                "if [[ -n ${{{holder}}} ]]; then local -n {}=${{{holder}}}; fi",
+                leaf.name
+            ));
+            position += 1;
         } else if let Some(d) = &leaf.default {
             em.emit_line(&format!(
                 "local {}=${{_scrippo_args[{position}]:-{d}}}",
@@ -341,7 +375,9 @@ fn used_expr(param: &Param) -> String {
         Param::Arg {
             name, ty, repeat, ..
         } => {
-            if *repeat || ty.kind == TypeKind::List {
+            if ty.is_ref {
+                format!("-n ${{_scrippo_ref_{name}}}")
+            } else if *repeat || ty.kind == TypeKind::List {
                 format!("${{#{name}[@]}} -gt 0")
             } else {
                 format!("-n ${name}")
@@ -350,7 +386,9 @@ fn used_expr(param: &Param) -> String {
         Param::Opt {
             name, ty, repeat, ..
         } => {
-            if *repeat {
+            if ty.is_ref {
+                format!("-n ${{_scrippo_ref_{name}}}")
+            } else if *repeat {
                 format!("${{#{name}[@]}} -gt 0")
             } else if ty.kind == TypeKind::Bool {
                 format!("${name} == true")
@@ -482,7 +520,7 @@ fn emit_checks(em: &mut Emitter, fn_label: &str, params: &[Param], leaves: &[Lea
     }
 
     for leaf in leaves {
-        if leaf.kind == LeafKind::Opt && leaf.ty.kind == TypeKind::Bool {
+        if leaf.kind == LeafKind::Opt && leaf.ty.kind == TypeKind::Bool && !leaf.ty.is_ref {
             continue;
         }
         let flag = match leaf.kind {
