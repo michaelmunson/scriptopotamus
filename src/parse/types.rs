@@ -74,8 +74,15 @@ pub fn split_words(input: &str) -> Vec<String> {
     let mut words = Vec::new();
     let mut word = String::new();
     let mut quote = None::<char>;
+    let mut escaped = false;
     for c in input.chars() {
-        if let Some(q) = quote {
+        if escaped {
+            word.push(c);
+            escaped = false;
+        } else if c == '\\' && quote != Some('\'') {
+            word.push(c);
+            escaped = true;
+        } else if let Some(q) = quote {
             word.push(c);
             if c == q {
                 quote = None;

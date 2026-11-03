@@ -72,6 +72,28 @@ fn parse_statement(src: &mut Source) -> Result<Stmt> {
         return parse_info(src, &text);
     }
 
+    // A collection or quoted string continues until its closing delimiter.
+    // Parse before inline controls so semicolons in literal strings stay literal.
+    let literal =
+        regex::Regex::new(r#"^(?:[A-Za-z_][A-Za-z0-9_]*(?:<[^>]*>)?\s*=\s*|->\s*)([('"].*)$"#)
+            .unwrap();
+    if let Some(caps) = literal.captures(&text)
+        && source::value_continues(caps.get(1).unwrap().as_str())
+    {
+        let rhs = caps.get(1).unwrap();
+        let value = src.read_value(rhs.as_str())?;
+        let combined = format!("{}{}", &text[..rhs.start()], value);
+        src.next();
+        if let Some(rest) = combined.strip_prefix("->") {
+            return Ok(Stmt::Echo {
+                value: parse_value(rest.trim()),
+                line,
+            });
+        }
+        return try_assignment(line, &path, &combined)?
+            .ok_or_else(|| src.error("invalid multiline assignment"));
+    }
+
     // Inline control on one line: if $c; -> a; else -> b
     if text.contains(';') && !text.starts_with("case ") && !looks_like_function(&text) {
         return parse_inline_line(src, line, &text);
@@ -843,7 +865,7 @@ fn find_comment(s: &str) -> Option<usize> {
 }
 
 fn try_assignment(line: usize, path: &Path, text: &str) -> Result<Option<Stmt>> {
-    let typed = regex::Regex::new(r"^([A-Za-z_][A-Za-z0-9_]*)<([^>]*)>\s*=\s*(.*)$").unwrap();
+    let typed = regex::Regex::new(r"(?s)^([A-Za-z_][A-Za-z0-9_]*)<([^>]*)>\s*=\s*(.*)$").unwrap();
     if let Some(caps) = typed.captures(text) {
         let name = caps[1].to_string();
         let ty = parse_type(path, line, &caps[2])?;
@@ -855,7 +877,7 @@ fn try_assignment(line: usize, path: &Path, text: &str) -> Result<Option<Stmt>> 
             line,
         }));
     }
-    let plain = regex::Regex::new(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$").unwrap();
+    let plain = regex::Regex::new(r"(?s)^([A-Za-z_][A-Za-z0-9_]*)=(.*)$").unwrap();
     if let Some(caps) = plain.captures(text) {
         // Avoid matching flags like --opt=val as assignment at statement level if starts with -
         return Ok(Some(Stmt::Assignment {

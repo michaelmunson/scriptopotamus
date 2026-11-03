@@ -310,3 +310,16 @@ test('inherit resolves parent params for checking and completion', () => {
   assert.deepEqual(result.functions[1].leaves.map((leaf) => leaf.name), ['path', 'absolute']);
   assert.ok(analyze('.root(@inherit)\n').diagnostics.some((d) => d.message.includes('requires a parent')));
 });
+
+test('multiline values preserve analysis and line numbers', () => {
+  const source = 'user<dict>=(name="Ada"\n  year=1815 # note\n)\nitems<list>=(\n  one\n  "two words"\n)\n-> "$user[name]"\n';
+  const result = analyze(source);
+  assert.deepEqual(result.diagnostics, []);
+  assert.deepEqual([...result.variables.keys()], ['user', 'items']);
+  assert.ok(analyze('x<list>=(\n a').diagnostics.some((d) => d.code === 'collection' && d.range.start.line === 0));
+  assert.deepEqual(analyze('message<str>="Hello\n  world\n# literal text"\n-> "$message"').diagnostics, []);
+  assert.ok(analyze('text<str>="first\nlast').diagnostics.some((d) => d.code === 'string' && d.range.start.line === 0));
+  assert.ok(analyze('x<dict>=(\n a\n)').diagnostics.some((d) => d.code === 'type-mismatch'));
+  const following = analyze('x<list>=(\n a\n)\nfi');
+  assert.ok(following.diagnostics.some((d) => d.code === 'block-closer' && d.range.start.line === 3));
+});

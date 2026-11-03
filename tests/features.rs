@@ -340,3 +340,107 @@ fn usage_nests_groups_and_bullets_alternatives() {
         "{text}"
     );
 }
+
+#[test]
+fn multiline_collections_allow_comments_quotes_and_nested_blocks() {
+    let src = r###"
+user<dict>=(name="Ada Lovelace"
+  # Dictionary entries are whitespace-separated.
+  year=1815
+  punctuation="(#); literal"
+)
+items<list>=(
+  one "two words"
+  "literal # hash" # inline comment
+  "(parentheses)"
+)
+show()
+  local_items<list>=(
+    a
+    b
+  )
+  -> "$local_items[1]"
+  -> "$user[name]"
+  -> "$user[punctuation]"
+  for item in $items
+    -> "$item"
+show
+-> "after"
+"###;
+    let out = run(src, &[]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "b\nAda Lovelace\n(#); literal\none\ntwo words\nliteral # hash\n(parentheses)\nafter\n"
+    );
+}
+
+#[test]
+fn multiline_collection_errors_keep_source_locations() {
+    for (src, expected) in [
+        ("# heading\nx<list>=(\n a\n", "unterminated collection"),
+        (
+            "# heading\nx<str>=\"first\nlast\n",
+            "unterminated string literal",
+        ),
+        (
+            "# heading\nx<list>=(\n a\n) bad\n",
+            "unexpected text after collection",
+        ),
+    ] {
+        let error = compile_source(Path::new("multi.scrippo"), src)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains(expected), "{error}");
+        if expected.starts_with("unterminated") {
+            assert!(error.contains("multi.scrippo:2:"), "{error}");
+        }
+    }
+    let error = compile_source(
+        Path::new("multi.scrippo"),
+        "# comment\n\nx<list>=(\na\n)\nfi\n",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("multi.scrippo:6:"), "{error}");
+}
+
+#[test]
+fn multiline_collections_preserve_quoted_lines_and_escaped_quotes() {
+    let src = r####"items<list>=(
+  "say \"hello\" (#)"
+  "first
+###
+last"
+)
+-> "$items[0]"
+-> "$items[1]"
+"####;
+    let out = run(src, &[]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "say \"hello\" (#)\nfirst\n###\nlast\n");
+}
+
+#[test]
+fn multiline_strings_preserve_newlines_whitespace_and_shell_quoting() {
+    let src = r###"name<str>=Ada
+message<str>="Hello $name
+  indented
+
+# literal text; (not code)
+last line"
+raw<str>='literal $name
+and "quotes"'
+-> "$message"
+-> "$raw"
+-> "first output line
+second output line"
+-> "after"
+"###;
+    let out = run(src, &[]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        stdout(&out),
+        "Hello Ada\n  indented\n\n# literal text; (not code)\nlast line\nliteral $name\nand \"quotes\"\nfirst output line\nsecond output line\nafter\n"
+    );
+}

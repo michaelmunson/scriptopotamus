@@ -12,6 +12,8 @@ scrippo --configure
 scrippo --configure autoload=true autocomplete=true
 scrippo --configure alias=s,sc
 scrippo --configure alias=
+scrippo --configure editor="cursor"
+scrippo --configure editor="nvim"
 ```
 
 With no pairs, the command prints the file it would save. With pairs, it updates those keys, writes the file, and prints the result. Unknown keys are an error. The file is `key=value` lines. Blank lines and `#` comments are ignored.
@@ -21,6 +23,7 @@ With no pairs, the command prints the file it would save. With pairs, it updates
 | `autoload` | `true`, `false`, `1`, `0`, `yes`, `no`, `on`, `off` | `false` |
 | `autocomplete` | same booleans | `false` |
 | `alias` | comma-separated command names, or empty | empty |
+| `editor` | editor command, or empty to disable | empty |
 
 Alias names start with a letter or `_` and contain letters, digits, `_`, or `-`. Duplicates are dropped. `alias=` clears the list.
 
@@ -53,3 +56,11 @@ Completion of `scrippo` itself follows the wrapper's modes. After you choose a m
 ## alias
 
 `alias=s,sc` makes `s` and `sc` invoke `scrippo`, with the same completion when autocomplete is on. These names are applied by the hook in new shells, and in bash after a directory change because the hook re-runs. They are shell aliases, not separate binaries.
+
+## editor
+
+After creating a local or global script or package, `scrippo -n` opens its new `.scrippo` file with this command. For example, `scrippo --configure editor="nvim"` followed by `scrippo -n -s -g myscript` opens the global script in Neovim.
+
+The command runs through Bash with the file path appended as one quoted argument. Arguments and quoted executable paths are supported, for example `scrippo --configure editor="cursor --wait"`. Scrippo inherits the terminal and waits for the editor command to finish. A launch failure or nonzero exit reports an error and preserves the created file. Existing files are never opened or overwritten by `-n`.
+
+Use `scrippo --configure editor=` to disable opening. An unset editor also leaves creation without opening a program.

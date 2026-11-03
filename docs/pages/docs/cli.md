@@ -29,6 +29,8 @@ A filename that exists is used as given. A bare name such as `hello` or `hello.s
 
 ## Create, list, and remove
 
+New scripts and packages open automatically when an [editor is configured](/configuration#editor), for both local and global creation. Set it with `scrippo --configure editor="cursor"` or `scrippo --configure editor="nvim"`.
+
 These modes need `-p` / `--package` or `-s` / `--script`. `-g` / `--global` uses `~/.scrippo` (or `SCRIPPO_HOME`) instead of the project.
 
 | Invocation | Result |

@@ -3,7 +3,7 @@ title: Files and syntax
 description: Indentation, comments, names, shebangs, and how a line becomes a statement.
 ---
 
-A scrippo source file is a sequence of statements. A statement is one logical line, plus the lines indented under it. The compiler skips blank lines and lines whose first non-whitespace character is `#`.
+A scrippo source file is a sequence of statements. A statement is one logical line, plus the lines indented under it. The compiler skips blank lines and lines whose first non-whitespace character is `#`. Quoted strings and parenthesized [list and dict values](/values) can continue across lines until their closing delimiter.
 
 ## Names
 

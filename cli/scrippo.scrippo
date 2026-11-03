@@ -10,7 +10,7 @@
   [--noexec] |
   [
     [
-      #? Create a package or script; <file> is its name
+      #? Create a package or script and open the configured editor; <file> is its name
       -n / --new |
       [
         #? Initialize .scrippo in the current directory when given alone; with <file>, install packages/scripts from that source, [args] an optional source subdirectory then destination
@@ -34,7 +34,7 @@
       -g / --global
     ]
   ] |
-  #? Print settings, or set them; [args] are key=value pairs
+  #? Print settings, or set them (including editor=nvim); [args] are key=value pairs
   [--configure] |
   #? Emit the shell hook for autoload (eval from your shell rc)
   [--hook] |

@@ -145,3 +145,11 @@ test('indented metadata options end at the following command', async () => {
   assert.match(await scopeOf(src, 'Text (with punctuation)'), /string\.quoted\.double/);
   assert.doesNotMatch(await scopeOf(src, 'hello'), /meta\.metadata/);
 });
+
+test('multiline strings and collection keys', async () => {
+  const src = 'message<str>="first\n# literal text\nlast"\nuser<dict>=(\n  name="Ada"\n  year=1815\n)\nitems<list>=(\n  "one"\n  "two"\n)\n-> "after"';
+  assert.match(await scopeOf(src, '# literal text'), /string\.quoted\.double/);
+  assert.match(await scopeOf(src, 'name'), /entity\.name\.tag\.key/);
+  assert.match(await scopeOf(src, 'two'), /string\.quoted\.double/);
+  assert.doesNotMatch(await scopeOf(src, 'after'), /comment/);
+});

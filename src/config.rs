@@ -9,6 +9,8 @@ pub struct Config {
     pub autocomplete: bool,
     /// Extra command names for `scrippo`, with the same tab completion.
     pub alias: Vec<String>,
+    /// Shell command used to edit newly created files; empty disables opening.
+    pub editor: String,
 }
 
 impl Default for Config {
@@ -17,6 +19,7 @@ impl Default for Config {
             autoload: false,
             autocomplete: false,
             alias: Vec::new(),
+            editor: String::new(),
         }
     }
 }
@@ -58,17 +61,26 @@ impl Config {
             "autoload" => self.autoload = parse_bool(value)?,
             "autocomplete" => self.autocomplete = parse_bool(value)?,
             "alias" => self.alias = parse_aliases(value)?,
-            _ => bail!("unknown config key '{key}' (expected autoload, autocomplete or alias)"),
+            "editor" => {
+                if value.contains(['\n', '\r']) {
+                    bail!("editor must be a single-line command");
+                }
+                self.editor = value.trim().to_string();
+            }
+            _ => bail!(
+                "unknown config key '{key}' (expected autoload, autocomplete, alias or editor)"
+            ),
         }
         Ok(())
     }
 
     pub fn display(&self) -> String {
         format!(
-            "autoload={}\nautocomplete={}\nalias={}\n",
+            "autoload={}\nautocomplete={}\nalias={}\neditor={}\n",
             bool_str(self.autoload),
             bool_str(self.autocomplete),
-            self.alias.join(",")
+            self.alias.join(","),
+            self.editor
         )
     }
 }

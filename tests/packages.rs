@@ -327,3 +327,81 @@ fn complete_local_script_commands_from_subdirectory() {
     std::env::set_current_dir(old).unwrap();
     assert!(got.contains(&"compile".to_string()), "{got:?}");
 }
+
+#[test]
+#[cfg(unix)]
+fn configured_editor_opens_all_new_files_and_preserves_them_on_failure() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project with spaces");
+    let home = root.path().join("home");
+    std::fs::create_dir_all(project.join(".scrippo")).unwrap();
+    let config = root.path().join("config");
+    let editor = root.path().join("fake editor");
+    let log = root.path().join("editor args");
+    std::fs::write(
+        &editor,
+        "#!/bin/bash\nprintf '%s\\n' \"$@\" > \"$EDITOR_LOG\"\nexit \"${EDITOR_STATUS:-0}\"\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&editor, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let run = |args: &[&str], status: &str| {
+        Command::new(bin())
+            .current_dir(&project)
+            .env("SCRIPPO_HOME", &home)
+            .env("SCRIPPO_CONFIG", &config)
+            .env("EDITOR_LOG", &log)
+            .env("EDITOR_STATUS", status)
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    let value = format!("editor='{}' --wait", editor.display());
+    assert!(run(&["--configure", &value], "0").status.success());
+    assert!(String::from_utf8_lossy(&run(&["--configure"], "0").stdout).contains(&value));
+    for (args, file) in [
+        (
+            vec!["-n", "-s", "local_script"],
+            project.join("local_script.scrippo"),
+        ),
+        (
+            vec!["-n", "-p", "local_package"],
+            project.join(".scrippo/lib/local_package.scrippo"),
+        ),
+        (
+            vec!["-n", "-s", "-g", "global_script"],
+            home.join("scripts/global_script.scrippo"),
+        ),
+        (
+            vec!["-n", "-p", "-g", "global_package"],
+            home.join("lib/global_package.scrippo"),
+        ),
+    ] {
+        let out = run(&args, "0");
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(
+            std::fs::read_to_string(&log).unwrap(),
+            format!("--wait\n{}\n", file.display())
+        );
+        std::fs::remove_file(&log).unwrap();
+        assert!(!run(&args, "0").status.success());
+        assert!(!log.exists(), "existing files must not launch the editor");
+    }
+    let failed = run(&["-n", "-s", "failed_editor"], "7");
+    assert!(!failed.status.success());
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("editor exited"));
+    assert!(project.join("failed_editor.scrippo").is_file());
+    std::fs::remove_file(&log).unwrap();
+    assert!(run(&["--configure", "editor="], "0").status.success());
+    assert!(run(&["-n", "-s", "no_editor"], "0").status.success());
+    assert!(!log.exists());
+    assert!(
+        !run(&["--configure", "editor=nvim\nautoload=true"], "0")
+            .status
+            .success()
+    );
+}

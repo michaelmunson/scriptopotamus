@@ -280,8 +280,24 @@ fn run_new(cli: &Cli) -> Result<()> {
         .context("usage: scrippo -n (-p|-s) [-g] <name>")?;
 
     let kind = kind_flag(cli)?;
+    let cfg = config::Config::load()?;
     let path = paths::create_new(kind, scope_flag(cli), &name)?;
     println!("created {}", path.display());
+    if !cfg.editor.is_empty() {
+        let status = Command::new("bash")
+            .arg("-c")
+            .arg(format!("{} \"$@\"", cfg.editor))
+            .arg("scrippo-editor")
+            .arg(&path)
+            .status()
+            .with_context(|| format!("created {}, but failed to launch editor", path.display()))?;
+        if !status.success() {
+            bail!(
+                "created {}, but editor exited with {status}",
+                path.display()
+            );
+        }
+    }
     Ok(())
 }
 

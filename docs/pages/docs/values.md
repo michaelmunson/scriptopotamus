@@ -25,6 +25,19 @@ message<str>="count is $n"
 
 `$name` is left as a bash expansion. `"$name"` is the right habit when the value may contain spaces, because the compiler does not add quotes for you.
 
+Quoted strings can span lines in assignments and after `->`. Newlines, blank lines, and indentation inside the quotes are preserved; `#` inside the string is literal text.
+
+```scrippo
+name<str>=Ada
+message<str>="Hello $name
+This is the second line."
+raw<str>='Literal $name
+No variable expansion here.'
+-> "$message"
+```
+
+Double quotes use Bash interpolation and escaping. Single quotes preserve text literally. Put the closing quote at the end of the value, optionally followed by a comment. There is no automatic indentation removal. Multiline strings also work as list elements and dict values. A missing closing quote reports an error at the value's opening line.
+
 ## References
 
 The compiler rewrites a few reference forms before bash sees them:
@@ -51,6 +64,16 @@ items<list>=(a b "c d")
 -> $items[0]
 ```
 
+Lists can span lines. Parentheses delimit the value, so continuation lines do not open indentation blocks. Whitespace separates elements; commas are not separators.
+
+```scrippo
+items<list>=(
+  one
+  "two words" # an inline comment
+  three
+)
+```
+
 In `for i in $items`, a lone `$items` is expanded as `"${items[@]}"`, so each element is one loop value. In other positions `$items` is a normal bash array expansion and usually needs `[@]` or `[*]` yourself if you are writing bash directly.
 
 ## Dicts
@@ -63,6 +86,20 @@ user<dict>=(name=ada year=1815)
 ```
 
 Quote a key or value that has spaces. The compiler emits `[key]=value` entries.
+
+Dicts can span lines too, with whitespace-separated `key=value` entries:
+
+```scrippo
+user<dict>=(
+  name="Ada Lovelace"
+  year=1815
+  # Additional profile fields
+  role=programmer
+)
+-> "$user[name]"
+```
+
+You may put entries on the opening line and continue on following lines. Both list and dict literals support blank lines, `#` comments. A closing `)` ends the value regardless of its indentation. Quoted parentheses and `#` characters remain part of the value. An unclosed literal reports an error at its opening line. Multiline literals work in assignments.
 
 ## Math
 

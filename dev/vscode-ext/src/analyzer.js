@@ -32,7 +32,7 @@ const RE = {
   assignment: new RegExp(`^(${NAME})=(.*)$`, 'd'),
   macro: /^@([A-Za-z_][A-Za-z0-9_]*)(?:\(([^)]*)\))?(\s+.*)?$/,
   literals: /^([^({]*)[({](.*)[)}]$/,
-  list: /^\((.*)\)$/,
+  list: /^\((.*)\)$/s,
   math: /^[^"'()]+\s[-+*/%]\s[^"'()]+$/,
   closer: /^(fi|done|then|do|esac)(?=[\s;]|$)/,
   bareCondition: /^(if|while|case)$/,
@@ -60,9 +60,17 @@ function words(input) {
   let word = '';
   let start = -1;
   let quote = '';
+  let escaped = false;
   for (let i = 0; i < input.length; i++) {
     const c = input[i];
-    if (quote) {
+    if (escaped) {
+      word += c;
+      escaped = false;
+    } else if (c === '\\' && quote !== "'") {
+      if (start < 0) start = i;
+      word += c;
+      escaped = true;
+    } else if (quote) {
       word += c;
       if (c === quote) quote = '';
     } else if (c === '"' || c === "'") {
@@ -335,7 +343,7 @@ class Analyzer {
     if ((m = RE.case.exec(t))) return this.parseCase(m);
     if ((m = RE.echo.exec(t))) {
       this.idx++;
-      return { kind: 'echo', line: i, value: m[1], col: line.indent + m.indices[1][0] };
+      return { kind: 'echo', line: i, value: this.readValue(m[1], i), closeLine: this.idx - 1, col: line.indent + m.indices[1][0] };
     }
     if (t.startsWith('@')) {
       const macro = this.parseMacro();
@@ -362,7 +370,8 @@ class Analyzer {
         nameRange: span(i, line.indent, line.indent + m[1].length),
         datatype: parseType(m[3]),
         typeRange: span(i, line.indent + m.indices[2][0], line.indent + m.indices[2][1]),
-        value: m[4],
+        value: this.readValue(m[4], i),
+        closeLine: this.idx - 1,
         valueCol: line.indent + m.indices[4][0],
       };
     }
@@ -374,11 +383,44 @@ class Analyzer {
         name: m[1],
         nameRange: span(i, line.indent, line.indent + m[1].length),
         datatype: null,
-        value: m[2],
+        value: this.readValue(m[2], i),
+        closeLine: this.idx - 1,
         valueCol: line.indent + m.indices[2][0],
       };
     }
     return this.parseBash();
+  }
+
+  readValue(first, start) {
+    const collection = first.trimStart().startsWith('(');
+    if (!collection && !/^["']/.test(first.trimStart())) return first;
+    let value = first;
+    const depthOf = (text) => {
+      let depth = 0;
+      for (const c of scanShell(text).mask) {
+        if (c === '(') depth++;
+        else if (c === ')') depth--;
+      }
+      return depth;
+    };
+    const continues = (text) => collection ? depthOf(text) > 0 : Boolean(scanShell(text).unterminated);
+    if (!continues(first)) return first;
+    while (continues(value) && this.idx < this.lines.length) {
+      value += '\n' + this.lines[this.idx++].raw;
+    }
+    if (continues(value)) {
+      this.report('error', this.lineRange(start), collection ? "Unterminated collection literal (expected ')')" : 'Unterminated string literal (expected closing quote)', collection ? 'collection' : 'string');
+    }
+    const scanned = scanShell(value);
+    const chars = value.split('');
+    for (const [begin, end] of scanned.comments) {
+      for (let k = begin; k < end; k++) if (chars[k] !== '\n') chars[k] = ' ';
+    }
+    return chars.join('').trimEnd();
+  }
+
+  valueSegments(node, col) {
+    return node.value.split('\n').map((text, offset) => ({ line: node.line + offset, col: offset ? 0 : col, text }));
   }
 
   parseIf(match) {
@@ -969,7 +1011,7 @@ class Analyzer {
         for (const arm of node.arms) this.check(arm.body, { ...scope, inBlock: true });
         break;
       case 'echo':
-        this.checkText([{ line: node.line, col: node.col, text: node.value }], scope, { calls: 'substitution' });
+        this.checkText(this.valueSegments(node, node.col), scope, { calls: 'substitution' });
         break;
       case 'declaration':
         this.validateType(node.datatype, node.typeRange);
@@ -1051,7 +1093,7 @@ class Analyzer {
         }
       }
     }
-    this.checkText([{ line: node.line, col: node.valueCol, text: node.value }], scope, { calls: 'substitution' });
+    this.checkText(this.valueSegments(node, node.valueCol), scope, { calls: 'substitution' });
   }
 
   checkFunction(node, scope) {
