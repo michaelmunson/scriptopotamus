@@ -54,11 +54,22 @@ fn compile_commands() {
 }
 
 #[test]
-fn compile_macros() {
-    let bash = compile_file(&fixture("macros.scrippo")).unwrap();
-    assert!(bash.contains("echo \"hi\""));
-    assert!(!bash.contains("@say_hi"));
-    assert_bash_n(&bash);
+fn user_defined_macros_are_rejected() {
+    let dir = std::env::temp_dir().join(format!("scrippo-macro-def-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    for (name, src) in [
+        ("def_parens.scrippo", "@say_hi()\n  -> \"hi\"\n"),
+        ("def_bare.scrippo", "@say_hi\n  -> \"hi\"\n"),
+    ] {
+        let path = dir.join(name);
+        std::fs::write(&path, src).unwrap();
+        let err = compile_file(&path).unwrap_err().to_string();
+        assert!(err.contains("macros cannot be defined"), "{err}");
+    }
+    let path = dir.join("call.scrippo");
+    std::fs::write(&path, "@say_hi\n").unwrap();
+    let err = compile_file(&path).unwrap_err().to_string();
+    assert!(err.contains("unknown macro '@say_hi'"), "{err}");
 }
 
 #[test]

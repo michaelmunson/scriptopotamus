@@ -103,7 +103,6 @@ fn invalid_metadata_reports_source_locations() {
         ("for x in a\n  @info", "top of the file"),
         ("while true\n  @info", "top of the file"),
         ("case x\n  x)\n    @info", "top of the file"),
-        ("@custom()\n  @info", "top of the file"),
     ] {
         let error = compile_source(Path::new("bad-info.scrippo"), source)
             .unwrap_err()

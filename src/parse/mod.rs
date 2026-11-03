@@ -645,51 +645,19 @@ fn parse_info(src: &mut Source, text: &str) -> Result<Stmt> {
 fn parse_macro(src: &mut Source, text: &str) -> Result<Stmt> {
     let line = src.line_number();
     let indent = src.indent;
-    // @name(...) definition or @name call
     let re = regex::Regex::new(r"^@([A-Za-z_][A-Za-z0-9_]*)(\((.*)\))?(\s+(.*))?$").unwrap();
     let caps = re
         .captures(text)
         .ok_or_else(|| src.error(format!("invalid macro '{text}'")))?;
     let name = caps[1].to_string();
-
-    if caps.get(2).is_some() && caps.get(5).is_none() {
-        // Could be definition @name() or @name(args) call with empty body line
-        let params_raw = caps.get(3).map(|m| m.as_str()).unwrap_or("");
-        src.next();
-        // If next lines are indented, it's a definition
-        if src.peek()? && src.indent > indent {
-            let body = parse_block(src, indent)?;
-            let params = if params_raw.trim().is_empty() {
-                Vec::new()
-            } else {
-                split_words(params_raw)
-            };
-            return Ok(Stmt::MacroDef {
-                name,
-                params,
-                body,
-                line,
-            });
-        }
-        // Call with ()
-        return Ok(Stmt::MacroCall {
-            name,
-            args: Vec::new(),
-            line,
-        });
-    }
-
     src.next();
-    if name != "import" && src.peek()? && src.indent > indent && caps.get(5).is_none() {
-        let body = parse_block(src, indent)?;
-        return Ok(Stmt::MacroDef {
-            name,
-            params: Vec::new(),
-            body,
+    if name != "import" && src.peek()? && src.indent > indent {
+        return Err(CompileError::at(
+            &src.path,
             line,
-        });
+            format!("@{name}: macros cannot be defined in scrippo; they are built into the compiler"),
+        ));
     }
-
     let args = if let Some(m) = caps.get(5) {
         split_words(m.as_str())
     } else if let Some(m) = caps.get(3) {

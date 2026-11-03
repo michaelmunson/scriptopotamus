@@ -45,21 +45,6 @@ list (1 2 3 4) --join "."
 
 `@import scrippo/std` pulls in `prt`, `input`, `throw`, `list`, `dict`, `str`, and `here`. `prt -s` colors the following argument. The `list (1 2 3 4)` line is copied through as bash; bash does not accept those parentheses as an argument, so execution stops there. Build a list with `items<list>=(1 2 3 4)` and index it with `$items[0]`. `str` takes one string, so `str "1.2.3.4" --split "."` is the helper that matches a single positional.
 
-## macros.scrippo
-
-```scrippo
-@say_hi()
-  -> "hi from macro"
-
-@say_hi
-
-risky || {
-  @say_hi
-}
-```
-
-`@say_hi()` defines a macro. `@say_hi` pastes the body at the call site, including inside a bash line. Macro arguments are recorded and then ignored; the body is inserted as written. See [Macros](/macros).
-
 ## demo/
 
 `docs/examples/demo/demo.scrippo` imports `fs.scrippo` as the command `.fs`, imports the standard library, and defines `.hello` with a nested `.world` that copies `name` through `@inherit`.

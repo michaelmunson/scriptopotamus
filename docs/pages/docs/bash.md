@@ -17,8 +17,6 @@ The `if` is scrippo. The `grep` pipeline is bash. Use this for tests, redirects,
 
 `$name`, `${name}`, `$name[key]`, `$--flag`, and `$-flag` are rewritten everywhere in the bash text, including inside double quotes. The rules are the same as in [Values and output](/values).
 
-A bash line that begins with `@name` expands that macro when it exists. See [Macros](/macros).
-
 ## Patterns that belong here
 
 ```scrippo

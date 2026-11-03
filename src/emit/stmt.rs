@@ -119,7 +119,6 @@ pub fn emit_stmt(em: &mut Emitter, stmt: &Stmt) -> Result<()> {
         } => {
             emit_function(em, name, *is_command, params, body, *line, None, docs)?;
         }
-        Stmt::MacroDef { .. } => {}
         Stmt::MacroCall { name, args, line } if name == "usage" => {
             let mut code = "1";
             let mut no_exit = false;

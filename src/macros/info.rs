@@ -140,8 +140,7 @@ impl FileInfo {
         fn check_nested(path: &Path, body: &[Stmt]) -> Result<()> {
             for stmt in body {
                 match stmt {
-                    Stmt::MacroCall { name, line, .. } | Stmt::MacroDef { name, line, .. }
-                        if name == "info" =>
+                    Stmt::MacroCall { name, line, .. } if name == "info" =>
                     {
                         return Err(CompileError::at(
                             path,
@@ -150,7 +149,6 @@ impl FileInfo {
                         ));
                     }
                     Stmt::Function { body, .. }
-                    | Stmt::MacroDef { body, .. }
                     | Stmt::For { body, .. }
                     | Stmt::While { body, .. } => check_nested(path, body)?,
                     Stmt::If {

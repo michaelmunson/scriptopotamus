@@ -26,7 +26,6 @@ test('multiline info is metadata and preserves following command analysis', () =
   const source = '@info\n  --name hello\n  --description "A greeting (with punctuation); # hi" # comment\n  --version 1.2.3\n  --script\n.hello() -> hello\n';
   const analysis = analyze(source);
   assert.deepEqual(analysis.diagnostics, []);
-  assert.deepEqual(analysis.macros, []);
   assert.ok(analysis.symbols.some((symbol) => symbol.name === '.hello'));
   for (const obsolete of ['@info()', '@info(--name hello)', '@info hello 1.2.3', '@info --script']) {
     assert.ok(analyze(obsolete).diagnostics.some((item) => item.code === 'info-syntax'), obsolete);
@@ -39,12 +38,10 @@ test('examples and fixtures have no errors', () => {
   const files = [
     'docs/examples/simple.scrippo',
     'docs/examples/commands.scrippo',
-    'docs/examples/macros.scrippo',
     'docs/examples/imports.scrippo',
     'tests/fixtures/simple.scrippo',
     'tests/fixtures/commands.scrippo',
     'tests/fixtures/control.scrippo',
-    'tests/fixtures/macros.scrippo',
     'tests/fixtures/imports.scrippo',
     'tests/fixtures/params.scrippo',
     'stdlib/io.scrippo',
@@ -270,8 +267,6 @@ test('symbols outline functions, commands, params, and variables', () => {
   const pi = simple.symbols.find((s) => s.name === 'PI');
   assert.equal(pi.kind, 'constant');
   assert.equal(pi.detail, '<const float>');
-  const macros = analyze('@say_hi()\n  -> "hi"\n').symbols;
-  assert.equal(macros.find((s) => s.name === '@say_hi').kind, 'macro');
 });
 
 test('functionChainAt finds enclosing functions', () => {
@@ -322,4 +317,12 @@ test('multiline values preserve analysis and line numbers', () => {
   assert.ok(analyze('x<dict>=(\n a\n)').diagnostics.some((d) => d.code === 'type-mismatch'));
   const following = analyze('x<list>=(\n a\n)\nfi');
   assert.ok(following.diagnostics.some((d) => d.code === 'block-closer' && d.range.start.line === 3));
+});
+
+test('macro definitions are errors and built-in macros still parse', () => {
+  for (const source of ['@say_hi()\n  -> "hi"\n', '@say_hi\n  -> "hi"\n']) {
+    const diagnostics = analyze(source).diagnostics;
+    assert.ok(diagnostics.some((item) => item.code === 'macro-definition' && item.severity === 'error'), source);
+  }
+  assert.deepEqual(analyze('@import scrippo/std\n').diagnostics, []);
 });

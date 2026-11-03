@@ -75,7 +75,6 @@ syn match scrippoParamMacro /@\h\w*/ contained
 syn region scrippoParams matchgroup=scrippoDelimiter start=/(/ end=/)/ contained contains=scrippoComment,scrippoDocComment,scrippoTypeAnn,scrippoParamMacro,scrippoParamRepeat,scrippoParamExclusive,scrippoParamAlias,scrippoParamOptional,scrippoParamRest,scrippoParamOption,scrippoParamName
 
 syn match scrippoCommandDef /^\s*\zs\.\%(\h[[:alnum:]_-]*\)\=\ze(/ nextgroup=scrippoParams
-syn match scrippoMacroDef /^\s*\zs@\h\w*\ze(/ nextgroup=scrippoParams
 syn match scrippoFunctionDef /^\s*\zs\%(\%(if\|elif\|else\|for\|while\|case\)\%(\w\|-\)\@!\)\@!\h[[:alnum:]_-]*\ze(/ nextgroup=scrippoParams
 
 " ---------------------------------------------------------------- declarations
@@ -158,7 +157,6 @@ hi def link scrippoParamOptional Delimiter
 hi def link scrippoParamMacro Macro
 
 hi def link scrippoCommandDef Function
-hi def link scrippoMacroDef Macro
 hi def link scrippoFunctionDef Function
 hi def link scrippoTypedVar Identifier
 hi def link scrippoAssignment Identifier

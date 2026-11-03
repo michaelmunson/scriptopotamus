@@ -301,11 +301,6 @@ function activate(context) {
         return md.appendMarkdown(`${fn.kind === 'command' ? 'Command' : 'Function'} defined on line ${fn.line + 1}`);
       }
     }
-    const macro = !word.startsWith('$') && analysis.macros.find((item) => item.name === bare);
-    if (macro) {
-      md.appendCodeblock(macro.header, LANGUAGE_ID);
-      return md.appendMarkdown(`Macro defined on line ${macro.line + 1}`);
-    }
     const variable = analysis.variables.get(bare);
     if (variable) {
       md.appendCodeblock(variable.datatype ? `${bare}<${variable.datatype.description}>` : bare, LANGUAGE_ID);
@@ -342,8 +337,6 @@ function activate(context) {
       const bare = found.word.replace(/^\$/, '');
       const fn = !found.word.startsWith('$') && analysis.findFunction(bare);
       if (fn) return new vscode.Location(doc.uri, toRange(fn.nameRange));
-      const macro = !found.word.startsWith('$') && analysis.macros.find((item) => item.name === bare);
-      if (macro) return new vscode.Location(doc.uri, toRange(macro.nameRange));
       const variable = analysis.variables.get(bare);
       if (variable) return new vscode.Location(doc.uri, toRange(variable.range));
       return null;

@@ -1,7 +1,7 @@
 ---
 name: scrippo
 description: >-
-  Write Scriptopotamus (.scrippo) scripts, packages, commands, and macros that
+  Write Scriptopotamus (.scrippo) scripts, packages, commands, and imports that
   compile to bash. Use when creating or editing .scrippo files, .scrippo/lib
   packages, .scrippo/commands.scrippo, @import usage, or scrippo CLI packaging.
 ---
@@ -141,7 +141,7 @@ choose(
 
 Inside the body, use the bare name (`$select`, `$options`) — not `$--select`.
 
-### Macros & imports
+### Imports
 
 ```scrippo
 @import scrippo/std          # io + types + path
@@ -150,16 +150,11 @@ Inside the body, use the bare name (`$select`, `$options`) — not `$--select`.
 @import ./relative.scrippo
 @import ~/scripts/utils.scrippo # leading ~/ expands from HOME, also inside quotes
 @import ./*                  # sorted glob; dirs skipped; each file once
-
-@say_hi()
-  -> "hi"
-
-@say_hi
 ```
 
 * `@import` is compile-time only; no runtime package loader
 * top-level commands from imports merge into the script; duplicate command names are a compile error
-* define macros with `@name()`; expand with `@name`
+* macros are built into the compiler; scrippo cannot define its own, so use a function to reuse code
 
 ## Standard library
 

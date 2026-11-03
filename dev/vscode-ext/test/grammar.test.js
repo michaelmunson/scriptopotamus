@@ -33,12 +33,6 @@ test('flag aliases are one option', async () => {
   assert.doesNotMatch(await scopeOf(src, '-s / --style'), /keyword\.operator\.exclusive/);
 });
 
-test('macro definitions', async () => {
-  const src = '@say_hi()\n  -> "hi"\n@say_hi';
-  assert.match(await scopeOf(src, 'say_hi'), /entity\.name\.function\.macro/);
-  assert.match(await scopeOf(src, '@', 1), /entity\.name\.function\.macro/);
-});
-
 test('function definitions with multi-line parameters', async () => {
   const src = ['my_func(', '  path', '  [-s / --select<str>...]', '  [--yes] | [--no]', '  --name<str="mike"> # note', ')', '  echo $path'].join('\n');
   assert.match(await scopeOf(src, 'my_func'), /entity\.name\.function/);

@@ -36,24 +36,9 @@ function result(prefix, typed, items) {
 }
 
 function macroItems(analysis, withAt) {
-  const items = Object.entries(docs.BUILTINS)
+  return Object.entries(docs.BUILTINS)
     .filter(([, builtin]) => builtin.macro)
     .map(([name, builtin]) => macroItem(name, builtin, withAt));
-  for (const macro of analysis.macros || []) {
-    if (items.some((item) => item.filterText === macro.name)) continue;
-    items.push(
-      macroItem(
-        macro.name,
-        {
-          signature: `@${macro.name}()`,
-          description: `Macro defined on line ${macro.line + 1}`,
-          snippet: macro.name,
-        },
-        withAt,
-      ),
-    );
-  }
-  return items;
 }
 
 function macroItem(name, builtin, withAt) {

@@ -5,31 +5,40 @@ const path = require('path');
 const oniguruma = require('vscode-oniguruma');
 const textmate = require('vscode-textmate');
 
-const GRAMMAR_PATH = path.join(__dirname, '..', 'syntaxes', 'scriptopotamus.tmLanguage.json');
 const WASM_PATH = require.resolve('vscode-oniguruma/release/onig.wasm');
 
-let grammarPromise;
+const grammarPromises = new Map();
 
-function loadGrammar() {
-  if (!grammarPromise) {
+function loadGrammar(scope = 'source.scriptopotamus') {
+  if (!grammarPromises.has(scope)) {
     const onigLib = oniguruma.loadWASM(fs.readFileSync(WASM_PATH).buffer).then(() => ({
       createOnigScanner: (patterns) => new oniguruma.OnigScanner(patterns),
       createOnigString: (s) => new oniguruma.OnigString(s),
     }));
+    const contributions = require('../package.json').contributes.grammars;
     const registry = new textmate.Registry({
       onigLib,
-      loadGrammar: async (scopeName) =>
-        scopeName === 'source.scriptopotamus'
-          ? textmate.parseRawGrammar(fs.readFileSync(GRAMMAR_PATH, 'utf8'), GRAMMAR_PATH)
-          : null,
+      getInjections: (scopeName) => contributions
+        .filter((g) => g.injectTo?.includes(scopeName)).map((g) => g.scopeName),
+      loadGrammar: async (scopeName) => {
+        if (scopeName === 'text.html.markdown') {
+          const hostPath = process.env.SCRIPPO_TEST_MARKDOWN_GRAMMAR
+            || path.join(__dirname, 'fixtures', 'markdown.tmLanguage.json');
+          return textmate.parseRawGrammar(fs.readFileSync(hostPath, 'utf8'), hostPath);
+        }
+        const contribution = contributions.find((g) => g.scopeName === scopeName);
+        if (!contribution) return null;
+        const grammarPath = path.join(__dirname, '..', contribution.path);
+        return textmate.parseRawGrammar(fs.readFileSync(grammarPath, 'utf8'), grammarPath);
+      },
     });
-    grammarPromise = registry.loadGrammar('source.scriptopotamus');
+    grammarPromises.set(scope, registry.loadGrammar(scope));
   }
-  return grammarPromise;
+  return grammarPromises.get(scope);
 }
 
-async function tokenize(source) {
-  const grammar = await loadGrammar();
+async function tokenize(source, scope) {
+  const grammar = await loadGrammar(scope);
   let stack = textmate.INITIAL;
   return source.split('\n').map((line) => {
     const result = grammar.tokenizeLine(line, stack);

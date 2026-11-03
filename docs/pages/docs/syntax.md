@@ -7,7 +7,7 @@ A scrippo source file is a sequence of statements. A statement is one logical li
 
 ## Names
 
-Function, command, variable, and macro names are ASCII. A variable or function starts with a letter or `_`, then letters, digits, or `_`. Command names may also contain `-`. Package and script names used by the CLI start with a letter or `_` and may contain `-`.
+Function, command, and variable names are ASCII. A variable or function starts with a letter or `_`, then letters, digits, or `_`. Command names may also contain `-`. Package and script names used by the CLI start with a letter or `_` and may contain `-`.
 
 ```scrippo
 count<int>=1
@@ -17,7 +17,7 @@ count<int>=1
 
 ## Indentation
 
-The body of a function, command, `if`, `for`, `while`, `case` arm, or macro is every following statement indented deeper than the header. The block ends when a line returns to the header's indent or less. Spaces and tabs both count. One tab is one indent unit, the same as one space, so a file should pick one and keep it. Examples in this manual use two spaces.
+The body of a function, command, `if`, `for`, `while`, `case` arm is every following statement indented deeper than the header. The block ends when a line returns to the header's indent or less. Spaces and tabs both count. One tab is one indent unit, the same as one space, so a file should pick one and keep it. Examples in this manual use two spaces.
 
 ```scrippo
 if $ready
@@ -82,7 +82,7 @@ The compiler classifies each statement in this order:
 2. An inline `;` sequence, unless the line is a `case` or a function header.
 3. `if`, `for`, `while`, `case`.
 4. `->`, which prints. See [Values and output](/values).
-5. A `@` macro definition, macro call, or `@import`.
+5. A `@` macro: `@import`, `@usage`, or another built-in. See [Macros](/macros).
 6. A function or command: a name or `.name` followed by `(`.
 7. An assignment (`name=...` or `name<type>=...`) or a declaration (`name<type>`).
 8. Anything else is bash, copied through with `$` references rewritten. See [Bash](/bash).

@@ -21,8 +21,8 @@ Files are detected by the `.scrippo` / `.scriptopotamus` extension, or by a `scr
 ## Syntax highlighting
 
 `syntax/scrippo.vim` highlights the whole language: `#` and `#?` comments, strings, `$var` / `${var}` / `$--opt`
-references, `$( )` substitutions, typed declarations, command / macro / function headers and their parameters,
-`@macro` calls, `@import ... --as`, `if` / `for` / `while` / `case`, and `->`.
+references, `$( )` substitutions, typed declarations, command / function headers and their parameters,
+built-in macros such as `@import ... --as`, `if` / `for` / `while` / `case`, and `->`.
 It links to the standard highlight groups, so it follows your colorscheme.
 
 ## Autocomplete
@@ -31,8 +31,8 @@ Completion is context aware and understands the buffer you are editing:
 
 | Context | Completes |
 | --- | --- |
-| statement start | functions, top-level commands, std functions you imported, `@macros`, keywords |
-| `@` | builtin and locally defined macros |
+| statement start | functions, top-level commands, std functions you imported, keywords |
+| `@` | built-in macros |
 | `$` / `${` | parameters and variables in scope |
 | `$--` | options of the enclosing command or function |
 | `name<` / `param<` | `const`, `int`, `float`, `str`, `bool`, `list`, `dict`, `any` |

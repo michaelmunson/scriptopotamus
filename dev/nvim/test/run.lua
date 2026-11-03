@@ -78,9 +78,9 @@ do
     '  case $str',
     '    hello | hi) -> "Hi"',
     '    *) -> "?" ;;',
-    '@say_hi()',
+    'say_hi()',
     '  -> "hi"',
-    '@say_hi',
+    'say_hi',
     'build_it(a<int>)',
     '  prt -s red "x"',
   })
@@ -120,8 +120,6 @@ do
   eq('case arm', group_at(16, 'hello'), 'scrippoCaseArm')
   eq('wildcard case arm', group_at(17, '*'), 'scrippoCaseArm')
   eq('case terminator', group_at(17, ';;'), 'scrippoCaseTerminator')
-  eq('macro def', group_at(18, '@say_hi'), 'scrippoMacroDef')
-  eq('macro use', group_at(20, '@say_hi'), 'scrippoMacro')
   eq('function def', group_at(21, 'build_it'), 'scrippoFunctionDef')
   eq('command call', group_at(22, 'prt'), 'scrippoCommandCall')
 end
@@ -147,7 +145,6 @@ do
     '  --script',
     '.hello() -> hello',
   })
-  eq('info is metadata, not a macro definition', #analysis.macros, 0)
   eq('command after info is analyzed', analysis.defs[1].name, 'hello')
 end
 
@@ -169,7 +166,7 @@ local SCRIPT = {
   '@import scrippo/std/io',
   'LIMIT<const int>=10',
   'greeting="hi"',
-  '@say_hi()',
+  'say_hi()',
   '  -> "hi"',
   '.greet(name [-l / --loud] [--times<int=1>]) #? hi',
   '  -> $name',
@@ -192,7 +189,7 @@ end
 
 do
   local r = at(with_line('@'))
-  check('macro items', r and has(labels(r), 'import') and has(labels(r), 'usage') and has(labels(r), 'say_hi'), vim.inspect(labels(r)))
+  check('macro items', r and has(labels(r), 'import') and has(labels(r), 'usage') and not has(labels(r), 'say_hi'), vim.inspect(labels(r)))
   eq('macro start', r.start, 1)
 
   r = at(with_line('  prt "x" && @sa'))

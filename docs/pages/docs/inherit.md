@@ -3,7 +3,7 @@ title: Inherit
 description: The @inherit macro copies a parent command's parameters into a nested command.
 ---
 
-`@inherit` is a built-in macro. In a parameter list it expands to the enclosing function or command's parameters. Nested commands use it so a subcommand can take the same arguments as its parent without repeating them. See [Macros](/macros) for macros you define yourself.
+`@inherit` is a built-in macro. In a parameter list it expands to the enclosing function or command's parameters. Nested commands use it so a subcommand can take the same arguments as its parent without repeating them. See [Macros](/macros).
 
 ```scrippo
 #? get a path

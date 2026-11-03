@@ -267,7 +267,6 @@ class Analyzer {
     this.idx = 0;
     this.diagnostics = [];
     this.functions = [];
-    this.macros = [];
     this.callable = new Map();
     this.variables = new Map();
     this.types = new Map();
@@ -648,15 +647,12 @@ class Analyzer {
     const nameRange = span(i, line.indent + 1, line.indent + 1 + name.length);
     const header = line.raw.trimEnd();
     const defines = !trailing && name !== 'import' && name !== 'info' && this.followingIndented(i, line.indent);
-    if (!defines) {
-      this.idx++;
-      return { kind: 'macro-call', name, line: i, indent: line.indent, nameRange, args: (trailing || '').trim(), header };
-    }
     this.idx++;
-    const body = this.parseBlock(line.indent);
-    const node = { kind: 'macro', name, line: i, indent: line.indent, closeLine: i, nameRange, body, header };
-    this.macros.push(node);
-    return node;
+    if (defines) {
+      this.report('error', nameRange, `@${name}: macros cannot be defined in scrippo; they are built into the compiler`, 'macro-definition');
+      this.parseBlock(line.indent);
+    }
+    return { kind: 'macro-call', name, line: i, indent: line.indent, nameRange, args: (trailing || '').trim(), header };
   }
 
   parseInfo() {
@@ -923,8 +919,6 @@ class Analyzer {
         this.functions.push(node);
         if (node.kind === 'function' || !chain.length) this.callable.set(node.name, node);
         this.collectFunctions(node.body, [...chain, node]);
-      } else if (node.kind === 'macro') {
-        this.collectFunctions(node.body, chain);
       } else {
         for (const child of childBlocks(node)) this.collectFunctions(child, chain);
       }
@@ -1024,9 +1018,6 @@ class Analyzer {
       case 'function':
       case 'command':
         this.checkFunction(node, scope);
-        break;
-      case 'macro':
-        this.check(node.body, scope);
         break;
       case 'bash':
         this.checkBash(node, scope);
@@ -1373,7 +1364,7 @@ class Analyzer {
 
 function childBlocks(node) {
   if (node.kind === 'if') return [...node.branches.map((b) => b.body), ...(node.else ? [node.else.body] : [])];
-  if (node.kind === 'for' || node.kind === 'while' || node.kind === 'orphan' || node.kind === 'macro') return [node.body];
+  if (node.kind === 'for' || node.kind === 'while' || node.kind === 'orphan') return [node.body];
   if (node.kind === 'case') return node.arms.map((arm) => arm.body);
   return [];
 }
@@ -1381,7 +1372,7 @@ function childBlocks(node) {
 function endLine(node) {
   let last = node.kind === 'bash' ? node.lines[node.lines.length - 1] : node.closeLine ?? node.line;
   if (node.kind === 'case') for (const arm of node.arms) last = Math.max(last, arm.line);
-  const blocks = node.kind === 'function' || node.kind === 'command' || node.kind === 'macro' ? [node.body] : childBlocks(node);
+  const blocks = node.kind === 'function' || node.kind === 'command' ? [node.body] : childBlocks(node);
   for (const block of blocks) {
     if (block.length) last = Math.max(last, endLine(block[block.length - 1]));
   }
@@ -1427,15 +1418,6 @@ function buildSymbols(analyzer, nodes) {
           selectionRange: node.nameRange,
           children: [...params, ...buildSymbols(analyzer, node.body)],
         });
-      } else if (node.kind === 'macro') {
-        symbols.push({
-          name: `@${node.name}`,
-          detail: 'macro',
-          kind: 'macro',
-          range: fullRange(node),
-          selectionRange: node.nameRange,
-          children: buildSymbols(analyzer, node.body),
-        });
       } else if ((node.kind === 'declaration' || node.kind === 'assignment') && !seen.has(node.name)) {
         seen.add(node.name);
         symbols.push({
@@ -1462,7 +1444,6 @@ function analyze(source) {
     diagnostics: analyzer.diagnostics,
     symbols: buildSymbols(analyzer, analyzer.body),
     functions: analyzer.functions,
-    macros: analyzer.macros,
     imports: analyzer.imports,
     callable: [...analyzer.callable.values()].filter((fn) => fn.name),
     variables: analyzer.variables,

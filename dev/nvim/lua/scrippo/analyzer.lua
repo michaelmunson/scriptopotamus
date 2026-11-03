@@ -149,7 +149,6 @@ end
 function M.analyze(lines)
   local result = {
     imports = {},
-    macros = {},
     defs = {},
     variables = {},
   }
@@ -172,10 +171,7 @@ function M.analyze(lines)
     local macro_ws, macro_name, macro_rest = code:match('^([ \t]*)@([%a_][%w_]*)(%(.*)$')
 
     if macro_name then
-      local inner, close = collect_header(lines, i, line:sub(#macro_ws + #macro_name + 2))
-      if macro_name ~= 'info' then
-        table.insert(result.macros, { name = macro_name, line = i, close = close, header = inner })
-      end
+      local _, close = collect_header(lines, i, line:sub(#macro_ws + #macro_name + 2))
       i = close
     elseif ws and not (dot == '' and KEYWORDS[name]) then
       local inner, close = collect_header(lines, i, line:sub(#ws + #dot + #name + 1))

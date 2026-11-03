@@ -15,7 +15,8 @@ make build-extension
 
 That writes a `.vsix` in `dev/vscode-ext`. The extension contributes:
 
-- Syntax highlighting, including `#` comments, `#?` documentation comments, strings, types, commands, macros, and `@import`.
+- Syntax highlighting, including `#` comments, `#?` documentation comments, strings, types, commands, and macros such as `@import`.
+- Syntax highlighting inside Markdown fenced code blocks labeled `scrippo` or `scriptopotamus`, using backticks or tildes.
 - Indentation defaults: insert spaces, tab size 2, trim trailing whitespace.
 - The command **Scriptopotamus: Show Compiled Bash**, from the editor title or the command palette, while a scrippo file is open.
 - Diagnostics from the `scrippo-core` compiler.
@@ -51,7 +52,7 @@ Completion depends on where the cursor is:
 | Context | Completes |
 | --- | --- |
 | Start of a statement | Functions, commands, imported std functions, macros, keywords |
-| `@` | Builtins and macros defined in the buffer |
+| `@` | Built-in macros |
 | `$` / `${` | Parameters and variables in scope |
 | `$--` | Options of the enclosing command or function |
 | `name<` | `const`, `int`, `float`, `str`, `bool`, `list`, `dict`, `any` |

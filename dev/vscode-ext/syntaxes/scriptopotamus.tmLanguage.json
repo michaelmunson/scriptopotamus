@@ -12,7 +12,6 @@
     { "include": "#comment" },
     { "include": "#command-definition" },
     { "include": "#info" },
-    { "include": "#macro-definition" },
     { "include": "#function-definition" },
     { "include": "#typed-variable" },
     { "include": "#assignment" },
@@ -92,21 +91,6 @@
           "name": "variable.parameter.option.scriptopotamus"
         }
       ]
-    },
-    "macro-definition": {
-      "name": "meta.function.macro.scriptopotamus",
-      "begin": "^\\s*(@)([A-Za-z_][A-Za-z0-9_]*)(\\()",
-      "beginCaptures": {
-        "1": { "name": "punctuation.definition.macro.scriptopotamus" },
-        "2": { "name": "entity.name.function.macro.scriptopotamus" },
-        "3": { "name": "punctuation.definition.parameters.begin.scriptopotamus" }
-      },
-      "end": "\\)",
-      "endCaptures": {
-        "0": { "name": "punctuation.definition.parameters.end.scriptopotamus" }
-      },
-      "contentName": "meta.function.parameters.scriptopotamus",
-      "patterns": [{ "include": "#parameters" }]
     },
     "function-definition": {
       "name": "meta.function.scriptopotamus",

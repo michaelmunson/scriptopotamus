@@ -47,7 +47,6 @@ end
 
 local function macro_items(analysis, with_at)
   local items = {}
-  local seen = {}
   local names = {}
   for name, builtin in pairs(data.BUILTINS) do
     if builtin.macro then
@@ -57,7 +56,6 @@ local function macro_items(analysis, with_at)
   table.sort(names)
   for _, name in ipairs(names) do
     local builtin = data.BUILTINS[name]
-    seen[name] = true
     items[#items + 1] = {
       label = with_at and ('@' .. name) or name,
       kind = 'macro',
@@ -67,19 +65,6 @@ local function macro_items(analysis, with_at)
       snippet = with_at and ('@' .. builtin.snippet) or builtin.snippet,
       match_text = name,
     }
-  end
-  for _, macro in ipairs(analysis.macros) do
-    if not seen[macro.name] then
-      seen[macro.name] = true
-      items[#items + 1] = {
-        label = with_at and ('@' .. macro.name) or macro.name,
-        kind = 'macro',
-        detail = '@' .. macro.name,
-        doc = codeblock('@' .. macro.name .. '()') .. '\n\nMacro defined on line ' .. macro.line,
-        insert = with_at and ('@' .. macro.name) or macro.name,
-        match_text = macro.name,
-      }
-    end
   end
   return items
 end

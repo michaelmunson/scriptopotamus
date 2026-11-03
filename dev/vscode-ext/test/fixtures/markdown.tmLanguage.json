@@ -1,0 +1,18 @@
+{
+  "scopeName": "text.html.markdown",
+  "patterns": [
+    {
+      "name": "markup.fenced_code.block.markdown",
+      "begin": "(^|\\G)(\\s*)(`{3,}|~{3,})[^`]*$",
+      "end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$"
+    },
+    {
+      "name": "markup.inline.raw.string.markdown",
+      "match": "(`+)[^`]*\\1"
+    },
+    {
+      "name": "markup.heading.markdown",
+      "match": "^#+ .*"
+    }
+  ]
+}

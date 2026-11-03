@@ -50,12 +50,6 @@ pub enum Stmt {
         body: Block,
         line: usize,
     },
-    MacroDef {
-        name: String,
-        params: Vec<String>,
-        body: Block,
-        line: usize,
-    },
     MacroCall {
         name: String,
         args: Vec<String>,

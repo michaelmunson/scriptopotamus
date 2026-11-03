@@ -48,7 +48,7 @@ test('macros complete after @', () => {
   assert.deepEqual(found.items.map((i) => i.label), ['inherit', 'usage', 'import', 'info']);
   assert.equal(found.items.find((item) => item.label === 'import').insertText, 'import ${1:scrippo/std}');
   const defined = ['@say()', '  -> "hi"', '@'];
-  assert.deepEqual(labels(defined.slice(0, 2), defined[2]), ['inherit', 'usage', 'import', 'info', 'say']);
+  assert.deepEqual(labels(defined.slice(0, 2), defined[2]), ['inherit', 'usage', 'import', 'info']);
   assert.notDeepEqual(labels(SOURCE, 'user@ho'), ['import']);
 });
 
