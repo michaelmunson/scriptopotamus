@@ -59,7 +59,7 @@ scrippo .scrippo/commands.scrippo build
 
 With autoload, each top-level command is an alias, so `build` runs `scrippo .scrippo/commands.scrippo build`. A file named `.scrippo` (not a directory) is the legacy place for those commands and is still discovered.
 
-`@info(--autoload disable)` at the top of a script or of `commands.scrippo` omits aliases and completions for that file. The file still runs and can still be imported.
+`--autoload disable` in the indented `@info` block at the top of a script or of `commands.scrippo` omits aliases and completions for that file. The file still runs and can still be imported.
 
 ## Installed scripts
 

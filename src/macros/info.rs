@@ -73,73 +73,57 @@ impl FileInfo {
     pub fn parse(path: &Path, line: usize, args: &[String]) -> Result<Self> {
         let error = |message| CompileError::at(path, line, message);
         let mut info = Self::default();
-        // Keep the original package-manager syntax working.
-        if args.first().is_some_and(|arg| !arg.starts_with("--")) {
-            if !(2..=3).contains(&args.len()) {
-                return Err(error(
-                    "@info: expected <name> <version> [<description>]".into(),
-                ));
+        let mut seen = BTreeSet::new();
+        let mut i = 0;
+        while i < args.len() {
+            let flag = args[i].as_str();
+            if !seen.insert(flag) {
+                return Err(error(format!("@info: duplicate option {flag}")));
             }
-            info.name = Some(args[0].clone());
-            info.version = Some(parse_version(path, line, &args[1])?);
-            if let Some(raw) = args.get(2) {
-                info.description = parse_literal(path, line, raw)?;
-            }
-        } else {
-            let mut seen = BTreeSet::new();
-            let mut i = 0;
-            while i < args.len() {
-                let flag = args[i].as_str();
-                if !seen.insert(flag) {
-                    return Err(error(format!("@info: duplicate option {flag}")));
-                }
-                match flag {
-                    "--script" | "--package" => {
-                        if info.kind.is_some() {
-                            return Err(error(
-                                "@info: --script and --package are mutually exclusive".into(),
-                            ));
-                        }
-                        info.kind = Some(if flag == "--script" {
-                            FileKind::Script
-                        } else {
-                            FileKind::Package
-                        });
+            match flag {
+                "--script" | "--package" => {
+                    if info.kind.is_some() {
+                        return Err(error(
+                            "@info: --script and --package are mutually exclusive".into(),
+                        ));
                     }
-                    "--name" | "--description" | "--version" | "--author" | "--license"
-                    | "--repository" | "--autoload" => {
-                        i += 1;
-                        let raw = args
-                            .get(i)
-                            .filter(|value| !value.starts_with("--"))
-                            .ok_or_else(|| error(format!("@info: {flag} requires a value")))?;
-                        match flag {
-                            "--name" => info.name = Some(raw.clone()),
-                            "--version" => info.version = Some(parse_version(path, line, raw)?),
-                            "--description" => info.description = parse_literal(path, line, raw)?,
-                            "--author" => info.author = Some(parse_literal(path, line, raw)?),
-                            "--license" => info.license = Some(parse_literal(path, line, raw)?),
-                            "--repository" => {
-                                info.repository = Some(parse_literal(path, line, raw)?)
-                            }
-                            "--autoload" => {
-                                info.autoload = match parse_literal(path, line, raw)?.as_str() {
-                                    "enable" => true,
-                                    "disable" => false,
-                                    _ => {
-                                        return Err(error(
-                                            "@info: --autoload expects enable or disable".into(),
-                                        ));
-                                    }
+                    info.kind = Some(if flag == "--script" {
+                        FileKind::Script
+                    } else {
+                        FileKind::Package
+                    });
+                }
+                "--name" | "--description" | "--version" | "--author" | "--license"
+                | "--repository" | "--autoload" => {
+                    i += 1;
+                    let raw = args
+                        .get(i)
+                        .filter(|value| !value.starts_with("--"))
+                        .ok_or_else(|| error(format!("@info: {flag} requires a value")))?;
+                    match flag {
+                        "--name" => info.name = Some(raw.clone()),
+                        "--version" => info.version = Some(parse_version(path, line, raw)?),
+                        "--description" => info.description = parse_literal(path, line, raw)?,
+                        "--author" => info.author = Some(parse_literal(path, line, raw)?),
+                        "--license" => info.license = Some(parse_literal(path, line, raw)?),
+                        "--repository" => info.repository = Some(parse_literal(path, line, raw)?),
+                        "--autoload" => {
+                            info.autoload = match parse_literal(path, line, raw)?.as_str() {
+                                "enable" => true,
+                                "disable" => false,
+                                _ => {
+                                    return Err(error(
+                                        "@info: --autoload expects enable or disable".into(),
+                                    ));
                                 }
                             }
-                            _ => unreachable!(),
                         }
+                        _ => unreachable!(),
                     }
-                    _ => return Err(error(format!("@info: unknown option {flag}"))),
                 }
-                i += 1;
+                _ => return Err(error(format!("@info: unknown option {flag}"))),
             }
+            i += 1;
         }
         if let Some(raw) = &info.name {
             let name = parse_literal(path, line, raw)?;

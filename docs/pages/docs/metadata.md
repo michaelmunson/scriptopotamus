@@ -9,10 +9,10 @@ description: The @info declaration for name, version, kind, and autoload.
 
 `@info` is the first statement in the file. A shebang and `#` comments may precede it, because those are skipped. It sits at indent 0. A second `@info`, or an `@info` inside a function, is a compile error.
 
-Two spellings parse. The parenthesized form is the one install understands:
+Write `@info` alone on its line, followed by indented options:
 
 ```scrippo
-@info(
+@info
   --name is-even
   --version 1.2.0
   --description "Checks whether an integer is even"
@@ -21,10 +21,9 @@ Two spellings parse. The parenthesized form is the one install understands:
   --repository "https://github.com/example/helpers"
   --package
   --autoload enable
-)
 ```
 
-The legacy form is `@info <name> <version> [<description>]`. It sets those three fields and no kind, so the installer skips the file.
+All option lines use the same indentation. Blank lines and comments are allowed inside the block. The next statement at indent 0 ends the declaration; there is no closing delimiter. Parentheses, inline arguments, and the legacy positional form are rejected. To migrate, remove the opening and closing parentheses and indent the options below `@info`.
 
 ## Options
 
@@ -42,7 +41,7 @@ The legacy form is `@info <name> <version> [<description>]`. It sets those three
 
 `--script` and `--package` are mutually exclusive. Repeating any option is an error. Unknown options are an error. Every option is optional for a file you compile yourself. Installable entries need a kind, a name equal to the filename without `.scrippo`, and a version equal to the selected tag (ignoring a leading `v` on the tag).
 
-Options may share a line or span lines. A trailing `#` comment is allowed. Text values are literals: a bare word of letters, digits, and `_.-+/:@`, or a single-quoted or double-quoted string. Double-quoted values cannot contain `"`, `$`, `` ` ``, or `\`. Shell interpolation is rejected.
+Multiple options may share an indented line, or each option may have its own line. A trailing `#` comment is allowed. Text values are literals: a bare word of letters, digits, and `_.-+/:@`, or a single-quoted or double-quoted string. Double-quoted values cannot contain `"`, `$`, `` ` ``, or `\`. Shell interpolation is rejected.
 
 ## Autoload
 

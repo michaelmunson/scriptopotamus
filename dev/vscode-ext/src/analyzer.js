@@ -598,7 +598,7 @@ class Analyzer {
   parseMacro() {
     const i = this.idx;
     const line = this.lines[i];
-    if (/^@info\s*\(/.test(line.text)) return this.parseInfo();
+    if (/^@info(?:$|[\s(])/.test(line.text)) return this.parseInfo();
     const m = RE.macro.exec(line.text);
     if (!m) return null;
     const name = m[1];
@@ -620,14 +620,31 @@ class Analyzer {
   parseInfo() {
     const start = this.idx;
     const line = this.lines[start];
-    const args = [];
     const nameRange = span(start, line.indent + 1, line.indent + 5);
-    let quote = null;
-    let closed = false;
+    const tail = line.text.slice(5).trim();
+    if (tail && !tail.startsWith('#')) {
+      this.report('error', nameRange, '@info: use an indented metadata block without parentheses or inline arguments', 'info-syntax');
+    }
+    if (line.indent !== 0) {
+      this.report('error', nameRange, '@info must be at the top of the file', 'info-placement');
+    }
+    const args = [];
+    let blockIndent = null;
     let end = start;
-    for (; end < this.lines.length; end++) {
-      const text = end === start ? line.text.slice(line.text.indexOf('(') + 1) : this.lines[end].raw;
-      for (const ch of text) {
+    this.idx++;
+    while (this.idx < this.lines.length) {
+      const item = this.lines[this.idx];
+      if (!item.text || item.text.startsWith('#')) {
+        this.idx++;
+        continue;
+      }
+      if (item.indent <= line.indent) break;
+      if (blockIndent === null) blockIndent = item.indent;
+      if (item.indent !== blockIndent) {
+        this.report('error', span(this.idx, 0, item.indent), '@info: metadata options must have the same indentation', 'info-indent');
+      }
+      let quote = null;
+      for (const ch of item.text) {
         if (quote) {
           args.push(ch);
           if (ch === quote) quote = null;
@@ -636,21 +653,19 @@ class Analyzer {
           args.push(ch);
         } else if (ch === '#') {
           break;
-        } else if (ch === ')') {
-          closed = true;
-          break;
         } else {
+          if (ch === '(' || ch === ')') {
+            this.report('error', span(this.idx, item.indent, item.raw.length), '@info: metadata blocks do not use parentheses', 'info-syntax');
+          }
           args.push(ch);
         }
       }
-      if (closed) break;
+      if (quote) {
+        this.report('error', span(this.idx, item.indent, item.raw.length), '@info: unterminated literal', 'info-literal');
+      }
       args.push(' ');
+      end = this.idx++;
     }
-    if (!closed) {
-      this.report('error', nameRange, "Unclosed '(' in @info(...)", 'unclosed-paren');
-      end = this.lines.length - 1;
-    }
-    this.idx = end + 1;
     const header = this.lines.slice(start, end + 1).map((item) => item.raw).join('\n');
     return { kind: 'macro-call', name: 'info', line: start, indent: line.indent, closeLine: end, nameRange, args: args.join('').trim(), header };
   }

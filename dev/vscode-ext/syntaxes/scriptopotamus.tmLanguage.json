@@ -11,6 +11,7 @@
     { "match": "(?<=\\s)--as\\b", "name": "keyword.control.import.scriptopotamus" },
     { "include": "#comment" },
     { "include": "#command-definition" },
+    { "include": "#info" },
     { "include": "#macro-definition" },
     { "include": "#function-definition" },
     { "include": "#typed-variable" },
@@ -63,6 +64,34 @@
       },
       "contentName": "meta.function.parameters.scriptopotamus",
       "patterns": [{ "include": "#parameters" }]
+    },
+    "info": {
+      "name": "meta.metadata.scriptopotamus",
+      "begin": "^(@)(info)\\s*(?=#|$)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.macro.scriptopotamus"
+        },
+        "2": {
+          "name": "entity.name.function.macro.scriptopotamus"
+        }
+      },
+      "end": "^(?=\\S)(?!#)",
+      "patterns": [
+        {
+          "include": "#comment"
+        },
+        {
+          "include": "#string-double"
+        },
+        {
+          "include": "#string-single"
+        },
+        {
+          "match": "--[A-Za-z][A-Za-z0-9_-]*",
+          "name": "variable.parameter.option.scriptopotamus"
+        }
+      ]
     },
     "macro-definition": {
       "name": "meta.function.macro.scriptopotamus",

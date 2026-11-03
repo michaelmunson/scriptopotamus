@@ -26,12 +26,11 @@ Removal deletes `mylib.scrippo` and `mylib.bash` in that directory when they are
 ## Write one
 
 ```scrippo
-@info(
+@info
   --name mylib
   --version 1.2.0
   --description "Small helpers"
   --package
-)
 
 is_even(value<int>)
   [[ $((value % 2)) == 0 ]]

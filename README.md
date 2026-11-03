@@ -152,7 +152,7 @@ Each installable `.scrippo` file needs exactly one metadata declaration at the
 top (after any shebang and comments) with `--package` or `--script`:
 
 ```scrippo
-@info(
+@info
   --name is-even
   --version 1.2.0
   --description "Checks whether an integer is even"
@@ -161,25 +161,23 @@ top (after any shebang and comments) with `--package` or `--script`:
   --repository "https://github.com/example/helpers"
   --package
   --autoload enable
-)
 
 is_even(value<int>)
   [[ $((value % 2)) == 0 ]]
 ```
 
-`@info(...)` accepts `--name`, `--description`, `--version`, `--author`,
+The indented `@info` block accepts `--name`, `--description`, `--version`, `--author`,
 `--license`, `--repository`, mutually exclusive `--script` / `--package`, and
 `--autoload enable|disable` (default: `enable`). Text options take one literal
 value; quote text containing spaces or punctuation. Shell interpolation and
-command substitutions are rejected. Options may share a line or span lines;
-trailing `#` comments are allowed. Metadata emits no runtime code.
+command substitutions are rejected. Options use the same indentation and may
+share a line or span lines; trailing `#` comments are allowed. Metadata emits no runtime code.
 
 All options are optional for ordinary files. Installable entries require a kind
 (`--package` or `--script`), a name matching the filename without `.scrippo`, and
 a stable `MAJOR.MINOR.PATCH` version matching the selected tag without its
-optional `v`. All metadata is retained in the installation manifest. The
-original `@info <name> <version> [<description>]` form still parses but declares
-no kind, so such files are not installed. Shared support files simply omit
+optional `v`. All metadata is retained in the installation manifest. Parentheses
+and inline or positional arguments are rejected; the next statement at indent 0 ends the metadata block. Shared support files simply omit
 `@info`. Bare package imports during compilation resolve from the importing
 file's directory, the repository root, `packages/`, or `.scrippo/lib/`; relative
 imports and file globs can reference other files inside the repository.
@@ -218,8 +216,8 @@ It also covers `scrippo` itself: modes and their modifiers (only what fits what 
 typed: `scrippo --new -p <tab>` no longer offers `-s`), and once a script is named,
 that script's own commands and options (`scrippo app.scrippo <tab>`).
 
-Put `@info(--autoload disable)` at the top of a file to omit its aliases and shell
-completions, including commands in `.scrippo/commands.scrippo`. Direct execution
+Put `--autoload disable` in the indented `@info` block at the top of a file to
+omit its aliases and shell completions, including commands in `.scrippo/commands.scrippo`. Direct execution
 and imports still work. Per-file `enable` follows the global autoload setting.
 
 ## Editor support

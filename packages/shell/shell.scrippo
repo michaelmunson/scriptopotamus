@@ -1,3 +1,9 @@
+@info
+  --name shell
+  --version 0.6.6
+  --description "Editable command input in the calling shell"
+  --package
+
 #? Queue editable input for the calling interactive shell. Requires scrippo-core --init.
 shell(text)
   if [[ -z ${SCRIPPO_SHELL_INPUT-} || ! -f $SCRIPPO_SHELL_INPUT || ! -w $SCRIPPO_SHELL_INPUT ]]

@@ -42,7 +42,7 @@ Default destinations, when you omit both `-g` and an explicit path:
 
 ## What gets selected
 
-The installer walks the scan root and keeps `.scrippo` files whose `@info` kind matches the request. Files with no `@info`, files of the other kind, and the legacy `@info name version` form are support files and are skipped. Hidden names (starting with `.`) are skipped. Names must be unique per kind.
+The installer walks the scan root and keeps `.scrippo` files whose `@info` kind matches the request. Files with no `@info` or no kind, and files of the other kind, are support files and are skipped. Metadata options must be indented below `@info`; the parenthesized and legacy positional forms are rejected. Hidden names (starting with `.`) are skipped. Names must be unique per kind.
 
 Git sources need Git and Bash. The default tag is the highest stable `MAJOR.MINOR.PATCH` tag. Untagged commits and non-stable tags are ignored. A repository with no stable tag is an error unless you are installing a plain directory.
 

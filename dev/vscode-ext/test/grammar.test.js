@@ -137,3 +137,11 @@ test('documentation comments have their own scope in parameter lists and bodies'
   assert.match(await scopeOf(src, ' regular comment'), /comment\.line\.number-sign/);
   assert.doesNotMatch(await scopeOf('echo "#? literal"', '#? literal'), /comment\.line/);
 });
+
+test('indented metadata options end at the following command', async () => {
+  const src = '@info\n  --name hello\n  --description "Text (with punctuation)"\n  --script\n.hello() -> hello';
+  assert.match(await scopeOf(src, 'info'), /entity\.name\.function\.macro/);
+  assert.match(await scopeOf(src, '--name'), /meta\.metadata.*variable\.parameter\.option/);
+  assert.match(await scopeOf(src, 'Text (with punctuation)'), /string\.quoted\.double/);
+  assert.doesNotMatch(await scopeOf(src, 'hello'), /meta\.metadata/);
+});

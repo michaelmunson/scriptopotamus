@@ -23,12 +23,16 @@ function codes(lines) {
 }
 
 test('multiline info is metadata and preserves following command analysis', () => {
-  const source = '@info(\n  --name hello\n  --description "A greeting (with punctuation); # hi" # comment\n  --version 1.2.3\n  --script\n)\n.hello() -> hello\n';
+  const source = '@info\n  --name hello\n  --description "A greeting (with punctuation); # hi" # comment\n  --version 1.2.3\n  --script\n.hello() -> hello\n';
   const analysis = analyze(source);
   assert.deepEqual(analysis.diagnostics, []);
   assert.deepEqual(analysis.macros, []);
   assert.ok(analysis.symbols.some((symbol) => symbol.name === '.hello'));
-  assert.ok(analyze('@info(\n --name hello').diagnostics.some((item) => item.code === 'unclosed-paren'));
+  for (const obsolete of ['@info()', '@info(--name hello)', '@info hello 1.2.3', '@info --script']) {
+    assert.ok(analyze(obsolete).diagnostics.some((item) => item.code === 'info-syntax'), obsolete);
+  }
+  assert.ok(analyze('@info\n  --name hello\n    --script').diagnostics.some((item) => item.code === 'info-indent'));
+  assert.ok(analyze('@info\n  --description "unterminated').diagnostics.some((item) => item.code === 'info-literal'));
 });
 
 test('examples and fixtures have no errors', () => {

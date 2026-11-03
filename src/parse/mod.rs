@@ -566,16 +566,25 @@ fn parse_case_arm(src: &mut Source) -> Result<CaseArm> {
     })
 }
 
-/// `@info(...)` is a built-in declaration, never a user macro definition.
+/// `@info` consumes an indented metadata block, never a user macro definition.
 fn parse_info(src: &mut Source, text: &str) -> Result<Stmt> {
     let line = src.line_number();
-    let rest = text.strip_prefix("@info").unwrap().trim_start();
-    let parenthesized = rest.starts_with('(');
-    let mut current = rest.strip_prefix('(').unwrap_or(rest).to_string();
+    let tail = text.strip_prefix("@info").unwrap().trim_start();
+    if !tail.is_empty() && !tail.starts_with('#') {
+        return Err(src.error(
+            "@info: use an indented metadata block without parentheses or inline arguments",
+        ));
+    }
+    src.next();
     let mut args = String::new();
-    let mut quote = None;
-    loop {
-        for (index, ch) in current.char_indices() {
+    let mut block_indent = None;
+    while src.peek()? && src.indent > 0 {
+        let indent = *block_indent.get_or_insert(src.indent);
+        if src.indent != indent {
+            return Err(src.error("@info: metadata options must have the same indentation"));
+        }
+        let mut quote = None;
+        for ch in src.text.chars() {
             if let Some(q) = quote {
                 args.push(ch);
                 if ch == q {
@@ -588,17 +597,8 @@ fn parse_info(src: &mut Source, text: &str) -> Result<Stmt> {
                         args.push(ch);
                     }
                     '#' => break,
-                    ')' if parenthesized => {
-                        let tail = current[index + 1..].trim();
-                        if !tail.is_empty() && !tail.starts_with('#') {
-                            return Err(src.error("@info: unexpected text after ')'"));
-                        }
-                        src.next();
-                        return Ok(Stmt::MacroCall {
-                            name: "info".into(),
-                            args: split_words(&args),
-                            line,
-                        });
+                    '(' | ')' => {
+                        return Err(src.error("@info: metadata blocks do not use parentheses"));
                     }
                     _ => args.push(ch),
                 }
@@ -607,24 +607,17 @@ fn parse_info(src: &mut Source, text: &str) -> Result<Stmt> {
         if quote.is_some() {
             return Err(src.error("@info: unterminated literal"));
         }
-        src.next();
-        if !parenthesized {
-            return Ok(Stmt::MacroCall {
-                name: "info".into(),
-                args: split_words(&args),
-                line,
-            });
-        }
         args.push(' ');
-        if !src.peek()? {
-            return Err(CompileError::at(
-                &src.path,
-                line,
-                "@info: expected closing ')'",
-            ));
-        }
-        current = src.text.clone();
+        src.next();
     }
+    if src.indent == 0 && src.text == ")" {
+        return Err(src.error("@info: metadata blocks do not use parentheses"));
+    }
+    Ok(Stmt::MacroCall {
+        name: "info".into(),
+        args: split_words(&args),
+        line,
+    })
 }
 
 fn parse_macro(src: &mut Source, text: &str) -> Result<Stmt> {

@@ -1,10 +1,9 @@
 #! /usr/bin/env scrippo
-@info(
+@info
 	--name name
 	--version 1.0.0
 	--description "description"
 	--autoload enable
-)
 @import scrippo/std
 @import "./docs/examples/demo/demo.scrippo" --as .demo
 

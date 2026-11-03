@@ -41,8 +41,8 @@ impl Fixture {
     }
 
     fn version(&self, version: &str) {
-        self.write("greet.scrippo", &format!("@info(--name greet --version {version} --description \"Greeting library\" --package)\n@import \"./support/message.scrippo\"\n.greet()\n  message\n"));
-        self.write("hello.scrippo", &format!("@info(--name hello --version {version} --script)\n@import \"./support/message.scrippo\"\n@import scrippo/std/path\n.main()\n  message\n  here\n"));
+        self.write("greet.scrippo", &format!("@info\n  --name greet --version {version} --description \"Greeting library\" --package\n@import \"./support/message.scrippo\"\n.greet()\n  message\n"));
+        self.write("hello.scrippo", &format!("@info\n  --name hello --version {version} --script\n@import \"./support/message.scrippo\"\n@import scrippo/std/path\n.main()\n  message\n  here\n"));
         self.write(
             "support/message.scrippo",
             &format!("message() -> \"{version}\"\n"),
@@ -105,7 +105,7 @@ impl Fixture {
     }
 }
 
-const PKG_2: &str = "@info(--name greet --version 2.0.0 --package)";
+const PKG_2: &str = "@info\n  --name greet --version 2.0.0 --package";
 
 fn text(output: &Output) -> String {
     format!(
@@ -298,7 +298,7 @@ fn repository_dependencies_and_standard_library_are_compiled_inside_the_sandbox(
     );
     f.write(
         "nested.scrippo",
-        "@info(--name nested --version 2.0.0 --package)\nnested() -> dependency\n",
+        "@info\n  --name nested --version 2.0.0 --package\nnested() -> dependency\n",
     );
     f.tag("2.0.0");
     success(&f.install(&["-p"], None));
@@ -315,35 +315,35 @@ fn repository_dependencies_and_standard_library_are_compiled_inside_the_sandbox(
 fn metadata_validation_rejects_invalid_entries_without_publishing_anything() {
     for (source, message) in [
         (
-            "@info(--name greet --version 2.0.0 --package)\n@info(--name greet --version 2.0.0 --package)\n",
+            "@info\n  --name greet --version 2.0.0 --package\n@info\n  --name greet --version 2.0.0 --package\n",
             "exactly one top-level @info",
         ),
         (
-            "@info(--name other --version 2.0.0 --package)\n",
+            "@info\n  --name other --version 2.0.0 --package\n",
             "name must match",
         ),
         (
-            "@info(--name greet --version 1.0.0 --package)\n",
+            "@info\n  --name greet --version 1.0.0 --package\n",
             "version must match",
         ),
         (
-            "@info(--name greet --version 02.0.0 --package)\n",
+            "@info\n  --name greet --version 02.0.0 --package\n",
             "stable version",
         ),
         (
-            "@info(--name greet --version 2.0.0 --description \"$(touch sentinel)\" --package)\n",
+            "@info\n  --name greet --version 2.0.0 --description \"$(touch sentinel)\" --package\n",
             "values must be literals",
         ),
         (
-            "@info(--name greet --version 2.0.0 --package)\n@unknown\n",
+            "@info\n  --name greet --version 2.0.0 --package\n@unknown\n",
             "unknown macro",
         ),
         (
-            "@info(--name greet --version 2.0.0 --package)\n.() -> script\n",
+            "@info\n  --name greet --version 2.0.0 --package\n.() -> script\n",
             "packages must expose named",
         ),
         (
-            "@info(--name greet --version 2.0.0 --package)\necho \"unterminated\n",
+            "@info\n  --name greet --version 2.0.0 --package\necho \"unterminated\n",
             "bash failed",
         ),
     ] {
@@ -365,7 +365,7 @@ fn named_metadata_is_preserved_for_packages_and_scripts() {
         ("hello", "script", "-> hello"),
     ] {
         f.write(&format!("{name}.scrippo"), &format!(
-            "@info(\n  --name {name}\n  --version 2.0.0\n  --description 'A greeting'\n  --author 'Ada Lovelace'\n  --license MIT\n  --repository https://example.com/helpers.git\n  --{kind}\n  --autoload disable\n)\n{body}\n"
+            "@info\n  --name {name}\n  --version 2.0.0\n  --description 'A greeting'\n  --author 'Ada Lovelace'\n  --license MIT\n  --repository https://example.com/helpers.git\n  --{kind}\n  --autoload disable\n{body}\n"
         ));
     }
     f.tag("v2.0.0");
@@ -394,10 +394,10 @@ fn named_metadata_is_preserved_for_packages_and_scripts() {
 #[test]
 fn installable_named_metadata_requires_name_version_and_matching_kind() {
     for (header, message) in [
-        ("@info(--version 2.0.0 --package)", "require --name"),
-        ("@info(--name greet --package)", "require --version"),
+        ("@info\n  --version 2.0.0 --package", "require --name"),
+        ("@info\n  --name greet --package", "require --version"),
         (
-            "-> hi\n@info(--name greet --version 2.0.0 --package)",
+            "-> hi\n@info\n  --name greet --version 2.0.0 --package",
             "top of the file",
         ),
     ] {
@@ -416,7 +416,7 @@ fn script_metadata_is_validated_and_duplicate_names_are_rejected() {
     let f = Fixture::new();
     f.write(
         "hello.scrippo",
-        "@info(--name hello --version 2.0.0 --script)\n@info(--name hello --version 2.0.0 --script)\n",
+        "@info\n  --name hello --version 2.0.0 --script\n@info\n  --name hello --version 2.0.0 --script\n",
     );
     f.tag("2.0.0");
     failure(
@@ -426,15 +426,15 @@ fn script_metadata_is_validated_and_duplicate_names_are_rejected() {
     // Match the tag on both entries so the duplicate name is the only error.
     f.write(
         "greet.scrippo",
-        "@info(--name greet --version 4.0.0 --package)\ngreet() -> one\n",
+        "@info\n  --name greet --version 4.0.0 --package\ngreet() -> one\n",
     );
     f.write(
         "nested/greet.scrippo",
-        "@info(--name greet --version 4.0.0 --package)\ngreet() -> two\n",
+        "@info\n  --name greet --version 4.0.0 --package\ngreet() -> two\n",
     );
     f.write(
         "hello.scrippo",
-        "@info(--name hello --version 4.0.0 --script)\n-> hi\n",
+        "@info\n  --name hello --version 4.0.0 --script\n-> hi\n",
     );
     f.tag("4.0.0");
     failure(&f.install(&["-p"], None), "duplicate packages entry name");
@@ -445,10 +445,13 @@ fn files_are_selected_by_info_kind_anywhere_under_the_root() {
     let f = Fixture::new();
     f.version("2.0.0");
     f.write("notes.scrippo", "-> no-metadata\n");
-    f.write("tools/legacy.scrippo", "@info legacy 2.0.0\n-> untyped\n");
+    f.write(
+        "tools/legacy.scrippo",
+        "@info\n  --name legacy --version 2.0.0\n-> untyped\n",
+    );
     f.write(
         "deep/er/other.scrippo",
-        "@info(--name other --version 2.0.0 --package)\nother() -> deep\n",
+        "@info\n  --name other --version 2.0.0 --package\nother() -> deep\n",
     );
     f.tag("2.0.0");
     success(&f.install(&["-p"], None));
@@ -466,15 +469,15 @@ fn directory_argument_limits_the_scan_and_rejects_escapes() {
     let f = Fixture::new();
     f.write(
         "tools/extra.scrippo",
-        "@info(--name extra --version 2.0.0 --package)\nextra() -> extra\n",
+        "@info\n  --name extra --version 2.0.0 --package\nextra() -> extra\n",
     );
     f.write(
         "tools/support.scrippo",
-        "@info(--name support --version 2.0.0 --package)\nsupport() -> extra\n",
+        "@info\n  --name support --version 2.0.0 --package\nsupport() -> extra\n",
     );
     f.write(
         "greet.scrippo",
-        "@info(--name greet --version 2.0.0 --package)\ngreet() -> hi\n",
+        "@info\n  --name greet --version 2.0.0 --package\ngreet() -> hi\n",
     );
     f.tag("2.0.0");
     let output = f
@@ -507,7 +510,7 @@ fn a_bad_second_package_rejects_the_entire_installation() {
     f.version("2.0.0");
     f.write(
         "zbad.scrippo",
-        "@info(--name zbad --version 2.0.0 --package)\n@unknown\n",
+        "@info\n  --name zbad --version 2.0.0 --package\n@unknown\n",
     );
     f.tag("2.0.0");
     failure(&f.install(&["-p"], None), "unknown macro");
@@ -691,7 +694,7 @@ fn plain_directory_installs_without_git() {
     let dir = plain_helpers(&f.root);
     fs::write(
         dir.join("greet.scrippo"),
-        "@info(--name greet --version 1.2.3 --description \"Greeting library\" --package)\n@import \"./support/message.scrippo\"\n.greet()\n  message\n",
+        "@info\n  --name greet --version 1.2.3 --description \"Greeting library\" --package\n@import \"./support/message.scrippo\"\n.greet()\n  message\n",
     )
     .unwrap();
     fs::write(
@@ -723,7 +726,7 @@ fn plain_helpers(root: &Path) -> PathBuf {
     fs::create_dir_all(dir.join("support")).unwrap();
     fs::write(
         dir.join("greet.scrippo"),
-        "@info(--name greet --version 1.0.0 --description \"Greeting library\" --package)\n@import \"./support/message.scrippo\"\n.greet()\n  message\n",
+        "@info\n  --name greet --version 1.0.0 --description \"Greeting library\" --package\n@import \"./support/message.scrippo\"\n.greet()\n  message\n",
     )
     .unwrap();
     fs::write(

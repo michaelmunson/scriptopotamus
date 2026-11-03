@@ -185,18 +185,18 @@ fn file_metadata_controls_autoload_for_local_global_and_project_commands() {
         root.join("hidden.scrippo"),
         global.join("scripts/hidden_global.scrippo"),
     ] {
-        std::fs::write(path, "@info(--autoload disable)\n-> hello\n").unwrap();
+        std::fs::write(path, "@info\n  --autoload disable\n-> hello\n").unwrap();
     }
     std::fs::write(
         root.join("visible.scrippo"),
-        "@info(--autoload enable)\n-> hello\n",
+        "@info\n  --autoload enable\n-> hello\n",
     )
     .unwrap();
-    std::fs::write(root.join("defaulted.scrippo"), "@info()\n-> hello\n").unwrap();
+    std::fs::write(root.join("defaulted.scrippo"), "@info\n-> hello\n").unwrap();
     std::fs::write(root.join("plain.scrippo"), "-> hello\n").unwrap();
     std::fs::write(
         root.join(".scrippo/commands.scrippo"),
-        "@info(--autoload disable)\n.hidden_cmd() -> hello\n",
+        "@info\n  --autoload disable\n.hidden_cmd() -> hello\n",
     )
     .unwrap();
     let cfg = root.join("config");

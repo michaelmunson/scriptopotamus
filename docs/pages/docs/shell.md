@@ -58,7 +58,7 @@ For `scrippo` itself, the file is the wrapper's own declaration. Candidates are 
 
 A project command alias such as `build` completes as if you had typed `scrippo .scrippo/commands.scrippo build`. Options of `build` are offered after the alias, and nested commands are offered as the next word.
 
-`@info(--autoload disable)` removes a file from this discovery. The commands still complete when you invoke `scrippo` on the file directly.
+`--autoload disable` in the indented `@info` block removes a file from this discovery. The commands still complete when you invoke `scrippo` on the file directly.
 
 ## Managed names
 

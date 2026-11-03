@@ -189,3 +189,10 @@ test('shell helper completes only with its package imported', () => {
   const item = at(['@import shell'], 'sh').items.find((i) => i.label === 'shell');
   assert.match(item.documentation, /calling shell prompt/);
 });
+
+test('info completion inserts an indented metadata block', () => {
+  const item = at([], '@in').items.find((entry) => entry.label === 'info');
+  assert.equal(item.insertText, 'info\n  --name ${1:name}\n  --version ${2:1.0.0}\n  --description "${3:description}"');
+  assert.match(item.documentation, /indented block/);
+  assert.doesNotMatch(item.documentation, /@info\(/);
+});

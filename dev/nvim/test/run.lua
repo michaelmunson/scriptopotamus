@@ -141,11 +141,10 @@ end
 -- ---------------------------------------------------------------- completion
 do
   local analysis = require('scrippo.analyzer').analyze({
-    '@info(',
+    '@info',
     '  --name hello',
     '  --description "A greeting (with punctuation); # hi"',
     '  --script',
-    ')',
     '.hello() -> hello',
   })
   eq('info is metadata, not a macro definition', #analysis.macros, 0)

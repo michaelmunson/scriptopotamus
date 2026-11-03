@@ -13,7 +13,7 @@ fn named_metadata_is_literal_and_emits_no_runtime_code() {
     let header = r##"#!/usr/bin/env scrippo
 # Metadata may follow a shebang, blank lines, and comments.
 
-@info(
+@info
   --name hello
   --description "A greeting (with punctuation); # hello" # comment
   --version '1.2.3'
@@ -21,8 +21,7 @@ fn named_metadata_is_literal_and_emits_no_runtime_code() {
   --license MIT
   --repository "https://example.com/hello.git"
   --script
-  --autoload disable
-) # end of declaration
+  --autoload disable # end of declaration
 "##;
     let info = metadata(header);
     assert_eq!(info.name.as_deref(), Some("hello"));
@@ -47,10 +46,9 @@ fn named_metadata_is_literal_and_emits_no_runtime_code() {
 #[test]
 fn metadata_options_are_optional_for_ordinary_files() {
     for header in [
-        "@info()",
-        "@info(\n)",
         "@info",
-        "@info --description 'just a description'",
+        "@info # metadata",
+        "@info\n  --description 'just a description'",
     ] {
         let info = metadata(header);
         assert!(info.name.is_none());
@@ -59,53 +57,53 @@ fn metadata_options_are_optional_for_ordinary_files() {
         assert!(info.kind.is_none());
     }
     assert_eq!(
-        metadata("@info(--package --autoload enable)").kind,
+        metadata("@info\n  --package --autoload enable").kind,
         Some(FileKind::Package)
     );
-    let old = metadata("@info hello 1.2.3 'A greeting'");
-    let named = metadata("@info(--name hello --version 1.2.3 --description 'A greeting')");
-    assert_eq!(old.name, named.name);
-    assert_eq!(old.version, named.version);
-    assert_eq!(old.description, named.description);
 }
 
 #[test]
 fn invalid_metadata_reports_source_locations() {
     for (source, message) in [
-        ("@info(--unknown value)", "unknown option"),
-        ("@info(--name)", "requires a value"),
-        ("@info(--name --script)", "requires a value"),
-        ("@info(--name hello --name hello)", "duplicate option"),
-        ("@info(--script --script)", "duplicate option"),
-        ("@info(--script --package)", "mutually exclusive"),
-        ("@info(--autoload true)", "enable or disable"),
-        ("@info(--name ../hello)", "invalid name"),
-        ("@info(--name 'bad name')", "invalid name"),
-        ("@info(--version 01.2.3)", "stable version"),
-        ("@info(--version 1.2.3-beta)", "stable version"),
-        ("@info(--author \"$USER\")", "values must be literals"),
+        ("@info\n  --unknown value", "unknown option"),
+        ("@info\n  --name", "requires a value"),
+        ("@info\n  --name --script", "requires a value"),
+        ("@info\n  --name hello --name hello", "duplicate option"),
+        ("@info\n  --script --script", "duplicate option"),
+        ("@info\n  --script --package", "mutually exclusive"),
+        ("@info\n  --autoload true", "enable or disable"),
+        ("@info\n  --name ../hello", "invalid name"),
+        ("@info\n  --name 'bad name'", "invalid name"),
+        ("@info\n  --version 01.2.3", "stable version"),
+        ("@info\n  --version 1.2.3-beta", "stable version"),
+        ("@info\n  --author \"$USER\"", "values must be literals"),
         (
-            "@info(--description \"$(touch sentinel)\")",
+            "@info\n  --description \"$(touch sentinel)\"",
             "values must be literals",
         ),
-        ("@info(--license \"`whoami`\")", "values must be literals"),
+        ("@info\n  --license \"`whoami`\"", "values must be literals"),
         (
-            "@info(--description \"unterminated)",
+            "@info\n  --description \"unterminated",
             "unterminated literal",
         ),
-        ("@info(\n  --script\n", "closing ')'"),
-        ("@info(--script) extra", "unexpected text"),
-        ("@info()\n@info()", "exactly one top-level @info"),
-        ("-> hello\n@info()", "top of the file"),
-        ("@import missing.scrippo\n@info()", "top of the file"),
-        ("f()\n  @info()", "top of the file"),
-        ("f() -> hi\nf()\n  @info()", "top of the file"),
+        ("@info()", "without parentheses"),
+        ("@info(\n  --script\n)", "without parentheses"),
+        ("@info --script", "inline arguments"),
+        ("@info hello 1.2.3", "inline arguments"),
+        ("@info\n  --script\n)", "do not use parentheses"),
+        ("@info\n  --name hello\n    --script", "same indentation"),
+        ("@info\n  --script)", "do not use parentheses"),
+        ("@info\n@info", "exactly one top-level @info"),
+        ("-> hello\n@info", "top of the file"),
+        ("@import missing.scrippo\n@info", "top of the file"),
+        ("f()\n  @info", "top of the file"),
+        ("f() -> hi\nf()\n  @info", "top of the file"),
         ("if true; @info --script", "top of the file"),
-        ("if true\n  @info()", "top of the file"),
-        ("for x in a\n  @info()", "top of the file"),
-        ("while true\n  @info()", "top of the file"),
-        ("case x\n  x)\n    @info()", "top of the file"),
-        ("@custom()\n  @info()", "top of the file"),
+        ("if true\n  @info", "top of the file"),
+        ("for x in a\n  @info", "top of the file"),
+        ("while true\n  @info", "top of the file"),
+        ("case x\n  x)\n    @info", "top of the file"),
+        ("@custom()\n  @info", "top of the file"),
     ] {
         let error = compile_source(Path::new("bad-info.scrippo"), source)
             .unwrap_err()
@@ -120,16 +118,20 @@ fn imported_files_own_their_metadata_and_errors() {
     let dir = tempfile::tempdir().unwrap();
     let child = dir.path().join("child.scrippo");
     let main = dir.path().join("main.scrippo");
-    std::fs::write(&child, "@info(--name child --package)\nhello() -> hello\n").unwrap();
+    std::fs::write(
+        &child,
+        "@info\n  --name child --package\nhello() -> hello\n",
+    )
+    .unwrap();
     std::fs::write(
         &main,
-        "@info(--name main --script)\n@import child.scrippo --as .child\n",
+        "@info\n  --name main --script\n@import child.scrippo --as .child\n",
     )
     .unwrap();
     let bash = compile_file(&main).unwrap();
     assert!(!bash.contains("@info"));
     assert!(bash.contains("hello"));
-    std::fs::write(&child, "hello() -> hello\n@info(--package)\n").unwrap();
+    std::fs::write(&child, "hello() -> hello\n@info\n  --package\n").unwrap();
     let error = compile_file(&main).unwrap_err().to_string();
     assert!(error.contains("child.scrippo:2"), "{error}");
 }
