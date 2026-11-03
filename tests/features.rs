@@ -509,7 +509,9 @@ fn hooks_do_not_run_for_help() {
 fn hook_errors_are_reported() {
     for (source, message) in [
         ("@hook\n", "expected a hook name"),
-        ("@hook nope\n  echo x\n.a() -> a\n", "unknown hook 'nope'; expected exec or exit"),
+        ("@hook nope\n  echo x\n.a() -> a\n", "unknown hook 'nope'; expected exec, exit, pre-install, or post-install"),
+        (".a()\n  @hook pre-install\n    echo x\n", "only allowed at the top level of a file"),
+        ("@hook post-install code\n  echo x\n", "unknown argument 'code' (available: none)"),
         ("@hook exec --finally\n  echo x\n.a() -> a\n", "unknown option '--finally'"),
         ("@hook exec\n", "expected an indented body"),
         ("@hook exec --bogus\n  echo x\n", "unknown option '--bogus'"),
@@ -525,4 +527,13 @@ fn hook_errors_are_reported() {
             .to_string();
         assert!(error.contains(message), "{source:?}: {error}");
     }
+}
+
+#[test]
+fn install_hooks_are_not_compiled_into_scripts() {
+    let out = run(
+        "@hook pre-install\n  echo pre\n@hook post-install\n  echo post\n.a() -> a\n",
+        &["a"],
+    );
+    assert_eq!(stdout(&out), "a\n");
 }

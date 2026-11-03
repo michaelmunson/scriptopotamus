@@ -56,6 +56,6 @@ Lookup is the project lib, then the global lib, source file before compiled `.ba
 
 Installing a package compiles it to `<name>.bash` with imports inlined, runs `bash -n`, and exposes that file through `@import <name>`. The compiled form defines bash functions for the package's functions and named commands. It does not install a command dispatcher and does not respond as the importer's `--help`.
 
-Compilation of an installed package does not execute the package. Imports are limited to the downloaded repository and the standard library. Symlinks and submodules in the repository are rejected before that compile. This is a compiler sandbox, not an operating-system sandbox. Install hooks are the exception: `.install.scrippo` is executed. See [Installing](/installing).
+Compilation of an installed package does not execute the package. Imports are limited to the downloaded repository and the standard library. Symlinks and submodules in the repository are rejected before that compile. This is a compiler sandbox, not an operating-system sandbox. Install hooks are the exception: `@hook pre-install` and `@hook post-install` blocks are executed. See [Installing](/installing).
 
 Keep a package to one concern. Callers depend on the function names, which are pasted into their script and are not namespaced unless they import with `--as`.

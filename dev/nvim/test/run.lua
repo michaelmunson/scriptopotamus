@@ -83,6 +83,8 @@ do
     'say_hi',
     'build_it(a<int>)',
     '  prt -s red "x"',
+    '@hook exit',
+    '  echo hi',
   })
   eq('shebang', group_at(1, '#!'), 'scrippoShebang')
   eq('macro call in import', group_at(2, '@import'), 'scrippoMacro')
@@ -121,6 +123,7 @@ do
   eq('wildcard case arm', group_at(17, '*'), 'scrippoCaseArm')
   eq('case terminator', group_at(17, ';;'), 'scrippoCaseTerminator')
   eq('function def', group_at(21, 'build_it'), 'scrippoFunctionDef')
+  eq('hook name is not a flow keyword', group_at(23, 'exit'), 'scrippoHook')
   eq('command call', group_at(22, 'prt'), 'scrippoCommandCall')
 end
 

@@ -15,7 +15,7 @@ You cannot define your own macros yet. A definition such as `@name()` followed b
 | `@info` | File metadata. [Metadata](/metadata). |
 | `@usage` | Print usage. [Usage text](/usage). |
 | `@inherit` | Copy the parent's parameters. [Inherit](/inherit). |
-| `@hook` | Run your logic around command execution. [Hooks](/hooks). |
+| `@hook` | Run your logic around commands and around installation. [Hooks](/hooks). |
 
 `@info` is only legal at the top of a file.
 

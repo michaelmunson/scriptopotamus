@@ -153,3 +153,12 @@ test('hook macro and its options are highlighted', async () => {
   assert.match(await scopeOf(src, 'hook'), /entity\.name\.function\.macro/);
   assert.match(await scopeOf(src, '-a'), /constant\.other\.option/);
 });
+
+test('hook names are not highlighted as shell keywords', async () => {
+  for (const name of ['exec', 'exit', 'pre-install', 'post-install']) {
+    const src = `@hook ${name}\n  echo hi`;
+    const scope = await scopeOf(src, name);
+    assert.match(scope, /entity\.name\.function\.hook/, name);
+    assert.doesNotMatch(scope, /keyword|support\.function|flow/, name);
+  }
+});

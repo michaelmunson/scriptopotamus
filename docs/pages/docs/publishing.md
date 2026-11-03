@@ -13,11 +13,10 @@ Put installable files anywhere. Nested directories are fine. Names must be uniqu
 helpers/
 ├── is-even.scrippo
 ├── greet.scrippo
-├── support/common.scrippo
-└── .install.scrippo
+└── support/common.scrippo
 ```
 
-`support/common.scrippo` has no `@info`, so it is a support file. Importers inside the repository can still `@import` it by relative path. Hidden files and directories (names starting with `.`) are not selected as entries. `.install.scrippo` is a hook, not an entry. See [Installing](/installing) for the hook's phases.
+`support/common.scrippo` has no `@info`, so it is a support file. Importers inside the repository can still `@import` it by relative path. Hidden files and directories (names starting with `.`) are not selected as entries. An entry can run its own `@hook pre-install` and `@hook post-install` blocks. See [Installing](/installing).
 
 ## Mark each entry
 

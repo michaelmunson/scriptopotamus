@@ -42,7 +42,7 @@ scrippo -i                        # initialize .scrippo in the current directory
 scrippo -i <git-url|directory>      # install packages and scripts (-p / -s for only one kind)
 ```
 
-Local package management requires a project `.scrippo` directory; initialize it with bare `scrippo -i`. Global storage (`~/.scrippo` or `SCRIPPO_HOME`) is excluded from project lookup. Global installs and explicit destinations do not require initialization. Install sources may be a Git repo or a plain directory. The installer scans the source root (or the directory given as the second argument: `scrippo -i -p <source> [dir] [destination]`; a destination requires `-p` or `-s`) recursively and installs every `.scrippo` file whose top `@info` block declares `--name`, `--version`, and `--package` or `--script` on indented lines and matches `-p` / `-s` (both kinds when neither is given); files without a matching `@info` are support files and skipped. Optional `.install.scrippo` at the source root runs automatically: top-level code on both passes, `.before()` before publish, `.after()` after.
+Local package management requires a project `.scrippo` directory; initialize it with bare `scrippo -i`. Global storage (`~/.scrippo` or `SCRIPPO_HOME`) is excluded from project lookup. Global installs and explicit destinations do not require initialization. Install sources may be a Git repo or a plain directory. The installer scans the source root (or the directory given as the second argument: `scrippo -i -p <source> [dir] [destination]`; a destination requires `-p` or `-s`) recursively and installs every `.scrippo` file whose top `@info` block declares `--name`, `--version`, and `--package` or `--script` on indented lines and matches `-p` / `-s` (both kinds when neither is given); files without a matching `@info` are support files and skipped. An entry file may declare `@hook pre-install` (runs before publish) and `@hook post-install` (runs after); they run as scripts built from the file's `@import` lines plus the hook body.
 
 Optional shebang on runnable scripts:
 
@@ -169,7 +169,8 @@ Inside the body, use the bare name (`$select`, `$options`) — not `$--select`.
 ```
 
 * `@hook exec` runs before a command; `@hook exit` runs after it with `code` (exit status, an int) available
-* allowed only at the top level or directly inside a command; `exec` hooks run outermost first, `exit` hooks innermost first
+* `@hook pre-install` / `@hook post-install` (top level only) run while the file is installed with `scrippo -i`
+* `exec` / `exit` are allowed only at the top level or directly inside a command; `exec` hooks run outermost first, `exit` hooks innermost first
 
 ## Standard library
 

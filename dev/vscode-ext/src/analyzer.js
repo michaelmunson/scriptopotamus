@@ -1047,7 +1047,11 @@ class Analyzer {
 
   checkHook(node, scope) {
     const owner = scope.fnChain[scope.fnChain.length - 1];
-    if (scope.inBlock || (owner && owner.kind !== 'command')) {
+    if (HOOKS[node.hook.name] && HOOKS[node.hook.name].install) {
+      if (scope.inBlock || owner) {
+        this.report('error', node.nameRange, `@hook ${node.hook.name} is only allowed at the top level of a file`, 'hook-placement');
+      }
+    } else if (scope.inBlock || (owner && owner.kind !== 'command')) {
       const where = scope.inBlock ? 'only allowed at the top level of a file or directly inside a command' : 'only allowed directly inside a command';
       this.report('error', node.nameRange, `@hook is ${where}`, 'hook-placement');
     }
@@ -1388,18 +1392,18 @@ class Analyzer {
   }
 }
 
-const HOOKS = { exec: { variables: [] }, exit: { variables: ['code'] } };
+const HOOKS = { exec: { variables: [] }, exit: { variables: ['code'] }, 'pre-install': { variables: [], install: true }, 'post-install': { variables: [], install: true } };
 
 /** Validate the words after `@hook`; `fail(message, code)` reports a problem. */
 function validateHook(words, fail) {
   const [name, ...rest] = words;
   const hook = { name: name || '', args: [] };
   if (!name) {
-    fail('@hook: expected a hook name (exec, exit)', 'hook-name');
+    fail('@hook: expected a hook name (exec, exit, pre-install, post-install)', 'hook-name');
     return hook;
   }
   if (!HOOKS[name]) {
-    fail(`@hook: unknown hook '${name}'; expected exec or exit`, 'hook-name');
+    fail(`@hook: unknown hook '${name}'; expected exec, exit, pre-install, or post-install`, 'hook-name');
     return hook;
   }
   const raw = [];

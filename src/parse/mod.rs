@@ -677,16 +677,21 @@ fn hook_variables(name: &str) -> &'static [&'static str] {
     if name == "exit" { &["code"] } else { &[] }
 }
 
+/// Hooks that run while installing, not while the script runs.
+pub fn is_install_hook(name: &str) -> bool {
+    name == "pre-install" || name == "post-install"
+}
+
 fn parse_hook(src: &mut Source, line: usize, indent: i32, words: Vec<String>) -> Result<Stmt> {
     let path = src.path.clone();
     let fail = |message: String| CompileError::at(&path, line, message);
     let mut words = words.into_iter();
     let name = words
         .next()
-        .ok_or_else(|| fail("@hook: expected a hook name (exec, exit)".into()))?;
-    if name != "exec" && name != "exit" {
+        .ok_or_else(|| fail("@hook: expected a hook name (exec, exit, pre-install, post-install)".into()))?;
+    if !matches!(name.as_str(), "exec" | "exit") && !is_install_hook(&name) {
         return Err(fail(format!(
-            "@hook: unknown hook '{name}'; expected exec or exit"
+            "@hook: unknown hook '{name}'; expected exec, exit, pre-install, or post-install"
         )));
     }
     let mut raw_args = Vec::new();

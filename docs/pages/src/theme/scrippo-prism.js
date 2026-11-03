@@ -88,6 +88,9 @@ function registerScrippo(Prism) {
         lookbehind: true,
       },
       {
+        pattern: /@hook[ \t]+(?:exec|exit|pre-install|post-install)(?![\w-])/,
+      },
+      {
         pattern: /@[A-Za-z_]\w*/,
       },
       {

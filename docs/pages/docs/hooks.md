@@ -1,11 +1,11 @@
 ---
 title: Hooks
-description: "@hook exec and @hook exit run your logic before and after commands."
+description: "@hook runs your logic around commands and around installation."
 ---
 
 `@hook` is a built-in [macro](/macros) that wraps your logic around command execution. It takes the name of a hook, optional flags, and an indented body. The body is ordinary scrippo.
 
-Two hooks exist: `exec` runs before, and `exit` runs after.
+Four hooks exist. `exec` runs before a command and `exit` runs after it. `pre-install` and `post-install` run while the file is installed.
 
 ## @hook exec and @hook exit
 
@@ -57,7 +57,7 @@ A command's hooks run around the whole command, including the subcommands under 
 
 A scope may have several hooks of the same name. They run in the order written.
 
-## Where a hook may be written
+## Where exec and exit may be written
 
 - At the top level of a file.
 - Directly inside a command (`.name()`), including the root command `.()`.
@@ -74,6 +74,25 @@ A hook inside a plain function, an `if`, a loop, or any other block is a compile
 | `exit` | `code`: the exit status of the command, as an integer |
 
 `code` is an integer, so test it with a comparison. `if $code` alone is a [bool](/control-flow) test and is never true for a number. Use `if $code != 0` for failure.
+
+## Install hooks
+
+`@hook pre-install` and `@hook post-install` run when the file is installed with `scrippo -i`, not when it runs. They are written at the top level of an installable file (one with `@info`). They take no arguments.
+
+```scrippo
+@info
+  --name greet --version 1.0.0 --package
+
+@hook pre-install
+  -> "preparing"
+
+@hook post-install
+  -> "finished"
+```
+
+`pre-install` runs before publication, and `post-install` runs after it. A failure in `pre-install` stops the install. A failure in `post-install` rolls it back. Each hook runs as its own script made from the file's `@import` lines and the hook body, so the file's commands and variables are not available. See [Installing](/installing#install-hooks).
+
+An install hook inside a command is a compile error. Install hooks are left out of the compiled script or package.
 
 ## What hooks do not do
 

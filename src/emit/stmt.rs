@@ -401,6 +401,15 @@ fn emit_function(
     let mut exec_calls = Vec::new();
     let mut exit_calls = Vec::new();
     for hook in &hooks {
+        if let Stmt::Hook { name, line, .. } = hook {
+            if crate::parse::is_install_hook(name) {
+                return Err(CompileError::new(
+                    "<input>",
+                    *line,
+                    format!("@hook {name} is only allowed at the top level of a file"),
+                ));
+            }
+        }
         if !is_command {
             let Stmt::Hook { line, .. } = hook else { unreachable!() };
             return Err(CompileError::new(

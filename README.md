@@ -101,17 +101,14 @@ prereleases and untagged commits. `--tag` selects an exact tag. Plain directorie
 skip Git and use each entry's `@info` version when `--tag` is omitted (all
 selected entries must share one version).
 
-If the source contains `.install.scrippo`, the installer runs it twice: once
-before publishing (`before`) and once after (`after`). Top-level statements run
-on both passes; put phase-specific work in `.before()` / `.after()`:
+An installable file can run `@hook pre-install` (before publishing) and
+`@hook post-install` (after) blocks of its own:
 
 ```scrippo
--> "runs before and after"
-
-.before()
+@hook pre-install
   -> "prepare"
 
-.after()
+@hook post-install
   -> "finish"
 ```
 

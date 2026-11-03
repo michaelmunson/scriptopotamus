@@ -89,7 +89,6 @@ scrippo-core --init
 | `SCRIPPO_CONFIG` | Exact path of the config file. |
 | `SCRIPPO_CORE` | Core binary the wrapper execs. |
 | `SCRIPPO_SHELL` | `bash` or `zsh`, set by the hook when it reloads `--env`. |
-| `SCRIPPO_INSTALL_PHASE` | `before` or `after` while `.install.scrippo` runs. |
 | `_SCRIPPO_FILE` | Source path of the running script. |
 | `NO_COLOR` | Usage is printed without ANSI color when this variable is set. |
 | `HOME` | Used for `~` in imports and for the default `SCRIPPO_HOME`. |

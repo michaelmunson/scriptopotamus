@@ -554,11 +554,23 @@
       "name": "keyword.control.flow.scriptopotamus"
     },
     "macro": {
-      "match": "(?<![\\w$])(@)([A-Za-z_][A-Za-z0-9_]*)",
-      "captures": {
-        "1": { "name": "entity.name.function.macro.scriptopotamus punctuation.definition.macro.scriptopotamus" },
-        "2": { "name": "entity.name.function.macro.scriptopotamus" }
-      }
+      "patterns": [
+        {
+          "match": "(?<![\\w$])(@)(hook)([ \\t]+)(exec|exit|pre-install|post-install)(?![\\w-])",
+          "captures": {
+            "1": { "name": "entity.name.function.macro.scriptopotamus punctuation.definition.macro.scriptopotamus" },
+            "2": { "name": "entity.name.function.macro.scriptopotamus" },
+            "4": { "name": "entity.name.function.hook.scriptopotamus" }
+          }
+        },
+        {
+          "match": "(?<![\\w$])(@)([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "entity.name.function.macro.scriptopotamus punctuation.definition.macro.scriptopotamus" },
+            "2": { "name": "entity.name.function.macro.scriptopotamus" }
+          }
+        }
+      ]
     },
     "builtin": {
       "patterns": [

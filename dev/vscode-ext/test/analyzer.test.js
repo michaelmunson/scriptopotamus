@@ -338,6 +338,9 @@ test('hooks parse, take a body, and are placed correctly', () => {
   assert.deepEqual(codes('@hook exec --finally\n  echo x\n'), ['hook-option']);
   assert.deepEqual(codes('@hook exec code\n  echo x\n'), ['hook-arg']);
   assert.deepEqual(codes('@hook exit code=A code=A\n  echo x\n'), ['hook-arg']);
+  assert.deepEqual(codes('@hook pre-install\n  echo x\n@hook post-install\n  echo y\n'), []);
+  assert.deepEqual(codes('.a()\n  @hook pre-install\n    echo x\n  -> a\n'), ['hook-placement']);
+  assert.deepEqual(codes('@hook post-install code\n  echo x\n'), ['hook-arg']);
   assert.deepEqual(codes('f()\n  @hook exec\n    echo x\n'), ['hook-placement']);
   assert.deepEqual(codes('.a()\n  if true\n    @hook exec\n      echo x\n'), ['hook-placement']);
   assert.ok(!codes('@hook exec\n  echo hi\n').includes('macro-definition'));

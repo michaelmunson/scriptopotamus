@@ -36,7 +36,7 @@ Math values, the ones with spaces around `+ - * / %`, become `$(bc <<< "...")`. 
 
 ## Install sandbox
 
-`scrippo -i -p` compiles each package with a root set to the downloaded tree. An import whose real path is outside that root, or outside the embedded standard library, is an error. The compile does not run the package. `.install.scrippo` is a separate step and does run, before and after publication.
+`scrippo -i -p` compiles each package with a root set to the downloaded tree. An import whose real path is outside that root, or outside the embedded standard library, is an error. The compile does not run the package. `@hook pre-install` and `@hook post-install` blocks are a separate step and do run, before and after publication.
 
 ## Failure
 

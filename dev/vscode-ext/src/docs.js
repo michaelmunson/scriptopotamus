@@ -60,10 +60,10 @@ const BUILTINS = {
   inherit: { signature: '@inherit', description: 'Inherit parameters and options from the parent command or function. Use inside a parameter list.', macro: true, snippet: 'inherit' },
   usage: { signature: '@usage [code<int=1>] [--no-exit]', description: 'Print usage for the current scope, including #? documentation. Exit with code unless --no-exit is given.', macro: true, snippet: 'usage ${1:0}' },
   hook: {
-    signature: '@hook exec|exit [-a code[=name]]\n  body',
-    description: 'Run your logic around command execution. `@hook exec` runs before a command (or, at the top level, before any command). `@hook exit` runs after it, with `code` (the exit status) available through `-a code` or `-a code=name`. Allowed at the top level or directly inside a command. Before hooks run outermost first; exit hooks run innermost first.',
+    signature: '@hook exec|exit|pre-install|post-install [-a code[=name]]\n  body',
+    description: 'Run your logic around command execution. `@hook exec` runs before a command (or, at the top level, before any command). `@hook exit` runs after it, with `code` (the exit status) available through `-a code` or `-a code=name`. Allowed at the top level or directly inside a command. Before hooks run outermost first; exit hooks run innermost first. `@hook pre-install` and `@hook post-install` run while the file is installed with `scrippo -i`, before and after publication; they are top-level only and take no arguments.',
     macro: true,
-    snippet: 'hook ${1|exec,exit|}\n  ${2:echo "hook"}',
+    snippet: 'hook ${1|exec,exit,pre-install,post-install|}\n  ${2:echo "hook"}',
     flags: ['-a', '--args'],
   },
   import: {

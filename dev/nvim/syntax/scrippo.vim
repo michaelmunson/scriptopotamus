@@ -34,6 +34,7 @@ syn match scrippoEchoArrow /\%(\w\|-\)\@<!->/
 syn match scrippoMacro /\%(\w\|\$\)\@<!@\h\w*/
 syn match scrippoFlow /\%(\w\|[$.-]\)\@<!\%(return\|exit\|break\|continue\)\%(\w\|-\)\@!/
 syn match scrippoBuiltin /\%(\w\|[$./-]\)\@<!\%(echo\|printf\|read\|cd\|source\|shift\|local\|declare\|export\|readonly\|unset\|set\|eval\|exec\|test\|trap\|wait\|mapfile\|let\)\%(\w\|-\)\@!/
+syn match scrippoHook /\%(\%(\w\|\$\)\@<!@hook\s\+\)\@<=\%(exec\|exit\|pre-install\|post-install\)\%(\w\|-\)\@!/
 syn match scrippoBoolean /\%(\w\|[$.-]\)\@<!\%(true\|false\)\%(\w\|-\)\@!/
 syn match scrippoNumber /\%(\w\|[$.-]\)\@<!-\=\%(\d\+\.\=\d*\|\.\d\+\)\%(\w\|[.-]\)\@!/
 syn match scrippoOption /\%(^\|[[:space:](]\)\@<=--\=\a[[:alnum:]_-]*/
@@ -51,7 +52,7 @@ syn region scrippoBacktick matchgroup=scrippoSubstDelim start=/`/ end=/`/ contai
 syn region scrippoParens matchgroup=scrippoDelimiter start=/(/ end=/)/ contains=@scrippoExpr,scrippoKeyValue
 syn match scrippoKeyValue /\%(\s\|(\)\@<=[^[:space:]=()"'$]\+\ze=/ contained
 
-syn cluster scrippoExpr contains=scrippoComment,scrippoDocComment,scrippoEchoArrow,scrippoAnsiString,scrippoDoubleString,scrippoSingleString,scrippoArithmetic,scrippoSubstitution,scrippoBacktick,scrippoBracedVar,scrippoIndexedVar,scrippoOptionRef,scrippoVariable,scrippoSpecialVar,scrippoFlow,scrippoMacro,scrippoBuiltin,scrippoBoolean,scrippoNumber,scrippoOption,scrippoRedirect,scrippoLogical,scrippoComparison,scrippoArithOp,scrippoParens,scrippoImportAs
+syn cluster scrippoExpr contains=scrippoComment,scrippoDocComment,scrippoEchoArrow,scrippoAnsiString,scrippoDoubleString,scrippoSingleString,scrippoArithmetic,scrippoSubstitution,scrippoBacktick,scrippoBracedVar,scrippoIndexedVar,scrippoOptionRef,scrippoVariable,scrippoSpecialVar,scrippoFlow,scrippoMacro,scrippoHook,scrippoBuiltin,scrippoBoolean,scrippoNumber,scrippoOption,scrippoRedirect,scrippoLogical,scrippoComparison,scrippoArithOp,scrippoParens,scrippoImportAs
 
 " ---------------------------------------------------------------- types
 syn keyword scrippoTypeConst contained const
@@ -124,6 +125,7 @@ hi def link scrippoAnsiString String
 
 hi def link scrippoEchoArrow Statement
 hi def link scrippoMacro Macro
+hi def link scrippoHook Function
 hi def link scrippoFlow Statement
 hi def link scrippoBuiltin Function
 hi def link scrippoBoolean Boolean

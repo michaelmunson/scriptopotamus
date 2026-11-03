@@ -1,10 +1,10 @@
 @import scrippo/std
 
-@hook exec --finally --args code=CODE
+@hook exec
      -> exited with $CODE
 
-@hook exit --args
-
+@hook exit
+     -> exited with $CODE
 .([--error])
      @hook exec
           -> running mycmd

@@ -139,7 +139,10 @@ fn emit_program_kind(program: &Program, library: bool, script_name: &str) -> Res
         }
     }
     for stmt in &program.body {
-        if let Stmt::Hook { line, .. } = stmt {
+        if let Stmt::Hook { name, line, .. } = stmt {
+            if crate::parse::is_install_hook(name) {
+                continue;
+            }
             if library {
                 return Err(CompileError::new(
                     "<input>",

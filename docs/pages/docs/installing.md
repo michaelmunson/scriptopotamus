@@ -89,18 +89,21 @@ Existing public files are never overwritten. An existing snapshot for that repos
 
 ## Install hooks
 
-If the source root contains `.install.scrippo`, it runs twice: phase `before` before publication, and phase `after` after the public files exist. The phase is the first argument and the environment variable `SCRIPPO_INSTALL_PHASE`. The working directory is the source snapshot.
-
-Top-level statements run on both passes. Put phase-specific work in `.before()` and `.after()`:
+An installable file can run its own logic while it is installed, with `@hook pre-install` and `@hook post-install`. See [Hooks](/hooks).
 
 ```scrippo
--> "runs before and after"
+@info
+  --name greet --version 1.0.0 --package
 
-.before()
-  -> "prepare"
+@hook pre-install
+  -> "preparing"
 
-.after()
-  -> "finish"
+@hook post-install
+  -> "finished"
 ```
 
-Empty `.before` and `.after` commands are added when you omit them, so the hook's command dispatch has somewhere to go. A failing hook fails the install. The `before` failure happens before publication. The `after` failure rolls the publication back.
+`pre-install` runs before anything is published. `post-install` runs after the public files exist. For each selected entry, in sorted path order, the installer runs that file's hooks in the order written. Each hook runs as a small script made from the file's `@import` lines plus the hook body, with the source snapshot as the working directory and `_SCRIPPO_FILE` set to the entry. Commands, variables, and functions in the file are not available to the hook.
+
+A failing hook fails the install. A `pre-install` failure happens before publication. A `post-install` failure rolls the publication back. The hooks are not part of the compiled package or script.
+
+`.install.scrippo` is no longer read. Move its `.before()` work into `@hook pre-install` and its `.after()` work into `@hook post-install`.

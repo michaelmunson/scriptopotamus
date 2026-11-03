@@ -738,49 +738,71 @@ fn plain_helpers(root: &Path) -> PathBuf {
     dir
 }
 
-#[test]
-fn install_hook_runs_shared_before_and_after() {
-    let f = Fixture::new();
-    let dir = plain_helpers(&f.root);
+fn greet_with_hooks(dir: &Path, hooks: &str) {
     fs::write(
-        dir.join(".install.scrippo"),
-        "-> \"shared\"\n.before()\n  -> \"before\"\n.after()\n  -> \"after\"\n",
+        dir.join("greet.scrippo"),
+        format!(
+            "@info\n  --name greet --version 1.0.0 --description \"Greeting library\" --package\n@import \"./support/message.scrippo\"\n{hooks}.greet()\n  message\n"
+        ),
     )
     .unwrap();
+}
+
+#[test]
+fn install_hooks_run_before_and_after_publication_in_the_source_tree() {
+    let f = Fixture::new();
+    let dir = plain_helpers(&f.root);
+    greet_with_hooks(
+        &dir,
+        "@hook pre-install\n  -> \"pre in $(basename \"$PWD\")\"\n@hook post-install\n  -> \"post in $(basename \"$PWD\")\"\n",
+    );
 
     let output = f.command().args(["-i", "-p"]).arg(&dir).output().unwrap();
     success(&output);
     let text = text(&output);
-    assert_eq!(text.match_indices("shared\n").count(), 2, "{text}");
-    assert!(
-        text.find("shared\n")
-            .zip(text.find("before\n"))
-            .zip(text.rfind("shared\n"))
-            .zip(text.find("after\n"))
-            .is_some_and(|(((shared1, before), shared2), after)| {
-                shared1 < before && before < shared2 && shared2 < after
-            }),
-        "{text}"
-    );
+    let pre = text.find("pre in source\n").expect(&text);
+    let post = text.find("post in source\n").expect(&text);
+    assert!(pre < post, "{text}");
     assert!(f.lib().join("greet.bash").is_file());
 }
 
 #[test]
-fn failing_before_hook_does_not_publish() {
+fn install_hooks_are_not_part_of_the_compiled_package() {
     let f = Fixture::new();
     let dir = plain_helpers(&f.root);
-    fs::write(
-        dir.join(".install.scrippo"),
-        ".before()\n  -> \"nope\"\n  exit 1\n.after()\n  -> \"after\"\n",
-    )
-    .unwrap();
+    greet_with_hooks(
+        &dir,
+        "@hook pre-install\n  -> \"only while installing\"\n@hook post-install\n  -> \"also only while installing\"\n",
+    );
+
+    success(&f.command().args(["-i", "-p"]).arg(&dir).output().unwrap());
+    let bash = fs::read_to_string(f.lib().join("greet.bash")).unwrap();
+    assert!(!bash.contains("while installing"), "{bash}");
+}
+
+#[test]
+fn failing_pre_install_hook_does_not_publish() {
+    let f = Fixture::new();
+    let dir = plain_helpers(&f.root);
+    greet_with_hooks(&dir, "@hook pre-install\n  -> \"nope\"\n  exit 1\n");
 
     failure(
         &f.command().args(["-i", "-p"]).arg(&dir).output().unwrap(),
-        ".install.scrippo before failed",
+        "@hook pre-install in greet.scrippo failed (exit 1)",
     );
     assert!(!f.lib().join(".scrippo-installed").exists());
     assert!(!f.lib().join("greet.bash").exists());
+}
+
+#[test]
+fn install_hooks_in_a_legacy_install_file_are_ignored() {
+    let f = Fixture::new();
+    let dir = plain_helpers(&f.root);
+    fs::write(dir.join(".install.scrippo"), "-> \"legacy\"\n").unwrap();
+
+    let output = f.command().args(["-i", "-p"]).arg(&dir).output().unwrap();
+    success(&output);
+    assert!(!text(&output).contains("legacy"), "{}", text(&output));
 }
 
 #[test]

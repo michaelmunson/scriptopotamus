@@ -85,7 +85,7 @@ pub fn install(options: &InstallOptions) -> Result<InstallResult> {
     };
     let version = version_tag(&tag).unwrap();
 
-    run_install_hook(&source, "before")?;
+    run_install_hooks(&source, &selected, "pre-install")?;
 
     let mut names = BTreeSet::new();
     let mut artifacts = Vec::new();
@@ -168,7 +168,7 @@ pub fn install(options: &InstallOptions) -> Result<InstallResult> {
         publication.files.push(public);
     }
 
-    run_install_hook(&published_source, "after")?;
+    run_install_hooks(&published_source, &selected, "post-install")?;
     publication.committed = true;
     Ok(InstallResult {
         tag,
@@ -440,16 +440,38 @@ fn snapshot_directory(root: &Path, destination: &Path) -> Result<Vec<PathBuf>> {
     Ok(entries)
 }
 
-fn run_install_hook(source: &Path, phase: &str) -> Result<()> {
-    let hook = source.join(".install.scrippo");
-    if !hook.is_file() {
-        return Ok(());
+/// Run each selected entry's `@hook <phase>` blocks. A hook runs as its own script made from the
+/// entry's `@import` lines and the hook body, with the source tree as the working directory.
+fn run_install_hooks(source: &Path, selected: &[(PathBuf, PackageInfo)], phase: &str) -> Result<()> {
+    for (relative, _) in selected {
+        let file = source.join(relative);
+        let program = crate::parse::parse_file(&file).map_err(|e| anyhow::anyhow!("{e}"))?;
+        let imports: Vec<Stmt> = program
+            .body
+            .iter()
+            .filter(|stmt| matches!(stmt, Stmt::MacroCall { name, .. } if name == "import"))
+            .cloned()
+            .collect();
+        for stmt in &program.body {
+            let Stmt::Hook { name, body, .. } = stmt else {
+                continue;
+            };
+            if name != phase {
+                continue;
+            }
+            let mut script = imports.clone();
+            script.extend(body.iter().cloned());
+            let bash = crate::compile_program(&file, Program { body: script })
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            run_hook_script(&file, relative, source, phase, &bash)?;
+        }
     }
-    let mut program = crate::parse::parse_file(&hook).map_err(|e| anyhow::anyhow!("{e}"))?;
-    ensure_install_hooks(&mut program);
-    let bash = crate::compile_program(&hook, program).map_err(|e| anyhow::anyhow!("{e}"))?;
+    Ok(())
+}
+
+fn run_hook_script(file: &Path, relative: &Path, source: &Path, phase: &str, bash: &str) -> Result<()> {
     let tmp = tempfile::Builder::new()
-        .prefix(&format!("scrippo-install-{phase}-"))
+        .prefix(&format!("scrippo-{phase}-"))
         .suffix(".bash")
         .tempfile()
         .context("failed to create install hook temp file")?;
@@ -460,19 +482,18 @@ fn run_install_hook(source: &Path, phase: &str) -> Result<()> {
         fs::set_permissions(tmp.path(), fs::Permissions::from_mode(0o755))?;
     }
     let status = Command::new("bash")
-        .env("_SCRIPPO_FILE", &hook)
-        .env("SCRIPPO_INSTALL_PHASE", phase)
+        .env("_SCRIPPO_FILE", file)
         .current_dir(source)
         .arg(tmp.path())
-        .arg(phase)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .status()
-        .with_context(|| format!("failed to run .install.scrippo {phase}"))?;
+        .with_context(|| format!("failed to run @hook {phase} in {}", relative.display()))?;
     if !status.success() {
         bail!(
-            ".install.scrippo {phase} failed{}",
+            "@hook {phase} in {} failed{}",
+            relative.display(),
             status
                 .code()
                 .map(|code| format!(" (exit {code})"))
@@ -480,31 +501,6 @@ fn run_install_hook(source: &Path, phase: &str) -> Result<()> {
         );
     }
     Ok(())
-}
-
-fn ensure_install_hooks(program: &mut Program) {
-    for name in ["before", "after"] {
-        let present = program.body.iter().any(|stmt| {
-            matches!(
-                stmt,
-                Stmt::Function {
-                    name: n,
-                    is_command: true,
-                    ..
-                } if n == name
-            )
-        });
-        if !present {
-            program.body.push(Stmt::Function {
-                name: name.into(),
-                is_command: true,
-                docs: Vec::new(),
-                params: Vec::new(),
-                body: Vec::new(),
-                line: 0,
-            });
-        }
-    }
 }
 
 fn git(directory: &Path, args: &[&str]) -> Result<Output> {
