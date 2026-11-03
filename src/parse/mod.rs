@@ -650,6 +650,10 @@ fn parse_macro(src: &mut Source, text: &str) -> Result<Stmt> {
         .captures(text)
         .ok_or_else(|| src.error(format!("invalid macro '{text}'")))?;
     let name = caps[1].to_string();
+    if name == "hook" {
+        let words = caps.get(5).map(|m| split_words(m.as_str())).unwrap_or_default();
+        return parse_hook(src, line, indent, words);
+    }
     src.next();
     if name != "import" && src.peek()? && src.indent > indent {
         return Err(CompileError::at(
@@ -666,6 +670,70 @@ fn parse_macro(src: &mut Source, text: &str) -> Result<Stmt> {
         Vec::new()
     };
     Ok(Stmt::MacroCall { name, args, line })
+}
+
+/// Hook variables available to each hook, in the order the hook passes them.
+fn hook_variables(finally: bool) -> &'static [&'static str] {
+    if finally { &["code"] } else { &[] }
+}
+
+fn parse_hook(src: &mut Source, line: usize, indent: i32, words: Vec<String>) -> Result<Stmt> {
+    let path = src.path.clone();
+    let fail = |message: String| CompileError::at(&path, line, message);
+    let mut words = words.into_iter();
+    let name = words
+        .next()
+        .ok_or_else(|| fail("@hook: expected a hook name (exec)".into()))?;
+    if name != "exec" {
+        return Err(fail(format!("@hook: unknown hook '{name}'; expected exec")));
+    }
+    let mut finally = false;
+    let mut raw_args = Vec::new();
+    for word in words {
+        match word.as_str() {
+            "--finally" => finally = true,
+            "-a" | "--args" => {}
+            flag if flag.starts_with('-') => {
+                return Err(fail(format!("@hook {name}: unknown option '{flag}'")));
+            }
+            _ => raw_args.push(word),
+        }
+    }
+    let ident = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*$").unwrap();
+    let available = hook_variables(finally);
+    let mut args: Vec<(String, String)> = Vec::new();
+    for raw in raw_args {
+        let (variable, alias) = raw.split_once('=').unwrap_or((raw.as_str(), raw.as_str()));
+        if !ident.is_match(variable) || !ident.is_match(alias) {
+            return Err(fail(format!("@hook {name}: invalid argument '{raw}'")));
+        }
+        if !available.contains(&variable) {
+            let list = if available.is_empty() {
+                "none".to_string()
+            } else {
+                available.join(", ")
+            };
+            return Err(fail(format!(
+                "@hook {name}: unknown argument '{variable}' (available: {list})"
+            )));
+        }
+        if args.iter().any(|(_, existing)| existing == alias) {
+            return Err(fail(format!("@hook {name}: duplicate argument '{alias}'")));
+        }
+        args.push((variable.to_string(), alias.to_string()));
+    }
+    src.next();
+    if !(src.peek()? && src.indent > indent) {
+        return Err(fail(format!("@hook {name}: expected an indented body")));
+    }
+    let body = parse_block(src, indent)?;
+    Ok(Stmt::Hook {
+        name,
+        finally,
+        args,
+        body,
+        line,
+    })
 }
 
 fn parse_macro_text(line: usize, text: &str) -> Result<Stmt> {

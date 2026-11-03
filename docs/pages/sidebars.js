@@ -28,6 +28,7 @@ const sidebars = {
         'usage',
         'inherit',
         'macros',
+        'hooks',
         'imports',
         'standard-library',
         'bash',

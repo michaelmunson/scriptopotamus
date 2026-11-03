@@ -5,7 +5,7 @@ description: Compile-time constructs built into the scrippo compiler.
 
 A macro is a compile-time construct. The compiler resolves it before type checking, and it never becomes a bash function. Every macro is built into the compiler and written with a leading `@`.
 
-You cannot define your own macros yet. A definition such as `@name()` followed by an indented body is a compile error, and a call to any `@name` that is not listed below fails with `unknown macro`. When a snippet needs reuse, write a [function](/functions).
+You cannot define your own macros yet. A definition such as `@name()` followed by an indented body is a compile error (`@hook` is the one built-in macro that owns an indented body), and a call to any `@name` that is not listed below fails with `unknown macro`. When a snippet needs reuse, write a [function](/functions).
 
 ## Built-in macros
 
@@ -15,6 +15,7 @@ You cannot define your own macros yet. A definition such as `@name()` followed b
 | `@info` | File metadata. [Metadata](/metadata). |
 | `@usage` | Print usage. [Usage text](/usage). |
 | `@inherit` | Copy the parent's parameters. [Inherit](/inherit). |
+| `@hook` | Run your logic around command execution. [Hooks](/hooks). |
 
 `@info` is only legal at the top of a file.
 
@@ -23,4 +24,4 @@ You cannot define your own macros yet. A definition such as `@name()` followed b
 1. `@info` is read and removed.
 2. `@import` is loaded, recursively, and removed.
 3. `@inherit` in a parameter list is replaced by the parent parameter list. Any other unknown `@name` is a compile error.
-4. The program is type-checked and emitted. `@usage` is emitted as a call to the generated usage function.
+4. The program is type-checked and emitted. `@usage` is emitted as a call to the generated usage function. Each `@hook` body becomes a bash function that the command or dispatcher calls.

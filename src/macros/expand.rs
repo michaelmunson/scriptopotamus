@@ -45,9 +45,26 @@ fn expand_body(body: &[Stmt]) -> Result<Block> {
     for stmt in body {
         match stmt {
             Stmt::MacroCall { name, .. } if name == "usage" => out.push(stmt.clone()),
+            Stmt::Hook {
+                name,
+                finally,
+                args,
+                body,
+                line,
+            } => {
+                out.push(Stmt::Hook {
+                    name: name.clone(),
+                    finally: *finally,
+                    args: args.clone(),
+                    body: expand_body(body)?,
+                    line: *line,
+                });
+            }
             Stmt::MacroCall { name, line, .. } => {
                 let message = if name == "import" {
                     "@import remaining after import pass".to_string()
+                } else if name == "hook" {
+                    "@hook must be written on its own line followed by an indented body".to_string()
                 } else {
                     format!("unknown macro '@{name}'")
                 };

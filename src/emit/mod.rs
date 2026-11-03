@@ -3,7 +3,7 @@ mod stmt;
 mod usage;
 
 use crate::ast::*;
-use crate::error::Result;
+use crate::error::{CompileError, Result};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub struct Emitter {
@@ -17,6 +17,10 @@ pub struct Emitter {
     pub types: BTreeMap<String, Type>,
     pub needs_input_helpers: bool,
     pub script_name: String,
+    pub hook_count: usize,
+    /// Script-level hook functions, run around command dispatch.
+    pub exec_hooks: Vec<String>,
+    pub finally_hooks: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +42,9 @@ impl Emitter {
             types: BTreeMap::new(),
             needs_input_helpers: false,
             script_name: "script".to_string(),
+            hook_count: 0,
+            exec_hooks: Vec::new(),
+            finally_hooks: Vec::new(),
         }
     }
 
@@ -132,17 +139,47 @@ fn emit_program_kind(program: &Program, library: bool, script_name: &str) -> Res
         }
     }
     for stmt in &program.body {
+        if let Stmt::Hook { line, .. } = stmt {
+            if library {
+                return Err(CompileError::new(
+                    "<input>",
+                    *line,
+                    "@hook is not allowed in a library; it wraps command dispatch",
+                ));
+            }
+            let (name, finally) = stmt::emit_hook(&mut em, stmt)?;
+            if finally {
+                em.finally_hooks.push(name);
+            } else {
+                em.exec_hooks.push(name);
+            }
+        }
+    }
+    for stmt in &program.body {
+        if matches!(stmt, Stmt::Hook { .. }) {
+            continue;
+        }
         stmt::emit_stmt(&mut em, stmt)?;
     }
     if !library {
-        emit_dispatch(&mut em);
+        emit_dispatch(&mut em)?;
     }
     Ok(em.finish())
 }
 
-fn emit_dispatch(em: &mut Emitter) {
+fn emit_dispatch(em: &mut Emitter) -> Result<()> {
     if em.root.is_none() && em.commands.is_empty() {
-        return;
+        if !em.exec_hooks.is_empty() || !em.finally_hooks.is_empty() {
+            return Err(CompileError::new(
+                "<input>",
+                0,
+                "@hook at the top level needs at least one command to wrap",
+            ));
+        }
+        return Ok(());
+    }
+    for hook in em.exec_hooks.clone() {
+        em.emit_line(&hook);
     }
     em.emit_line("case $1 in");
     em.indent();
@@ -183,6 +220,14 @@ fn emit_dispatch(em: &mut Emitter) {
     em.emit_line("  ;;");
     em.dedent();
     em.emit_line("esac");
+    if !em.finally_hooks.is_empty() {
+        em.emit_line("_scrippo_status=$?");
+        for hook in em.finally_hooks.clone() {
+            em.emit_line(&format!("{hook} \"$_scrippo_status\""));
+        }
+        em.emit_line("exit \"$_scrippo_status\"");
+    }
+    Ok(())
 }
 
 pub fn emit_value(value: &Value) -> String {

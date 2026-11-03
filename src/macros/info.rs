@@ -149,6 +149,7 @@ impl FileInfo {
                         ));
                     }
                     Stmt::Function { body, .. }
+                    | Stmt::Hook { body, .. }
                     | Stmt::For { body, .. }
                     | Stmt::While { body, .. } => check_nested(path, body)?,
                     Stmt::If {

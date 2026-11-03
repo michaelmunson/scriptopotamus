@@ -646,6 +646,7 @@ class Analyzer {
     const trailing = m[3];
     const nameRange = span(i, line.indent + 1, line.indent + 1 + name.length);
     const header = line.raw.trimEnd();
+    if (name === 'hook') return this.parseHook(i, line, m, nameRange, header);
     const defines = !trailing && name !== 'import' && name !== 'info' && this.followingIndented(i, line.indent);
     this.idx++;
     if (defines) {
@@ -653,6 +654,19 @@ class Analyzer {
       this.parseBlock(line.indent);
     }
     return { kind: 'macro-call', name, line: i, indent: line.indent, nameRange, args: (trailing || '').trim(), header };
+  }
+
+  parseHook(i, line, match, nameRange, header) {
+    this.idx++;
+    const words = (match[3] || '').trim().split(/\s+/).filter(Boolean);
+    const hook = validateHook(words, (message, code) => this.report('error', nameRange, message, code));
+    let body = [];
+    if (this.followingIndented(i, line.indent)) {
+      body = this.parseBlock(line.indent);
+    } else {
+      this.report('error', nameRange, `@hook ${hook.name || ''}: expected an indented body`.replace('  ', ' '), 'hook-body');
+    }
+    return { kind: 'hook', name: 'hook', hook, line: i, indent: line.indent, closeLine: i, nameRange, body, header };
   }
 
   parseInfo() {
@@ -1019,6 +1033,9 @@ class Analyzer {
       case 'command':
         this.checkFunction(node, scope);
         break;
+      case 'hook':
+        this.checkHook(node, scope);
+        break;
       case 'bash':
         this.checkBash(node, scope);
         break;
@@ -1026,6 +1043,15 @@ class Analyzer {
         this.check(node.body, scope);
         break;
     }
+  }
+
+  checkHook(node, scope) {
+    const owner = scope.fnChain[scope.fnChain.length - 1];
+    if (scope.inBlock || (owner && owner.kind !== 'command')) {
+      const where = scope.inBlock ? 'only allowed at the top level of a file or directly inside a command' : 'only allowed directly inside a command';
+      this.report('error', node.nameRange, `@hook is ${where}`, 'hook-placement');
+    }
+    this.check(node.body, { ...scope, inBlock: true });
   }
 
   checkBody(owner, keyword, scope) {
@@ -1362,9 +1388,46 @@ class Analyzer {
   }
 }
 
+const HOOKS = { exec: { variables: { false: [], true: ['code'] } } };
+
+/** Validate the words after `@hook`; `fail(message, code)` reports a problem. */
+function validateHook(words, fail) {
+  const [name, ...rest] = words;
+  const hook = { name: name || '', finally: false, args: [] };
+  if (!name) {
+    fail('@hook: expected a hook name (exec)', 'hook-name');
+    return hook;
+  }
+  if (!HOOKS[name]) {
+    fail(`@hook: unknown hook '${name}'; expected exec`, 'hook-name');
+    return hook;
+  }
+  const raw = [];
+  for (const word of rest) {
+    if (word === '--finally') hook.finally = true;
+    else if (word === '-a' || word === '--args') continue;
+    else if (word.startsWith('-')) fail(`@hook ${name}: unknown option '${word}'`, 'hook-option');
+    else raw.push(word);
+  }
+  const available = HOOKS[name].variables[hook.finally];
+  for (const word of raw) {
+    const [variable, alias = variable] = word.split('=', 2);
+    if (!/^[A-Za-z_]\w*$/.test(variable) || !/^[A-Za-z_]\w*$/.test(alias)) {
+      fail(`@hook ${name}: invalid argument '${word}'`, 'hook-arg');
+    } else if (!available.includes(variable)) {
+      fail(`@hook ${name}: unknown argument '${variable}' (available: ${available.join(', ') || 'none'})`, 'hook-arg');
+    } else if (hook.args.some((arg) => arg.alias === alias)) {
+      fail(`@hook ${name}: duplicate argument '${alias}'`, 'hook-arg');
+    } else {
+      hook.args.push({ variable, alias });
+    }
+  }
+  return hook;
+}
+
 function childBlocks(node) {
   if (node.kind === 'if') return [...node.branches.map((b) => b.body), ...(node.else ? [node.else.body] : [])];
-  if (node.kind === 'for' || node.kind === 'while' || node.kind === 'orphan') return [node.body];
+  if (node.kind === 'for' || node.kind === 'while' || node.kind === 'orphan' || node.kind === 'hook') return [node.body];
   if (node.kind === 'case') return node.arms.map((arm) => arm.body);
   return [];
 }

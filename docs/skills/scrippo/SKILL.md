@@ -156,6 +156,21 @@ Inside the body, use the bare name (`$select`, `$options`) — not `$--select`.
 * top-level commands from imports merge into the script; duplicate command names are a compile error
 * macros are built into the compiler; scrippo cannot define its own, so use a function to reuse code
 
+### Hooks
+
+```scrippo
+@hook exec                         # before any command
+  echo "script"
+
+.cmd()
+  @hook exec --finally code=CODE   # after cmd and its subcommands
+    if $CODE != 0
+      echo "failed: $CODE"
+```
+
+* `@hook exec` runs before a command; `--finally` runs after it with `code` (exit status, an int) available
+* allowed only at the top level or directly inside a command; before hooks run outermost first, `--finally` hooks innermost first
+
 ## Standard library
 
 Prefer `@import scrippo/std` for scripts that print, prompt, or touch paths.

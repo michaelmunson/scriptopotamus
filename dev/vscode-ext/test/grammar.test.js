@@ -147,3 +147,9 @@ test('multiline strings and collection keys', async () => {
   assert.match(await scopeOf(src, 'two'), /string\.quoted\.double/);
   assert.doesNotMatch(await scopeOf(src, 'after'), /comment/);
 });
+
+test('hook macro and its options are highlighted', async () => {
+  const src = '@hook exec --finally code=CODE\n  echo $CODE';
+  assert.match(await scopeOf(src, 'hook'), /entity\.name\.function\.macro/);
+  assert.match(await scopeOf(src, '--finally'), /constant\.other\.option/);
+});

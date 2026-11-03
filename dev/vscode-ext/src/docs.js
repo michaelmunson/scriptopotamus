@@ -59,6 +59,13 @@ const BUILTINS = {
   },
   inherit: { signature: '@inherit', description: 'Inherit parameters and options from the parent command or function. Use inside a parameter list.', macro: true, snippet: 'inherit' },
   usage: { signature: '@usage [code<int=1>] [--no-exit]', description: 'Print usage for the current scope, including #? documentation. Exit with code unless --no-exit is given.', macro: true, snippet: 'usage ${1:0}' },
+  hook: {
+    signature: '@hook exec [--finally] [-a code[=name]]\n  body',
+    description: 'Run your logic around command execution. `@hook exec` runs before a command (or, at the top level, before any command); `--finally` runs after it with `code`, the exit status, available through `-a code` or `code=name`. Allowed at the top level or directly inside a command. Before hooks run outermost first; `--finally` hooks run innermost first.',
+    macro: true,
+    snippet: 'hook exec${1: --finally}\n  ${2:echo "hook"}',
+    flags: ['--finally', '-a', '--args'],
+  },
   import: {
     signature: '@import path [--as .command|function]',
     description: 'Inlines another scrippo or bash file, or a standard library (`scrippo/std`, `scrippo/std/io`, `scrippo/std/types`, `scrippo/std/path`). Relative paths and globs resolve from the importing file. Each file is imported once per scope. Local package management requires an environment created with bare `scrippo -i`; global storage is searched separately and never counts as a project. Use `--as .command` or `--as function` to wrap the imported script.',

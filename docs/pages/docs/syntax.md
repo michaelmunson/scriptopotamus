@@ -82,7 +82,7 @@ The compiler classifies each statement in this order:
 2. An inline `;` sequence, unless the line is a `case` or a function header.
 3. `if`, `for`, `while`, `case`.
 4. `->`, which prints. See [Values and output](/values).
-5. A `@` macro: `@import`, `@usage`, or another built-in. See [Macros](/macros).
+5. A `@` macro: `@import`, `@usage`, `@hook`, or another built-in. See [Macros](/macros).
 6. A function or command: a name or `.name` followed by `(`.
 7. An assignment (`name=...` or `name<type>=...`) or a declaration (`name<type>`).
 8. Anything else is bash, copied through with `$` references rewritten. See [Bash](/bash).

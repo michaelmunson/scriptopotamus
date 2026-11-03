@@ -37,6 +37,8 @@ Nested commands repeat the process. `math add` runs `.math`, which sees `add` an
 
 Duplicate command names in the same command list are a compile error, including duplicates brought in by `@import`.
 
+Commands can run logic before and after themselves with [`@hook exec`](/hooks).
+
 ## The root command
 
 `.()` is the root command. It is the behavior of the script itself.

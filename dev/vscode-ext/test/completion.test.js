@@ -45,10 +45,10 @@ function labels(lines, text, after, options) {
 test('macros complete after @', () => {
   const found = at(SOURCE, '  @im');
   assert.equal(found.from, 3);
-  assert.deepEqual(found.items.map((i) => i.label), ['inherit', 'usage', 'import', 'info']);
+  assert.deepEqual(found.items.map((i) => i.label), ['inherit', 'usage', 'hook', 'import', 'info']);
   assert.equal(found.items.find((item) => item.label === 'import').insertText, 'import ${1:scrippo/std}');
   const defined = ['@say()', '  -> "hi"', '@'];
-  assert.deepEqual(labels(defined.slice(0, 2), defined[2]), ['inherit', 'usage', 'import', 'info']);
+  assert.deepEqual(labels(defined.slice(0, 2), defined[2]), ['inherit', 'usage', 'hook', 'import', 'info']);
   assert.notDeepEqual(labels(SOURCE, 'user@ho'), ['import']);
 });
 
@@ -195,4 +195,11 @@ test('info completion inserts an indented metadata block', () => {
   assert.equal(item.insertText, 'info\n  --name ${1:name}\n  --version ${2:1.0.0}\n  --description "${3:description}"');
   assert.match(item.documentation, /indented block/);
   assert.doesNotMatch(item.documentation, /@info\(/);
+});
+
+test('hook macro completes with a body snippet', () => {
+  const found = at(SOURCE, '  @ho');
+  const hook = found.items.find((item) => item.label === 'hook');
+  assert.ok(hook);
+  assert.match(hook.insertText, /^hook exec/);
 });

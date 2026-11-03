@@ -55,6 +55,15 @@ pub enum Stmt {
         args: Vec<String>,
         line: usize,
     },
+    /// `@hook exec` and `@hook exec --finally`: user logic wrapped around command execution.
+    Hook {
+        name: String,
+        finally: bool,
+        /// `(hook variable, name used in the body)`
+        args: Vec<(String, String)>,
+        body: Block,
+        line: usize,
+    },
     Bash {
         raw: String,
         line: usize,

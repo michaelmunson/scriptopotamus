@@ -149,6 +149,13 @@ pub fn emit_stmt(em: &mut Emitter, stmt: &Stmt) -> Result<()> {
                 format!("unexpanded macro '@{name}' with args {args:?}"),
             ));
         }
+        Stmt::Hook { line, .. } => {
+            return Err(CompileError::new(
+                "<input>",
+                *line,
+                "@hook is only allowed at the top level of a file or directly inside a command",
+            ));
+        }
         Stmt::Bash { raw, .. } => {
             for line in raw.lines() {
                 em.emit_line(&super::rewrite_refs(line));
@@ -253,6 +260,38 @@ fn emit_declare(
     Ok(())
 }
 
+/// Emit a hook body as a bash function. Returns the call line and whether it runs after the command.
+pub fn emit_hook(em: &mut Emitter, stmt: &Stmt) -> Result<(String, bool)> {
+    let Stmt::Hook {
+        finally,
+        args,
+        body,
+        ..
+    } = stmt
+    else {
+        unreachable!("emit_hook takes a hook");
+    };
+    let fn_name = format!("_scrippo_hook_{}", em.hook_count);
+    em.hook_count += 1;
+    em.emit_line(&format!("function {fn_name} {{"));
+    em.indent();
+    // `exec --finally` passes `code`; the call site supplies it as `$1`.
+    for (variable, alias) in args {
+        let position = match variable.as_str() {
+            "code" => 1,
+            _ => unreachable!("hook variables are validated by the parser"),
+        };
+        em.emit_line(&format!("local {alias}=${position}"));
+    }
+    emit_body(em, body)?;
+    em.dedent();
+    em.emit_line("}");
+    if em.depth == 0 {
+        em.emit_line("");
+    }
+    Ok((fn_name, *finally))
+}
+
 fn emit_function(
     em: &mut Emitter,
     name: &str,
@@ -355,7 +394,34 @@ fn emit_function(
             "ref parameters cannot be repeatable",
         ));
     }
-    em.emit_line(&format!("function {fn_name} {{"));
+    let hooks: Vec<&Stmt> = body
+        .iter()
+        .filter(|s| matches!(s, Stmt::Hook { .. }))
+        .collect();
+    let mut exec_calls = Vec::new();
+    let mut finally_calls = Vec::new();
+    for hook in &hooks {
+        if !is_command {
+            let Stmt::Hook { line, .. } = hook else { unreachable!() };
+            return Err(CompileError::new(
+                "<input>",
+                *line,
+                "@hook is only allowed directly inside a command",
+            ));
+        }
+        let (call, finally) = emit_hook(em, hook)?;
+        if finally {
+            finally_calls.push(call);
+        } else {
+            exec_calls.push(call);
+        }
+    }
+    let run_name = if finally_calls.is_empty() {
+        fn_name.clone()
+    } else {
+        format!("_scrippo_run_{fn_name}")
+    };
+    em.emit_line(&format!("function {run_name} {{"));
     em.indent();
     let usage_name = if name.is_empty() {
         em.script_name.clone()
@@ -365,6 +431,9 @@ fn emit_function(
     super::usage::bind(em, &usage_name, params, docs, body, true);
     if !super::usage::has_help(params) {
         em.emit_line("if [[ ${1-} == --help ]]; then _scrippo_usage; return 0; fi");
+    }
+    for call in &exec_calls {
+        em.emit_line(call);
     }
 
     for sub in &subcommands {
@@ -415,7 +484,8 @@ fn emit_function(
                 is_command: true,
                 ..
             }
-        ) {
+        ) || matches!(stmt, Stmt::Hook { .. })
+        {
             continue;
         }
         emit_stmt(em, stmt)?;
@@ -423,6 +493,22 @@ fn emit_function(
 
     em.dedent();
     em.emit_line("}");
+    if !finally_calls.is_empty() {
+        em.emit_line(&format!("function {fn_name} {{"));
+        em.indent();
+        em.emit_line("local _scrippo_status");
+        em.emit_line(&format!(
+            "if [[ ${{1-}} == --help ]]; then {run_name} \"$@\"; return; fi"
+        ));
+        em.emit_line(&format!("{run_name} \"$@\""));
+        em.emit_line("_scrippo_status=$?");
+        for call in &finally_calls {
+            em.emit_line(&format!("{call} \"$_scrippo_status\""));
+        }
+        em.emit_line("return \"$_scrippo_status\"");
+        em.dedent();
+        em.emit_line("}");
+    }
     if em.depth == 0 {
         em.emit_line("");
     }
