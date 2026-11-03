@@ -22,13 +22,6 @@ A local script is created in the current directory:
 
 A global script is created in `~/.scrippo/scripts/`. List and remove follow the same flags as packages, with `-s` / `--script`:
 
-```bash
-scrippo -ls -s
-scrippo -ls -s -g
-scrippo -rm -s greet
-scrippo -rm -s -g greet
-```
-
 You can also create the file yourself. The CLI is only creating the directory and the starter text.
 
 ## Run one
@@ -63,6 +56,6 @@ With autoload, each top-level command is an alias, so `build` runs `scrippo .scr
 
 ## Installed scripts
 
-`scrippo -i -s` installs scripts by keeping the repository source tree and linking `<name>.scrippo` at the destination. Relative imports, `here`, package lookup, and command completion keep working because the link points into the snapshot. Links are relative, so a project install can move with the project. Creating the link on Windows requires permission to create symlinks.
+`scrippolib install` installs scripts by keeping the repository source tree and linking `<name>.scrippo` at the destination. Relative imports, `here`, package lookup, and command completion keep working because the link points into the snapshot. Links are relative, so a project install can move with the project. Creating the link on Windows requires permission to create symlinks.
 
 An installed script's `@info --name` must match its filename. The snapshot layout is described in [Installing](/installing).

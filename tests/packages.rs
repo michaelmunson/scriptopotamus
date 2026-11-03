@@ -122,17 +122,7 @@ fn new_package_and_script_default_local() {
     let project = tempfile_dir();
     let home = tempfile_dir();
 
-    let initialized = Command::new(bin())
-        .env("SCRIPPO_HOME", &home)
-        .current_dir(&project)
-        .arg("-i")
-        .output()
-        .unwrap();
-    assert!(
-        initialized.status.success(),
-        "{}",
-        String::from_utf8_lossy(&initialized.stderr)
-    );
+    std::fs::create_dir_all(project.join(".scrippo")).unwrap();
 
     let output = Command::new(bin())
         .env("SCRIPPO_HOME", &home)

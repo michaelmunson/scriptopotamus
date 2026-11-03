@@ -2,7 +2,7 @@
   "name": "scriptopotamus",
   "displayName": "Scriptopotamus",
   "description": "Syntax highlighting, autocomplete, linting, and compiler diagnostics for Scriptopotamus (.scrippo) scripts",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "publisher": "michaelmunson",
   "license": "MIT",
   "icon": "images/icon.png",

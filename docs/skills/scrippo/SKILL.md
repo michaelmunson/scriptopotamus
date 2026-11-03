@@ -36,13 +36,21 @@ Create with CLI (prefer this over hand-rolling dirs):
 ```bash
 scrippo -n -p [-g] <name>   # package; local unless -g
 scrippo -n -s [-g] <name>   # script; local unless -g
-scrippo -ls -s | -ls -p [-g]
-scrippo -rm -s <name> | -rm -p [-g] <name>
-scrippo -i                        # initialize .scrippo in the current directory
-scrippo -i <git-url|directory>      # install packages and scripts (-p / -s for only one kind)
 ```
 
-Local package management requires a project `.scrippo` directory; initialize it with bare `scrippo -i`. Global storage (`~/.scrippo` or `SCRIPPO_HOME`) is excluded from project lookup. Global installs and explicit destinations do not require initialization. Install sources may be a Git repo or a plain directory. The installer scans the source root (or the directory given as the second argument: `scrippo -i -p <source> [dir] [destination]`; a destination requires `-p` or `-s`) recursively and installs every `.scrippo` file whose top `@info` block declares `--name`, `--version`, and `--package` or `--script` on indented lines and matches `-p` / `-s` (both kinds when neither is given); files without a matching `@info` are support files and skipped. An entry file may declare `@hook pre-install` (runs before publish) and `@hook post-install` (runs after); they run as scripts built from the file's `@import` lines plus the hook body.
+Install and manage packages and scripts with `scrippolib` (a separate command):
+
+```bash
+scrippolib init                       # create .scrippo in the current directory
+scrippolib install <name> [-g]        # <name>: registry name, git URL, or directory (use ./dir for a directory)
+scrippolib update [<name>] [-g]
+scrippolib uninstall <name> [-g]
+scrippolib list [-g]
+scrippolib info <name> [-g]
+scrippolib configure registry=<url>   # default: https://github.com/michaelmunson/scrippolib-registry
+```
+
+Local package management requires a project `.scrippo` directory; create it with `scrippolib init`. Global storage (`~/.scrippo` or `SCRIPPO_HOME`) is excluded from project lookup; `-g` installs there. A bare name is looked up in the registry; a Git URL or directory installs every `.scrippo` file under it whose top `@info` block declares `--name`, `--version`, and `--package` or `--script` on indented lines (files without a matching `@info` are support files and skipped). Git sources use the highest stable version tag (`--tag` pins one); registries and directories use `@info --version`. An entry file may declare `@hook pre-install` (runs before publish) and `@hook post-install` (runs after); they run as scripts built from the file's `@import` lines plus the hook body.
 
 Optional shebang on runnable scripts:
 
@@ -169,7 +177,7 @@ Inside the body, use the bare name (`$select`, `$options`) — not `$--select`.
 ```
 
 * `@hook exec` runs before a command; `@hook exit` runs after it with `code` (exit status, an int) available
-* `@hook pre-install` / `@hook post-install` (top level only) run while the file is installed with `scrippo -i`
+* `@hook pre-install` / `@hook post-install` (top level only) run while the file is installed or updated with `scrippolib`
 * `exec` / `exit` are allowed only at the top level or directly inside a command; `exec` hooks run outermost first, `exit` hooks innermost first
 
 ## Standard library

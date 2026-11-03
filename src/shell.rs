@@ -148,16 +148,9 @@ pub const CLI_SELF: &str = "@cli";
 const CLI_NAMES: [&str; 2] = ["scrippo", "scriptopotamus"];
 
 /// Flags that switch `scrippo` out of "run a script" mode.
-const CLI_MODES: [&str; 13] = [
+const CLI_MODES: [&str; 6] = [
     "-n",
     "--new",
-    "-i",
-    "--install",
-    "--tag",
-    "-ls",
-    "--list",
-    "-rm",
-    "--remove",
     "--configure",
     "--hook",
     "--env",

@@ -4,7 +4,6 @@ pub mod config;
 pub mod emit;
 pub mod error;
 pub mod macros;
-pub mod packages;
 pub mod parse;
 pub mod paths;
 pub mod shell;

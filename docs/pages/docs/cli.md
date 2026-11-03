@@ -23,15 +23,15 @@ With no arguments, `scrippo` prints usage and exits 1.
 | `scrippo -V` / `scrippo --version` | Print the compiler version. |
 | `scrippo <file> --help` | Run that file's usage. `--help` is passed through once the filename is present. |
 
-`-c`, `--noexec`, package management, `--configure`, `--hook`, `--env`, and `--complete` are mutually exclusive modes.
+`-c`, `--noexec`, `-n`, `--configure`, `--hook`, `--env`, and `--complete` are mutually exclusive modes.
 
 A filename that exists is used as given. A bare name such as `hello` or `hello.scrippo` resolves to the nearest `<name>.scrippo` walking upward from the current directory, then to `~/.scrippo/scripts`. A directory argument uses `<dir>/commands.scrippo` when that file exists. Details are on [Scripts](/scripts).
 
-## Create, list, and remove
+## Create
 
 New scripts and packages open automatically when an [editor is configured](/configuration#editor), for both local and global creation. Set it with `scrippo --configure editor="cursor"` or `scrippo --configure editor="nvim"`.
 
-These modes need `-p` / `--package` or `-s` / `--script`. `-g` / `--global` uses `~/.scrippo` (or `SCRIPPO_HOME`) instead of the project.
+`-n` needs `-p` / `--package` or `-s` / `--script`. `-g` / `--global` uses `~/.scrippo` (or `SCRIPPO_HOME`) instead of the project.
 
 | Invocation | Result |
 | --- | --- |
@@ -39,28 +39,14 @@ These modes need `-p` / `--package` or `-s` / `--script`. `-g` / `--global` uses
 | `scrippo -n -s <name>` | Create `<name>.scrippo` in the current directory, with a shebang and a `.main` command. |
 | `scrippo -n -p -g <name>` | Create `~/.scrippo/lib/<name>.scrippo`. |
 | `scrippo -n -s -g <name>` | Create `~/.scrippo/scripts/<name>.scrippo`. |
-| `scrippo -ls -s` | List local scripts. |
-| `scrippo -ls -p -g` | List global packages. |
-| `scrippo -rm -s <name>` | Remove the local script. |
-| `scrippo -rm -p -g <name>` | Remove the global package. |
 
-`-n` is `--new`, `-ls` is `--list`, and `-rm` is `--remove`. Listing shows the stem of each `.scrippo` or `.bash` file. Removal deletes both extensions when they exist. Names start with a letter or `_` and then use letters, digits, `_`, or `-`.
+`-n` is `--new`. Names start with a letter or `_` and then use letters, digits, `_`, or `-`.
 
-Local package creation, listing, removal, and installation require a project environment. Run bare `scrippo -i` in your project root to create `.scrippo`; commands in descendants then use its `.scrippo/lib`. The global directory is excluded from project lookup. If `.scrippo` is a legacy command file rather than a directory, create the directory layout first. See [Project layout](/layout).
+Local package creation requires a project environment. Run `scrippolib init` in your project root to create `.scrippo`; commands in descendants then use its `.scrippo/lib`. The global directory is excluded from project lookup. If `.scrippo` is a legacy command file rather than a directory, create the directory layout first. See [Project layout](/layout).
 
-## Install
+## Install, update, list, remove
 
-```bash
-scrippo -i
-scrippo -i <git-url-or-directory>
-scrippo -i -p <source> [directory] [destination]
-scrippo -i -s -g <source>
-scrippo --install --package --tag v1.2.0 <source>
-```
-
-Bare `-i` / `--install` creates `.scrippo` in the current directory without changing existing contents. With a source, it copies installable entries out of a Git repository or a plain directory. With neither `-p` nor `-s`, both kinds are installed, and a kind the source does not contain is skipped. An explicit destination requires `-p` or `-s`, and cannot be combined with `-g`.
-
-`directory` is a path inside the source to scan. Use `.` when you need to keep the source root and still pass a destination. Options go before the source. The full procedure is [Installing](/installing).
+Package management moved out of `scrippo`. `scrippolib install`, `update`, `uninstall`, `list`, `info`, and `init` replace `scrippo -i`, `-ls`, and `-rm`. See [Installing](/installing).
 
 ## Configuration and the shell
 

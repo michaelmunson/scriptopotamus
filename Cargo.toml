@@ -1,6 +1,6 @@
 [package]
 name = "scriptopotamus"
-version = "1.5.0"
+version = "1.6.0"
 edition = "2024"
 default-run = "scrippo-core"
 
@@ -13,8 +13,7 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 regex = "1.10"
 thiserror = "2"
-tempfile = "3"
-serde_json = "1"
 
 [dev-dependencies]
 pretty_assertions = "1"
+tempfile = "3"

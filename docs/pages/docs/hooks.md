@@ -77,7 +77,7 @@ A hook inside a plain function, an `if`, a loop, or any other block is a compile
 
 ## Install hooks
 
-`@hook pre-install` and `@hook post-install` run when the file is installed with `scrippo -i`, not when it runs. They are written at the top level of an installable file (one with `@info`). They take no arguments.
+`@hook pre-install` and `@hook post-install` run when the file is installed or updated with `scrippolib`, not when it runs. They are written at the top level of an installable file (one with `@info`). They take no arguments.
 
 ```scrippo
 @info

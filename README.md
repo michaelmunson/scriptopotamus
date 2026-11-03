@@ -51,91 +51,34 @@ Global packages and scripts live under `~/.scrippo` (override with `SCRIPPO_HOME
 Create them with:
 
 ```bash
-scrippo -i                # initialize before local package management
 scrippo -n -p [-g] <name>   # package; local unless -g
 scrippo -n -s [-g] <name>   # script; local unless -g
-scrippo -ls -s              # list local scripts
-scrippo -ls -p -g           # list global packages
-scrippo -rm -s <name>       # remove local script
-scrippo -rm -p -g <name>    # remove global package
 ```
+
+Installing, updating, listing, and removing packages and scripts is done by
+[`scrippolib`](../scrippolib/README.md) (`scrippolib init` creates the project `.scrippo`).
 
 Project commands live in `.scrippo/commands.scrippo` (a legacy `.scrippo` file still works).
 
-### Installing from Git or a directory
+### Installing with scrippolib
 
 ```bash
-scrippo -i                                               # initialize .scrippo here
-scrippo -i https://github.com/owner/helpers.git            # both packages and scripts
-scrippo -i -p https://github.com/owner/helpers.git         # project .scrippo/lib
-scrippo -i -p -g https://github.com/owner/helpers.git      # ~/.scrippo/lib
-scrippo -i -s -g https://github.com/owner/helpers.git      # ~/.scrippo/scripts
-scrippo -i -p https://github.com/owner/helpers.git lib     # only scan lib/ in the repo
-scrippo -i -s https://github.com/owner/helpers.git . ./tools # explicit destination
-scrippo -i -p ./helpers                                    # plain local directory
-scrippo --install --package --tag v1.2.0 https://github.com/owner/helpers.git
+scrippolib init                                    # initialize .scrippo here
+scrippolib install shell                           # from the registry
+scrippolib install -g shell                        # ~/.scrippo
+scrippolib install https://github.com/owner/helpers.git
+scrippolib install --tag v1.2.0 https://github.com/owner/helpers.git
+scrippolib install ./helpers                       # plain local directory
+scrippolib update [name] / uninstall <name> / list / info <name>
 ```
 
-Use `-p | --package` or `-s | --script` to install only one kind; with neither,
-`--install` installs both (a kind the source does not contain is skipped, and an
-explicit destination is not allowed). Installs default to local: packages go
-in the nearest initialized project's `.scrippo/lib`, and scripts go in the
-current directory. Global storage never counts as a project. If no project
-environment exists, local package commands ask you to run `scrippo -i`. Bare
-`scrippo -i` creates `.scrippo` in the current directory and preserves existing contents. `-g | --global` follows
-`SCRIPPO_HOME`; it cannot be combined with an explicit destination. Put scrippo
-options before the source path; arguments after a script filename belong to that
-script.
-
-The full form is `scrippo -i [-p|-s] <source> [directory] [destination]`.
-`directory` is a path inside the source to scan (default: the source root);
-use `.` to keep the root when you only need a destination.
-
-The source may be a Git URL/repository or a plain directory, with no required
-layout. The installer scans the source root (or `directory`) recursively and
-installs every `.scrippo` file whose `@info` declares `--package` (with `-p`) or
-`--script` (with `-s`). Files without `@info`, or with the other kind, are
-support files and are skipped, as are hidden files and directories. Git installs need Git and Bash and select the
-highest stable `MAJOR.MINOR.PATCH` tag (with or without a `v` prefix), ignoring
-prereleases and untagged commits. `--tag` selects an exact tag. Plain directories
-skip Git and use each entry's `@info` version when `--tag` is omitted (all
-selected entries must share one version).
-
-An installable file can run `@hook pre-install` (before publishing) and
-`@hook post-install` (after) blocks of its own:
-
-```scrippo
-@hook pre-install
-  -> "prepare"
-
-@hook post-install
-  -> "finish"
-```
-
-Packages are compiled to `<name>.bash` with all imports inlined, checked with
-`bash -n`, and exposed through the existing `@import <name>` lookup. Source
-packages still work; project packages take precedence over global packages.
-Compiled libraries expose named functions and commands as callable Bash
-functions, without taking over the importing script's CLI dispatch or `--help`.
-Executable root commands (`.()`) belong in scripts.
-
-Scripts keep the complete repository source tree. `<name>.scrippo` links into
-that snapshot, preserving relative imports, `here`, global name lookup, autoload,
-and command completion. Links are relative so a local installation can move
-with its project. Windows script installs require permission to create symlinks.
-
-Snapshots, compiled outputs, and a JSON manifest recording the repository, tag,
-commit, and entries are stored under the destination's
-`.scrippo-installed/<packages|scripts>/<repo>/content/`. Existing files and
-repository installations are never overwritten. Choose a separate destination
-to try another version. Validation and compilation finish before publication;
-failed installs clean up their own outputs.
-
-Package compilation never executes repository code. Its compiler sandbox permits
-imports only from the downloaded repository and bundled standard library, without
-falling back to the installer's local or global packages. Repository symlinks
-and submodules are rejected before extraction. This is compiler-level isolation,
-not an operating system sandbox.
+A bare name is installed from the configured registry
+(`scrippolib configure registry=<url>`); anything else is a Git URL or directory.
+Packages are compiled to `<name>.bash` with all imports inlined and exposed through
+`@import <name>`; scripts keep their source tree and are linked as `<name>.scrippo`.
+Package compilation never executes repository code and imports are sandboxed to the
+downloaded source. The full behavior is documented in
+[Installing](docs/pages/docs/installing.md).
 
 ### Publishing installable entries
 
@@ -184,7 +127,8 @@ file's directory, the repository root, `packages/`, or `.scrippo/lib/`; relative
 imports and file globs can reference other files inside the repository.
 
 Commit the source, create a tag such as `git tag v1.2.0`, then push the commit
-and tag to your Git host. No registry or build hook is required.
+and tag to your Git host. No registry or build hook is required; to make the entry
+installable by name, add it to a registry.
 
 ## Config & autoload
 

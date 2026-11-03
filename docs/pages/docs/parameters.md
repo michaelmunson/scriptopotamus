@@ -82,7 +82,7 @@ show names
 
 `[` and `]` group parameters. A group of one marks that parameter optional. A larger group is optional as a whole: its members are optional, and required parameters nested where the grammar demands them are checked only when the group is used.
 
-Usage indents the group's later parameters under its first option. That is how `scrippo --help` shows `--tag` under `--install`.
+Usage indents the group's later parameters under its first option. That is how `scrippo --help` shows `-p` and `-s` under `-n`.
 
 ## Exclusive sets
 

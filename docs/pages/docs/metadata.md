@@ -3,7 +3,7 @@ title: Metadata
 description: The @info declaration for name, version, kind, and autoload.
 ---
 
-`@info` describes the file. It emits no bash. Ordinary scripts may omit it. A file that `scrippo -i` should install needs it.
+`@info` describes the file. It emits no bash. Ordinary scripts may omit it. A file that `scrippolib install` should install needs it.
 
 ## Placement
 

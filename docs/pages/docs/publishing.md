@@ -1,9 +1,9 @@
 ---
 title: Publishing
-description: Lay out a repository so scrippo -i can install it.
+description: Lay out a repository so scrippolib can install it, or add it to a registry.
 ---
 
-Publishing is a Git tag on a repository of `.scrippo` files. There is no registry and no build hook on the Git host. The installer clones the tag and reads `@info`.
+Publishing is a Git tag on a repository of `.scrippo` files. There is no build hook on the Git host. `scrippolib` clones the tag and reads `@info`. To make an entry installable by bare name, add it to a registry (see below).
 
 ## Layout
 
@@ -45,18 +45,26 @@ git tag v1.2.0
 git push origin HEAD --tags
 ```
 
-The installer selects the highest stable `MAJOR.MINOR.PATCH` tag, with or without a `v` prefix. Tags that are not exactly that shape, including prereleases, are ignored. Callers can pin a tag with `--tag v1.2.0`.
+The installer selects the highest stable `MAJOR.MINOR.PATCH` tag, with or without a `v` prefix. Tags that are not exactly that shape, including prereleases, are ignored. Callers can pin a tag with `scrippolib install --tag v1.2.0`.
 
 Every selected entry's `@info --version` must equal that tag. One repository tag is one version for every entry installed from it.
 
 ## What callers run
 
 ```bash
-scrippo -i https://github.com/example/helpers.git
-scrippo -i -p https://github.com/example/helpers.git
-scrippo -i -s -g https://github.com/example/helpers.git
+scrippolib install https://github.com/example/helpers.git
+scrippolib install -g https://github.com/example/helpers.git
+scrippolib update
 ```
 
 After a package install, `@import is-even` works from the project or from the home lib, depending on `-g`. After a script install, `scrippo greet` runs the installed script when no local `greet.scrippo` is closer.
 
-Ship the source. The installer compiles packages on the machine that runs `scrippo -i`.
+Ship the source. The installer compiles packages on the machine that runs `scrippolib install`.
+
+## Publish to a registry
+
+A registry is a Git repository of `.scrippo` files with `@info`; the default is [scrippolib-registry](https://github.com/michaelmunson/scrippolib-registry). Add your file (for example `packages/is-even/is-even.scrippo`) and commit it to the default branch. Registries are not tagged. Raising `@info --version` is what makes `scrippolib update` pick up a change. Then callers run:
+
+```bash
+scrippolib install is-even
+```

@@ -68,24 +68,15 @@ fn usage_nests_options_under_their_mode() {
         text.contains("- [-c / --compile] # Compile to stdout"),
         "{text}"
     );
-    assert!(
-        text.contains("- [-i / --install] # Initialize .scrippo"),
-        "{text}"
-    );
     assert!(text.contains("- [-n / --new]"), "{text}");
-    assert!(text.contains("- [-ls / --list]"), "{text}");
-    assert!(text.contains("- [-rm / --remove]"), "{text}");
+    // Package management lives in scrippolib, not scrippo.
+    for removed in ["--install", "--list", "--remove", "--tag"] {
+        assert!(!text.contains(removed), "{removed} in {text}");
+    }
     assert!(!text.contains("--local"), "{text}");
-    // --tag nests beneath --install, and the shared options beneath the modes.
-    let install = text.find("- [-i / --install]").unwrap();
-    let tag = text.find("[--tag]<str>").unwrap();
+    let new = text.find("- [-n / --new]").unwrap();
     let package = text.find("- [-p / --package]").unwrap();
-    assert!(install < tag && tag < package, "{text}");
-    let indent = |needle: &str| {
-        let line = text.lines().find(|l| l.contains(needle)).unwrap();
-        line.len() - line.trim_start().len()
-    };
-    assert!(indent("[--tag]") > indent("- [-i / --install]"), "{text}");
+    assert!(new < package, "{text}");
     assert!(
         text.contains("[args]... # Passed through to the script"),
         "{text}"
@@ -113,16 +104,7 @@ fn modes_and_modifiers_are_exclusive() {
             vec!["--new", "-p", "-s", "x"],
             "-p and -s are mutually exclusive",
         ),
-        (
-            vec!["--new", "-i", "-p", "x"],
-            "-n and [-i --tag] are mutually exclusive",
-        ),
-        (vec!["--new", "--tag", "v1", "-p", "x"], "-n and [-i --tag]"),
-        (vec!["-n", "-ls", "-p"], "-n and -ls are mutually exclusive"),
-        (
-            vec!["-ls", "-rm", "-s"],
-            "-ls and -rm are mutually exclusive",
-        ),
+        (vec!["--new", "--configure", "x"], "[-n -p -s -g] and --configure"),
         (vec!["-c", "--hook"], "-c and --hook are mutually exclusive"),
         (
             vec!["--hook", "--env"],
@@ -147,10 +129,8 @@ fn wrapper_delegates_to_core() {
 
     let out = scrippo(&dir, &["-n", "-p", "helpers"]);
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("run `scrippo -i` to initialize your environment"));
-    let out = scrippo(&dir, &["-i"]);
-    assert!(out.status.success(), "{}", stderr(&out));
-    assert!(dir.join(".scrippo").is_dir());
+    assert!(stderr(&out).contains("run `scrippolib init` to initialize your environment"));
+    std::fs::create_dir_all(dir.join(".scrippo")).unwrap();
 
     let out = scrippo(&dir, &["-n", "-p", "helpers"]);
     assert!(out.status.success(), "{}", stderr(&out));
@@ -170,38 +150,19 @@ fn wrapper_delegates_to_core() {
 }
 
 #[test]
-fn list_and_remove_scripts_and_packages() {
-    let dir = temp_dir("list-rm");
-    assert!(scrippo(&dir, &["-i"]).status.success());
-    assert!(scrippo(&dir, &["-n", "-p", "helpers"]).status.success());
-    assert!(scrippo(&dir, &["-n", "-s", "hello"]).status.success());
-    assert!(scrippo(&dir, &["-n", "-s", "-g", "greet"]).status.success());
-    assert!(scrippo(&dir, &["-n", "-p", "-g", "utils"]).status.success());
-
-    let out = scrippo(&dir, &["-ls", "-p"]);
-    assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(stdout(&out), "helpers\n");
-
-    let out = scrippo(&dir, &["-ls", "-s"]);
-    assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(stdout(&out), "hello\n");
-
-    let out = scrippo(&dir, &["-ls", "-s", "-g"]);
-    assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(stdout(&out), "greet\n");
-
-    let out = scrippo(&dir, &["-ls", "-p", "-g"]);
-    assert!(out.status.success(), "{}", stderr(&out));
-    assert_eq!(stdout(&out), "utils\n");
-
-    let out = scrippo(&dir, &["-rm", "-s", "hello"]);
-    assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!dir.join("hello.scrippo").exists());
-    assert!(stdout(&out).contains("removed"), "{}", stdout(&out));
-
-    let out = scrippo(&dir, &["-rm", "-p", "-g", "utils"]);
-    assert!(out.status.success(), "{}", stderr(&out));
-    assert!(!dir.join("home/lib/utils.scrippo").exists());
+fn package_management_flags_are_gone() {
+    let dir = temp_dir("removed");
+    for args in [
+        vec!["-i"],
+        vec!["--install", "-p", "x"],
+        vec!["-ls", "-p"],
+        vec!["--list", "-s"],
+        vec!["-rm", "-s", "x"],
+        vec!["--remove", "-s", "x"],
+    ] {
+        let out = scrippo(&dir, &args);
+        assert!(!out.status.success(), "{args:?} should fail: {}", stdout(&out));
+    }
 }
 
 #[test]
@@ -235,12 +196,6 @@ fn completion_offers_modes_then_only_what_fits() {
     for flag in [
         "-n",
         "--new",
-        "-ls",
-        "--list",
-        "-rm",
-        "--remove",
-        "-i",
-        "--install",
         "-c",
         "--compile",
         "--hook",
@@ -250,7 +205,7 @@ fn completion_offers_modes_then_only_what_fits() {
         assert!(all.iter().any(|c| c == flag), "{flag} in {all:?}");
     }
     // Modifiers only make sense once a mode is chosen.
-    for flag in ["-p", "--package", "-g", "--tag"] {
+    for flag in ["-p", "--package", "-g"] {
         assert!(!all.iter().any(|c| c == flag), "{flag} in {all:?}");
     }
     assert!(!all.iter().any(|c| c == "--local"), "{all:?}");
@@ -261,11 +216,7 @@ fn completion_offers_modes_then_only_what_fits() {
         "{new:?}"
     );
     assert!(!new.contains(&"--local".into()), "{new:?}");
-    assert!(!new.contains(&"--tag".into()), "{new:?}");
-    assert!(
-        !new.contains(&"-i".into()) && !new.contains(&"--hook".into()),
-        "{new:?}"
-    );
+    assert!(!new.contains(&"--hook".into()), "{new:?}");
     assert!(!new.contains(&"--new".into()), "{new:?}");
 
     let package = complete(&["-n", "-p"]);
@@ -274,17 +225,6 @@ fn completion_offers_modes_then_only_what_fits() {
         "{package:?}"
     );
     assert!(package.contains(&"-g".into()), "{package:?}");
-
-    let list = complete(&["-ls"]);
-    assert!(
-        list.contains(&"-p".into()) && list.contains(&"-s".into()),
-        "{list:?}"
-    );
-    assert!(list.contains(&"-g".into()), "{list:?}");
-
-    let install = complete(&["-i"]);
-    assert!(install.contains(&"--tag".into()), "{install:?}");
-    assert!(!complete(&["-i", "--tag", "v1"]).contains(&"--tag".into()));
 
     let compile = complete(&["-c"]);
     assert!(

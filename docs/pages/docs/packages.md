@@ -8,21 +8,14 @@ A package is a `.scrippo` file meant to be imported. It contributes functions an
 ## Create one
 
 ```bash
-scrippo -i
+scrippolib init
 scrippo -n -p mylib
 scrippo -n -p -g mylib
 ```
 
-`-p` / `--package` selects packages. Without `-g`, the file is `.scrippo/lib/mylib.scrippo` in the nearest initialized project. Run bare `scrippo -i` to create the project environment first; the global directory never counts as a project. `-g` writes `~/.scrippo/lib/mylib.scrippo`. The new file contains a comment with the package name. Replace that with the functions you want to export.
+`-p` / `--package` selects packages. Without `-g`, the file is `.scrippo/lib/mylib.scrippo` in the nearest initialized project. Run `scrippolib init` to create the project environment first; the global directory never counts as a project. `-g` writes `~/.scrippo/lib/mylib.scrippo`. The new file contains a comment with the package name. Replace that with the functions you want to export.
 
-```bash
-scrippo -ls -p
-scrippo -ls -p -g
-scrippo -rm -p mylib
-scrippo -rm -p -g mylib
-```
-
-Removal deletes `mylib.scrippo` and `mylib.bash` in that directory when they are present.
+Installed packages are managed with [scrippolib](/installing): `scrippolib list`, `scrippolib uninstall <name>`. Files you create with `scrippo -n` are plain files; delete them directly.
 
 ## Write one
 
