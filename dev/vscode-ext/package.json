@@ -2,7 +2,7 @@
   "name": "scriptopotamus",
   "displayName": "Scriptopotamus",
   "description": "Syntax highlighting, autocomplete, linting, and compiler diagnostics for Scriptopotamus (.scrippo) scripts",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "publisher": "michaelmunson",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -149,7 +149,7 @@
     "configurationDefaults": {
       "[scriptopotamus]": {
         "editor.insertSpaces": true,
-        "editor.tabSize": 2,
+        "editor.tabSize": 5,
         "files.trimTrailingWhitespace": true
       },
       "editor.tokenColorCustomizations": {
