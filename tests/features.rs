@@ -447,20 +447,20 @@ second output line"
 
 const HOOKED: &str = "@hook exec
   echo script-before
-@hook exec --finally -a code=CODE
+@hook exit -a code=CODE
   echo \"script-after $CODE\"
 
 .cmd()
   @hook exec
     echo cmd-before
-  @hook exec --finally code
+  @hook exit code
     echo \"cmd-after $code\"
   -> body
 
   .sub()
     @hook exec
       echo sub-before
-    @hook exec --finally code=status
+    @hook exit code=status
       echo \"sub-after $status\"
     -> sub-body
 
@@ -485,7 +485,7 @@ fn exec_hooks_run_around_commands_outermost_first_and_unwind_inside_out() {
 }
 
 #[test]
-fn finally_hooks_receive_the_exit_status_and_keep_it() {
+fn exit_hooks_receive_the_exit_status_and_keep_it() {
     let out = run(HOOKED, &["cmd", "fail"]);
     assert_eq!(out.status.code(), Some(3));
     assert!(stdout(&out).contains("cmd-after 3\nscript-after 3\n"), "{}", stdout(&out));
@@ -509,12 +509,13 @@ fn hooks_do_not_run_for_help() {
 fn hook_errors_are_reported() {
     for (source, message) in [
         ("@hook\n", "expected a hook name"),
-        ("@hook nope\n  echo x\n.a() -> a\n", "unknown hook 'nope'"),
+        ("@hook nope\n  echo x\n.a() -> a\n", "unknown hook 'nope'; expected exec or exit"),
+        ("@hook exec --finally\n  echo x\n.a() -> a\n", "unknown option '--finally'"),
         ("@hook exec\n", "expected an indented body"),
         ("@hook exec --bogus\n  echo x\n", "unknown option '--bogus'"),
         ("@hook exec code\n  echo x\n.a() -> a\n", "unknown argument 'code' (available: none)"),
-        ("@hook exec --finally nope\n  echo x\n.a() -> a\n", "unknown argument 'nope' (available: code)"),
-        ("@hook exec --finally code=A code=A\n  echo x\n.a() -> a\n", "duplicate argument 'A'"),
+        ("@hook exit nope\n  echo x\n.a() -> a\n", "unknown argument 'nope' (available: code)"),
+        ("@hook exit code=A code=A\n  echo x\n.a() -> a\n", "duplicate argument 'A'"),
         ("@hook exec\n  echo x\n", "needs at least one command"),
         ("f()\n  @hook exec\n    echo x\n.a() -> a\n", "directly inside a command"),
         (".a()\n  if true\n    @hook exec\n      echo x\n", "only allowed at the top level"),

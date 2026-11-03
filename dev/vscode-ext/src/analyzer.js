@@ -1388,28 +1388,27 @@ class Analyzer {
   }
 }
 
-const HOOKS = { exec: { variables: { false: [], true: ['code'] } } };
+const HOOKS = { exec: { variables: [] }, exit: { variables: ['code'] } };
 
 /** Validate the words after `@hook`; `fail(message, code)` reports a problem. */
 function validateHook(words, fail) {
   const [name, ...rest] = words;
-  const hook = { name: name || '', finally: false, args: [] };
+  const hook = { name: name || '', args: [] };
   if (!name) {
-    fail('@hook: expected a hook name (exec)', 'hook-name');
+    fail('@hook: expected a hook name (exec, exit)', 'hook-name');
     return hook;
   }
   if (!HOOKS[name]) {
-    fail(`@hook: unknown hook '${name}'; expected exec`, 'hook-name');
+    fail(`@hook: unknown hook '${name}'; expected exec or exit`, 'hook-name');
     return hook;
   }
   const raw = [];
   for (const word of rest) {
-    if (word === '--finally') hook.finally = true;
-    else if (word === '-a' || word === '--args') continue;
+    if (word === '-a' || word === '--args') continue;
     else if (word.startsWith('-')) fail(`@hook ${name}: unknown option '${word}'`, 'hook-option');
     else raw.push(word);
   }
-  const available = HOOKS[name].variables[hook.finally];
+  const available = HOOKS[name].variables;
   for (const word of raw) {
     const [variable, alias = variable] = word.split('=', 2);
     if (!/^[A-Za-z_]\w*$/.test(variable) || !/^[A-Za-z_]\w*$/.test(alias)) {

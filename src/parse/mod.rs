@@ -673,8 +673,8 @@ fn parse_macro(src: &mut Source, text: &str) -> Result<Stmt> {
 }
 
 /// Hook variables available to each hook, in the order the hook passes them.
-fn hook_variables(finally: bool) -> &'static [&'static str] {
-    if finally { &["code"] } else { &[] }
+fn hook_variables(name: &str) -> &'static [&'static str] {
+    if name == "exit" { &["code"] } else { &[] }
 }
 
 fn parse_hook(src: &mut Source, line: usize, indent: i32, words: Vec<String>) -> Result<Stmt> {
@@ -683,15 +683,15 @@ fn parse_hook(src: &mut Source, line: usize, indent: i32, words: Vec<String>) ->
     let mut words = words.into_iter();
     let name = words
         .next()
-        .ok_or_else(|| fail("@hook: expected a hook name (exec)".into()))?;
-    if name != "exec" {
-        return Err(fail(format!("@hook: unknown hook '{name}'; expected exec")));
+        .ok_or_else(|| fail("@hook: expected a hook name (exec, exit)".into()))?;
+    if name != "exec" && name != "exit" {
+        return Err(fail(format!(
+            "@hook: unknown hook '{name}'; expected exec or exit"
+        )));
     }
-    let mut finally = false;
     let mut raw_args = Vec::new();
     for word in words {
         match word.as_str() {
-            "--finally" => finally = true,
             "-a" | "--args" => {}
             flag if flag.starts_with('-') => {
                 return Err(fail(format!("@hook {name}: unknown option '{flag}'")));
@@ -700,7 +700,7 @@ fn parse_hook(src: &mut Source, line: usize, indent: i32, words: Vec<String>) ->
         }
     }
     let ident = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*$").unwrap();
-    let available = hook_variables(finally);
+    let available = hook_variables(&name);
     let mut args: Vec<(String, String)> = Vec::new();
     for raw in raw_args {
         let (variable, alias) = raw.split_once('=').unwrap_or((raw.as_str(), raw.as_str()));
@@ -729,7 +729,6 @@ fn parse_hook(src: &mut Source, line: usize, indent: i32, words: Vec<String>) ->
     let body = parse_block(src, indent)?;
     Ok(Stmt::Hook {
         name,
-        finally,
         args,
         body,
         line,

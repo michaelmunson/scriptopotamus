@@ -20,7 +20,7 @@ pub struct Emitter {
     pub hook_count: usize,
     /// Script-level hook functions, run around command dispatch.
     pub exec_hooks: Vec<String>,
-    pub finally_hooks: Vec<String>,
+    pub exit_hooks: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,7 +44,7 @@ impl Emitter {
             script_name: "script".to_string(),
             hook_count: 0,
             exec_hooks: Vec::new(),
-            finally_hooks: Vec::new(),
+            exit_hooks: Vec::new(),
         }
     }
 
@@ -147,11 +147,11 @@ fn emit_program_kind(program: &Program, library: bool, script_name: &str) -> Res
                     "@hook is not allowed in a library; it wraps command dispatch",
                 ));
             }
-            let (name, finally) = stmt::emit_hook(&mut em, stmt)?;
-            if finally {
-                em.finally_hooks.push(name);
+            let (call, after) = stmt::emit_hook(&mut em, stmt)?;
+            if after {
+                em.exit_hooks.push(call);
             } else {
-                em.exec_hooks.push(name);
+                em.exec_hooks.push(call);
             }
         }
     }
@@ -169,7 +169,7 @@ fn emit_program_kind(program: &Program, library: bool, script_name: &str) -> Res
 
 fn emit_dispatch(em: &mut Emitter) -> Result<()> {
     if em.root.is_none() && em.commands.is_empty() {
-        if !em.exec_hooks.is_empty() || !em.finally_hooks.is_empty() {
+        if !em.exec_hooks.is_empty() || !em.exit_hooks.is_empty() {
             return Err(CompileError::new(
                 "<input>",
                 0,
@@ -220,9 +220,9 @@ fn emit_dispatch(em: &mut Emitter) -> Result<()> {
     em.emit_line("  ;;");
     em.dedent();
     em.emit_line("esac");
-    if !em.finally_hooks.is_empty() {
+    if !em.exit_hooks.is_empty() {
         em.emit_line("_scrippo_status=$?");
-        for hook in em.finally_hooks.clone() {
+        for hook in em.exit_hooks.clone() {
             em.emit_line(&format!("{hook} \"$_scrippo_status\""));
         }
         em.emit_line("exit \"$_scrippo_status\"");

@@ -263,7 +263,7 @@ fn emit_declare(
 /// Emit a hook body as a bash function. Returns the call line and whether it runs after the command.
 pub fn emit_hook(em: &mut Emitter, stmt: &Stmt) -> Result<(String, bool)> {
     let Stmt::Hook {
-        finally,
+        name,
         args,
         body,
         ..
@@ -275,7 +275,7 @@ pub fn emit_hook(em: &mut Emitter, stmt: &Stmt) -> Result<(String, bool)> {
     em.hook_count += 1;
     em.emit_line(&format!("function {fn_name} {{"));
     em.indent();
-    // `exec --finally` passes `code`; the call site supplies it as `$1`.
+    // `exit` passes `code`; the call site supplies it as `$1`.
     for (variable, alias) in args {
         let position = match variable.as_str() {
             "code" => 1,
@@ -289,7 +289,7 @@ pub fn emit_hook(em: &mut Emitter, stmt: &Stmt) -> Result<(String, bool)> {
     if em.depth == 0 {
         em.emit_line("");
     }
-    Ok((fn_name, *finally))
+    Ok((fn_name, name == "exit"))
 }
 
 fn emit_function(
@@ -399,7 +399,7 @@ fn emit_function(
         .filter(|s| matches!(s, Stmt::Hook { .. }))
         .collect();
     let mut exec_calls = Vec::new();
-    let mut finally_calls = Vec::new();
+    let mut exit_calls = Vec::new();
     for hook in &hooks {
         if !is_command {
             let Stmt::Hook { line, .. } = hook else { unreachable!() };
@@ -409,14 +409,14 @@ fn emit_function(
                 "@hook is only allowed directly inside a command",
             ));
         }
-        let (call, finally) = emit_hook(em, hook)?;
-        if finally {
-            finally_calls.push(call);
+        let (call, after) = emit_hook(em, hook)?;
+        if after {
+            exit_calls.push(call);
         } else {
             exec_calls.push(call);
         }
     }
-    let run_name = if finally_calls.is_empty() {
+    let run_name = if exit_calls.is_empty() {
         fn_name.clone()
     } else {
         format!("_scrippo_run_{fn_name}")
@@ -493,7 +493,7 @@ fn emit_function(
 
     em.dedent();
     em.emit_line("}");
-    if !finally_calls.is_empty() {
+    if !exit_calls.is_empty() {
         em.emit_line(&format!("function {fn_name} {{"));
         em.indent();
         em.emit_line("local _scrippo_status");
@@ -502,7 +502,7 @@ fn emit_function(
         ));
         em.emit_line(&format!("{run_name} \"$@\""));
         em.emit_line("_scrippo_status=$?");
-        for call in &finally_calls {
+        for call in &exit_calls {
             em.emit_line(&format!("{call} \"$_scrippo_status\""));
         }
         em.emit_line("return \"$_scrippo_status\"");

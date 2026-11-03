@@ -47,14 +47,12 @@ fn expand_body(body: &[Stmt]) -> Result<Block> {
             Stmt::MacroCall { name, .. } if name == "usage" => out.push(stmt.clone()),
             Stmt::Hook {
                 name,
-                finally,
                 args,
                 body,
                 line,
             } => {
                 out.push(Stmt::Hook {
                     name: name.clone(),
-                    finally: *finally,
                     args: args.clone(),
                     body: expand_body(body)?,
                     line: *line,

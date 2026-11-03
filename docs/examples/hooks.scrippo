@@ -1,0 +1,13 @@
+@import scrippo/std
+
+@hook exec --finally --args code=CODE
+     -> exited with $CODE
+
+@hook exit --args
+
+.([--error])
+     @hook exec
+          -> running mycmd
+     if $error
+          return 1
+     -> Hello World!

@@ -1,13 +1,13 @@
 ---
 title: Hooks
-description: "@hook exec runs your logic before and after commands."
+description: "@hook exec and @hook exit run your logic before and after commands."
 ---
 
 `@hook` is a built-in [macro](/macros) that wraps your logic around command execution. It takes the name of a hook, optional flags, and an indented body. The body is ordinary scrippo.
 
-Only one hook exists so far: `exec`.
+Two hooks exist: `exec` runs before, and `exit` runs after.
 
-## @hook exec
+## @hook exec and @hook exit
 
 ```scrippo
 @hook exec
@@ -17,7 +17,7 @@ Only one hook exists so far: `exec`.
   @hook exec
     echo "calling command"
 
-  @hook exec --finally -a code=CODE
+  @hook exit -a code=CODE
     if $CODE != 0
       echo "Command failed with code $CODE"
     else
@@ -50,12 +50,12 @@ scrippo cmds.scrippo cmd subcmd
 | --- | --- |
 | `@hook exec` at the top level | Before any command is executed. |
 | `@hook exec` inside a command | Before that command's own logic, and before any of its subcommands. |
-| `@hook exec --finally` at the top level | After any command has finished. |
-| `@hook exec --finally` inside a command | After that command, or one of its subcommands, has finished. |
+| `@hook exit` at the top level | After any command has finished. |
+| `@hook exit` inside a command | After that command, or one of its subcommands, has finished. It is scoped to that command. |
 
-A command's hooks run around the whole command, including the subcommands under it. Before hooks run outermost first: script, command, subcommand. `--finally` hooks unwind innermost first: subcommand, command, script.
+A command's hooks run around the whole command, including the subcommands under it. `exec` hooks run outermost first: script, command, subcommand. `exit` hooks unwind innermost first: subcommand, command, script.
 
-A scope may have several `@hook exec` blocks. They run in the order written.
+A scope may have several hooks of the same name. They run in the order written.
 
 ## Where a hook may be written
 
@@ -66,17 +66,17 @@ A hook inside a plain function, an `if`, a loop, or any other block is a compile
 
 ## Passing variables to the body
 
-`@hook` takes `-a / --args`, a list of hook variables to expose to the body. Each entry is `variable` or `variable=name`. `variable=name` renames it inside the body. The flag word may be left out, so `@hook exec --finally code=CODE` means the same as `@hook exec --finally -a code=CODE`.
+`@hook` takes `-a / --args`, a list of hook variables to expose to the body. Each entry is `variable` or `variable=name`. `variable=name` renames it inside the body. The flag word may be left out, so `@hook exit code=CODE` means the same as `@hook exit -a code=CODE`.
 
 | Hook | Variables |
 | --- | --- |
 | `exec` | none |
-| `exec --finally` | `code`: the exit status of the command, as an integer |
+| `exit` | `code`: the exit status of the command, as an integer |
 
 `code` is an integer, so test it with a comparison. `if $code` alone is a [bool](/control-flow) test and is never true for a number. Use `if $code != 0` for failure.
 
 ## What hooks do not do
 
 - A scope's hooks are skipped when its first argument is `--help`. `script --help` runs no hooks. `script cmd --help` runs the script's hooks but not `cmd`'s.
-- A script exits immediately on an unknown command or on `@usage` without `--no-exit`. Those exits skip `--finally` hooks.
-- A hook's own exit status is ignored. The command's status is kept.
+- A script exits immediately on an unknown command or on `@usage` without `--no-exit`. Those exits skip `exit` hooks.
+- An `exit` hook's own exit status is ignored. The command's status is kept.

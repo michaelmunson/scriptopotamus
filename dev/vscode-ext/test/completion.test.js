@@ -201,5 +201,5 @@ test('hook macro completes with a body snippet', () => {
   const found = at(SOURCE, '  @ho');
   const hook = found.items.find((item) => item.label === 'hook');
   assert.ok(hook);
-  assert.match(hook.insertText, /^hook exec/);
+  assert.match(hook.insertText, /^hook \$\{1\|exec,exit\|\}/);
 });

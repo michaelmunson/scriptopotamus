@@ -163,13 +163,13 @@ Inside the body, use the bare name (`$select`, `$options`) — not `$--select`.
   echo "script"
 
 .cmd()
-  @hook exec --finally code=CODE   # after cmd and its subcommands
+  @hook exit code=CODE             # after cmd and its subcommands
     if $CODE != 0
       echo "failed: $CODE"
 ```
 
-* `@hook exec` runs before a command; `--finally` runs after it with `code` (exit status, an int) available
-* allowed only at the top level or directly inside a command; before hooks run outermost first, `--finally` hooks innermost first
+* `@hook exec` runs before a command; `@hook exit` runs after it with `code` (exit status, an int) available
+* allowed only at the top level or directly inside a command; `exec` hooks run outermost first, `exit` hooks innermost first
 
 ## Standard library
 

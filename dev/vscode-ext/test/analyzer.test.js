@@ -330,13 +330,14 @@ test('macro definitions are errors and built-in macros still parse', () => {
 test('hooks parse, take a body, and are placed correctly', () => {
   const codes = (source) => analyze(source).diagnostics.filter((d) => d.severity === 'error').map((d) => d.code);
   assert.deepEqual(codes('@hook exec\n  echo hi\n.a() -> a\n'), []);
-  assert.deepEqual(codes('.a()\n  @hook exec --finally code=CODE\n    echo $CODE\n  -> a\n'), []);
-  assert.deepEqual(codes('.a()\n  @hook exec --finally -a code\n    echo $code\n  -> a\n'), []);
+  assert.deepEqual(codes('.a()\n  @hook exit code=CODE\n    echo $CODE\n  -> a\n'), []);
+  assert.deepEqual(codes('.a()\n  @hook exit -a code\n    echo $code\n  -> a\n'), []);
   assert.deepEqual(codes('@hook exec\n'), ['hook-body']);
   assert.deepEqual(codes('@hook nope\n  echo x\n'), ['hook-name']);
   assert.deepEqual(codes('@hook exec --bogus\n  echo x\n'), ['hook-option']);
+  assert.deepEqual(codes('@hook exec --finally\n  echo x\n'), ['hook-option']);
   assert.deepEqual(codes('@hook exec code\n  echo x\n'), ['hook-arg']);
-  assert.deepEqual(codes('@hook exec --finally code=A code=A\n  echo x\n'), ['hook-arg']);
+  assert.deepEqual(codes('@hook exit code=A code=A\n  echo x\n'), ['hook-arg']);
   assert.deepEqual(codes('f()\n  @hook exec\n    echo x\n'), ['hook-placement']);
   assert.deepEqual(codes('.a()\n  if true\n    @hook exec\n      echo x\n'), ['hook-placement']);
   assert.ok(!codes('@hook exec\n  echo hi\n').includes('macro-definition'));
