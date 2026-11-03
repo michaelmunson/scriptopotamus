@@ -51,6 +51,7 @@ Global packages and scripts live under `~/.scrippo` (override with `SCRIPPO_HOME
 Create them with:
 
 ```bash
+scrippo -i                # initialize before local package management
 scrippo -n -p [-g] <name>   # package; local unless -g
 scrippo -n -s [-g] <name>   # script; local unless -g
 scrippo -ls -s              # list local scripts
@@ -64,6 +65,7 @@ Project commands live in `.scrippo/commands.scrippo` (a legacy `.scrippo` file s
 ### Installing from Git or a directory
 
 ```bash
+scrippo -i                                               # initialize .scrippo here
 scrippo -i https://github.com/owner/helpers.git            # both packages and scripts
 scrippo -i -p https://github.com/owner/helpers.git         # project .scrippo/lib
 scrippo -i -p -g https://github.com/owner/helpers.git      # ~/.scrippo/lib
@@ -77,8 +79,10 @@ scrippo --install --package --tag v1.2.0 https://github.com/owner/helpers.git
 Use `-p | --package` or `-s | --script` to install only one kind; with neither,
 `--install` installs both (a kind the source does not contain is skipped, and an
 explicit destination is not allowed). Installs default to local: packages go
-in the nearest project's `.scrippo/lib` (created in the current directory if
-needed), and scripts go in the current directory. `-g | --global` follows
+in the nearest initialized project's `.scrippo/lib`, and scripts go in the
+current directory. Global storage never counts as a project. If no project
+environment exists, local package commands ask you to run `scrippo -i`. Bare
+`scrippo -i` creates `.scrippo` in the current directory and preserves existing contents. `-g | --global` follows
 `SCRIPPO_HOME`; it cannot be combined with an explicit destination. Put scrippo
 options before the source path; arguments after a script filename belong to that
 script.

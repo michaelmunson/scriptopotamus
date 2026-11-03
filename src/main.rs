@@ -28,7 +28,7 @@ struct Cli {
     #[arg(long = "remove", conflicts_with_all = ["new", "list", "install", "configure", "init", "env", "complete", "compile_only", "noexec"])]
     remove: bool,
 
-    /// Install a version-tagged Git repository
+    /// Initialize the current environment, or install packages/scripts from a source
     #[arg(short = 'i', long = "install", conflicts_with_all = ["new", "list", "remove", "configure", "init", "env", "complete", "compile_only", "noexec"])]
     install: bool,
 
@@ -206,6 +206,14 @@ fn scope_flag(cli: &Cli) -> paths::NewScope {
 }
 
 fn run_install(cli: &Cli) -> Result<()> {
+    if cli.input.is_empty() {
+        if cli.package || cli.script || cli.global || cli.tag.is_some() {
+            bail!("use bare `scrippo -i` to initialize, or provide a source to install");
+        }
+        let path = paths::initialize_environment(&std::env::current_dir()?)?;
+        println!("initialized {}", path.display());
+        return Ok(());
+    }
     let repository = cli
         .input
         .first()

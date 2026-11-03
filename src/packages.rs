@@ -301,9 +301,7 @@ fn destination(options: &InstallOptions) -> Result<PathBuf> {
     }
     let cwd = std::env::current_dir()?;
     Ok(match options.kind {
-        NewKind::Package => paths::find_project_scrippo_dir(&cwd)
-            .unwrap_or_else(|| cwd.join(".scrippo"))
-            .join("lib"),
+        NewKind::Package => paths::require_project_scrippo_dir(&cwd)?.join("lib"),
         NewKind::Script => cwd,
     })
 }

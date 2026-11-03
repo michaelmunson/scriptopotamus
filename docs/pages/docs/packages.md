@@ -8,11 +8,12 @@ A package is a `.scrippo` file meant to be imported. It contributes functions an
 ## Create one
 
 ```bash
+scrippo -i
 scrippo -n -p mylib
 scrippo -n -p -g mylib
 ```
 
-`-p` / `--package` selects packages. Without `-g`, the file is `.scrippo/lib/mylib.scrippo` in the nearest project, or `./.scrippo/lib/mylib.scrippo` if you have no project yet. `-g` writes `~/.scrippo/lib/mylib.scrippo`. The new file contains a comment with the package name. Replace that with the functions you want to export.
+`-p` / `--package` selects packages. Without `-g`, the file is `.scrippo/lib/mylib.scrippo` in the nearest initialized project. Run bare `scrippo -i` to create the project environment first; the global directory never counts as a project. `-g` writes `~/.scrippo/lib/mylib.scrippo`. The new file contains a comment with the package name. Replace that with the functions you want to export.
 
 ```bash
 scrippo -ls -p

@@ -26,7 +26,7 @@ project/
 | `<name>.scrippo` | A script in the project. `scrippo <name>` finds the nearest one walking upward. |
 | `.scrippo-installed/` | Snapshots and manifests from `scrippo -i`. Created when you install. |
 
-The project root is the nearest ancestor of the current file or directory that contains a `.scrippo` directory. Creating a local package with `scrippo -n -p` creates `.scrippo/lib` in that directory, or in the current directory when none exists.
+The project root is the nearest ancestor of the current file or directory that contains a `.scrippo` directory. The global directory (`~/.scrippo` or `SCRIPPO_HOME`) never counts as a project. Run bare `scrippo -i` in your project root to create `.scrippo`. Local package commands require this environment and create `lib` inside it as needed.
 
 If `.scrippo` is a file, local package commands stop and ask you to move that file to `.scrippo/commands.scrippo`. The file form still works as the command entry for autoload and for `scrippo` invoked on that directory.
 

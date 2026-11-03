@@ -68,7 +68,10 @@ fn usage_nests_options_under_their_mode() {
         text.contains("- [-c / --compile] # Compile to stdout"),
         "{text}"
     );
-    assert!(text.contains("- [-i / --install] # Install"), "{text}");
+    assert!(
+        text.contains("- [-i / --install] # Initialize .scrippo"),
+        "{text}"
+    );
     assert!(text.contains("- [-n / --new]"), "{text}");
     assert!(text.contains("- [-ls / --list]"), "{text}");
     assert!(text.contains("- [-rm / --remove]"), "{text}");
@@ -143,6 +146,13 @@ fn wrapper_delegates_to_core() {
     assert!(stdout(&out).starts_with("scrippo "), "{}", stdout(&out));
 
     let out = scrippo(&dir, &["-n", "-p", "helpers"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("run `scrippo -i` to initialize your environment"));
+    let out = scrippo(&dir, &["-i"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(dir.join(".scrippo").is_dir());
+
+    let out = scrippo(&dir, &["-n", "-p", "helpers"]);
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(dir.join(".scrippo/lib/helpers.scrippo").is_file());
 
@@ -162,6 +172,7 @@ fn wrapper_delegates_to_core() {
 #[test]
 fn list_and_remove_scripts_and_packages() {
     let dir = temp_dir("list-rm");
+    assert!(scrippo(&dir, &["-i"]).status.success());
     assert!(scrippo(&dir, &["-n", "-p", "helpers"]).status.success());
     assert!(scrippo(&dir, &["-n", "-s", "hello"]).status.success());
     assert!(scrippo(&dir, &["-n", "-s", "-g", "greet"]).status.success());

@@ -44,7 +44,7 @@ A path with no `/` and no `.` is a package name. Lookup order:
 3. `~/.scrippo/lib/<name>.scrippo` (or `$SCRIPPO_HOME/lib`)
 4. `~/.scrippo/lib/<name>.bash`
 
-The project is the nearest ancestor directory that contains a `.scrippo` directory, starting from the file that contains the import. A `.scrippo` source package wins over a compiled `.bash` of the same name, and a project package wins over a global one.
+The project is the nearest ancestor directory that contains a `.scrippo` directory, starting from the file that contains the import, excluding the global directory (`~/.scrippo` or `SCRIPPO_HOME`). Bare `scrippo -i` creates a project environment in the current directory. Global imports still work without a project environment. A `.scrippo` source package wins over a compiled `.bash` of the same name, and a project package wins over a global one.
 
 A missing package is a compile error that names both search directories.
 

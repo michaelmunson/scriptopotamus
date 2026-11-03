@@ -3,7 +3,14 @@ title: Installing
 description: Install packages and scripts from a Git repository or a directory.
 ---
 
-`scrippo -i` copies installable `.scrippo` files from a Git repository or a directory into a project or into `~/.scrippo`.
+Bare `scrippo -i` (or `scrippo --install`) initializes the current directory by creating `.scrippo`. It is safe to repeat and preserves existing contents. It creates an environment here even if a parent directory already has one. Initialization takes no package, script, global, or tag options.
+
+```bash
+cd ~/local/scrippo-test
+scrippo -i
+```
+
+With a source argument, `scrippo -i` copies installable `.scrippo` files from a Git repository or a directory into a project or into `~/.scrippo`.
 
 ```bash
 scrippo -i https://github.com/owner/helpers.git
@@ -19,6 +26,7 @@ scrippo --install --package --tag v1.2.0 https://github.com/owner/helpers.git
 ## Arguments
 
 ```
+scrippo -i
 scrippo -i [-p | -s] [-g] [--tag VERSION] <source> [directory] [destination]
 ```
 
@@ -37,8 +45,16 @@ Flags come before the source. Words after the source are a directory inside the 
 
 Default destinations, when you omit both `-g` and an explicit path:
 
-- Packages go to the nearest project's `.scrippo/lib`, or `./.scrippo/lib` if there is no project yet.
+- Packages go to the nearest initialized project's `.scrippo/lib`. The global directory (`~/.scrippo` or `SCRIPPO_HOME`) is excluded from project lookup, including symlink aliases.
 - Scripts go to the current directory.
+
+If no project environment exists, local package installation fails with:
+
+```text
+Error: run `scrippo -i` to initialize your environment
+```
+
+Run bare `scrippo -i` in your intended project root, then retry the install. Global installs (`-g`) and explicit destinations do not require a project environment. A legacy `.scrippo` file must be moved to `.scrippo/commands.scrippo` before initialization.
 
 ## What gets selected
 
@@ -46,7 +62,7 @@ The installer walks the scan root and keeps `.scrippo` files whose `@info` kind 
 
 Git sources need Git and Bash. The default tag is the highest stable `MAJOR.MINOR.PATCH` tag. Untagged commits and non-stable tags are ignored. A repository with no stable tag is an error unless you are installing a plain directory.
 
-A plain directory (no `.git`) skips Git. With `--tag` omitted, every selected entry must share one `@info` version, and that version is recorded as the tag. The commit field is `local`.
+A plain directory (no `.git`) skips Git. With `--tag` omitted, every selected entry must share one `@info` version, and that version is recorded as the tag. The commit field is `local`. In `installed VERSION (local)`, `local` describes the directory source, independently of the install destination.
 
 Each entry's version must match the chosen tag, ignoring a single leading `v`. Each `@info --name` must match the file stem.
 

@@ -28,6 +28,7 @@ impl Fixture {
             project,
             home,
         };
+        success(&fixture.run(&["-i"]));
         fixture.git(&["init", "-q"]);
         fixture.version("1.0.0");
         fixture.tag("v1.0.0");
@@ -780,4 +781,155 @@ fn failing_before_hook_does_not_publish() {
     );
     assert!(!f.lib().join(".scrippo-installed").exists());
     assert!(!f.lib().join("greet.bash").exists());
+}
+
+#[test]
+fn local_package_management_requires_init_and_never_uses_global_as_project() {
+    for custom_global in [false, true] {
+        let f = Fixture::new();
+        let user_home = f.root.join("user-home");
+        let global = if custom_global {
+            user_home.join("storage/.scrippo")
+        } else {
+            user_home.join(".scrippo")
+        };
+        let project = global.parent().unwrap().join("local/test");
+        fs::create_dir_all(&project).unwrap();
+        fs::create_dir_all(global.join("lib")).unwrap();
+        fs::write(global.join("lib/keep.bash"), "unchanged").unwrap();
+        let run = |args: &[&str]| {
+            let mut command = f.command();
+            command.current_dir(&project).env("HOME", &user_home);
+            if custom_global {
+                command.env("SCRIPPO_HOME", &global);
+            } else {
+                command.env_remove("SCRIPPO_HOME");
+            }
+            command.args(args).output().unwrap()
+        };
+        for args in [
+            vec!["-i", "-p", f.repo.to_str().unwrap()],
+            vec!["-n", "-p", "example"],
+            vec!["-ls", "-p"],
+            vec!["-rm", "-p", "keep"],
+        ] {
+            failure(
+                &run(&args),
+                "run `scrippo -i` to initialize your environment",
+            );
+        }
+        assert!(!project.join(".scrippo").exists());
+        assert_eq!(
+            fs::read_to_string(global.join("lib/keep.bash")).unwrap(),
+            "unchanged"
+        );
+        assert!(!global.join("lib/greet.bash").exists());
+
+        success(&run(&["-i"]));
+        fs::write(project.join(".scrippo/keep"), "project data").unwrap();
+        success(&run(&["--install"]));
+        assert_eq!(
+            fs::read_to_string(project.join(".scrippo/keep")).unwrap(),
+            "project data"
+        );
+        success(&run(&["-i", "-p", f.repo.to_str().unwrap()]));
+        assert!(project.join(".scrippo/lib/greet.bash").is_file());
+        assert!(!global.join("lib/greet.bash").exists());
+        success(&run(&["-i", "-p", "-g", f.repo.to_str().unwrap()]));
+        assert!(global.join("lib/greet.bash").is_file());
+
+        // Descendants use the initialized project, not a fresh nested directory.
+        let child = project.join("src/nested");
+        fs::create_dir_all(&child).unwrap();
+        let output = f
+            .command()
+            .current_dir(&child)
+            .env("SCRIPPO_HOME", &global)
+            .args(["-n", "-p", "nested"])
+            .output()
+            .unwrap();
+        success(&output);
+        assert!(project.join(".scrippo/lib/nested.scrippo").is_file());
+        assert!(!child.join(".scrippo").exists());
+    }
+}
+
+#[test]
+fn bare_install_initializes_current_directory_through_the_wrapper() {
+    let f = Fixture::new();
+    let child = f.project.join("child");
+    fs::create_dir(&child).unwrap();
+    let wrapper = f.root.join("scrippo.bash");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("cli/scrippo.scrippo");
+    fs::write(&wrapper, scriptopotamus::compile_file(&source).unwrap()).unwrap();
+    let output = Command::new("bash")
+        .arg(&wrapper)
+        .arg("-i")
+        .env("SCRIPPO_CORE", env!("CARGO_BIN_EXE_scrippo-core"))
+        .env("SCRIPPO_HOME", &f.home)
+        .current_dir(&child)
+        .output()
+        .unwrap();
+    success(&output);
+    assert!(child.join(".scrippo").is_dir());
+    assert!(text(&output).contains("initialized"));
+    for args in [
+        vec!["-i", "-p"],
+        vec!["-i", "-g"],
+        vec!["-i", "--tag", "1.0.0"],
+    ] {
+        failure(&f.run(&args), "provide a source to install");
+    }
+    let legacy = f.project.join("legacy");
+    fs::create_dir(&legacy).unwrap();
+    fs::write(legacy.join(".scrippo"), "existing commands").unwrap();
+    let output = f.command().current_dir(&legacy).arg("-i").output().unwrap();
+    failure(&output, "is a file");
+    assert_eq!(
+        fs::read_to_string(legacy.join(".scrippo")).unwrap(),
+        "existing commands"
+    );
+}
+
+#[test]
+fn explicit_install_destination_does_not_require_project_initialization() {
+    let f = Fixture::new();
+    let empty = f.root.join("empty");
+    let destination = empty.join("packages");
+    fs::create_dir(&empty).unwrap();
+    let output = f
+        .command()
+        .current_dir(&empty)
+        .args(["-i", "-p"])
+        .arg(&f.repo)
+        .arg(".")
+        .arg(&destination)
+        .output()
+        .unwrap();
+    success(&output);
+    assert!(destination.join("greet.bash").is_file());
+    assert!(!empty.join(".scrippo").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlink_to_global_storage_is_not_a_project_environment() {
+    let f = Fixture::new();
+    let project = f.root.join("symlink-project");
+    fs::create_dir(&project).unwrap();
+    std::os::unix::fs::symlink(&f.home, project.join(".scrippo")).unwrap();
+    let output = f
+        .command()
+        .current_dir(&project)
+        .args(["-ls", "-p"])
+        .output()
+        .unwrap();
+    failure(&output, "run `scrippo -i`");
+    let output = f
+        .command()
+        .current_dir(&project)
+        .arg("-i")
+        .output()
+        .unwrap();
+    failure(&output, "global scrippo directory");
 }

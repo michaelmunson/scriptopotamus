@@ -44,18 +44,19 @@ These modes need `-p` / `--package` or `-s` / `--script`. `-g` / `--global` uses
 
 `-n` is `--new`, `-ls` is `--list`, and `-rm` is `--remove`. Listing shows the stem of each `.scrippo` or `.bash` file. Removal deletes both extensions when they exist. Names start with a letter or `_` and then use letters, digits, `_`, or `-`.
 
-Local packages are created in the nearest `.scrippo/lib`, or in `./.scrippo/lib` when the project has no `.scrippo` directory yet. If `.scrippo` is a legacy command file rather than a directory, create the directory layout first. See [Project layout](/layout).
+Local package creation, listing, removal, and installation require a project environment. Run bare `scrippo -i` in your project root to create `.scrippo`; commands in descendants then use its `.scrippo/lib`. The global directory is excluded from project lookup. If `.scrippo` is a legacy command file rather than a directory, create the directory layout first. See [Project layout](/layout).
 
 ## Install
 
 ```bash
+scrippo -i
 scrippo -i <git-url-or-directory>
 scrippo -i -p <source> [directory] [destination]
 scrippo -i -s -g <source>
 scrippo --install --package --tag v1.2.0 <source>
 ```
 
-`-i` / `--install` copies installable entries out of a Git repository or a plain directory. With neither `-p` nor `-s`, both kinds are installed, and a kind the source does not contain is skipped. An explicit destination requires `-p` or `-s`, and cannot be combined with `-g`.
+Bare `-i` / `--install` creates `.scrippo` in the current directory without changing existing contents. With a source, it copies installable entries out of a Git repository or a plain directory. With neither `-p` nor `-s`, both kinds are installed, and a kind the source does not contain is skipped. An explicit destination requires `-p` or `-s`, and cannot be combined with `-g`.
 
 `directory` is a path inside the source to scan. Use `.` when you need to keep the source root and still pass a destination. Options go before the source. The full procedure is [Installing](/installing).
 

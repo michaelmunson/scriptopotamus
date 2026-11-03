@@ -18,7 +18,21 @@ pub fn global_scripts_dir() -> Result<PathBuf> {
     Ok(scrippo_home()?.join("scripts"))
 }
 
-/// Walk upward from `start` looking for a `.scrippo` directory.
+/// Global storage is never a project environment, including symlink aliases.
+fn is_global_scrippo_dir(candidate: &Path) -> bool {
+    let normalize = |path: &Path| {
+        path.canonicalize().unwrap_or_else(|_| {
+            if path.is_absolute() {
+                path.to_path_buf()
+            } else {
+                std::env::current_dir().unwrap_or_default().join(path)
+            }
+        })
+    };
+    scrippo_home().is_ok_and(|global| normalize(candidate) == normalize(&global))
+}
+
+/// Walk upward from `start` looking for a project `.scrippo`, excluding global storage.
 pub fn find_project_scrippo_dir(start: &Path) -> Option<PathBuf> {
     let mut dir = if start.is_file() {
         start.parent()?.to_path_buf()
@@ -27,13 +41,47 @@ pub fn find_project_scrippo_dir(start: &Path) -> Option<PathBuf> {
     };
     loop {
         let candidate = dir.join(".scrippo");
-        if candidate.is_dir() {
+        if candidate.is_dir() && !is_global_scrippo_dir(&candidate) {
             return Some(candidate);
         }
         if !dir.pop() {
             return None;
         }
     }
+}
+
+/// Local package management requires an explicitly initialized environment.
+pub fn require_project_scrippo_dir(start: &Path) -> Result<PathBuf> {
+    if let Some(directory) = find_project_scrippo_dir(start) {
+        return Ok(directory);
+    }
+    let file = start.join(".scrippo");
+    if file.is_file() {
+        bail!(
+            "{} is a file; move it to .scrippo/commands.scrippo to use local packages",
+            file.display()
+        );
+    }
+    bail!("run `scrippo -i` to initialize your environment");
+}
+
+/// Initialize this directory, even when a parent already has an environment.
+pub fn initialize_environment(directory: &Path) -> Result<PathBuf> {
+    let path = directory.join(".scrippo");
+    if is_global_scrippo_dir(&path) {
+        bail!(
+            "cannot initialize a project in the global scrippo directory; choose a project directory"
+        );
+    }
+    if path.is_file() {
+        bail!(
+            "{} is a file; move it to .scrippo/commands.scrippo before initializing",
+            path.display()
+        );
+    }
+    std::fs::create_dir_all(&path)
+        .with_context(|| format!("failed to create {}", path.display()))?;
+    Ok(path)
 }
 
 pub fn local_lib_dir(start: &Path) -> Option<PathBuf> {
@@ -198,19 +246,7 @@ pub fn scope_dir(kind: NewKind, scope: NewScope) -> Result<PathBuf> {
     Ok(match (kind, scope) {
         (NewKind::Package, NewScope::Local) => {
             let cwd = std::env::current_dir().context("failed to get current directory")?;
-            let scrippo_dir = match find_project_scrippo_dir(&cwd) {
-                Some(d) => d,
-                None => {
-                    let file = cwd.join(".scrippo");
-                    if file.is_file() {
-                        bail!(
-                            "{} is a file; move it to .scrippo/commands.scrippo to use local packages",
-                            file.display()
-                        );
-                    }
-                    cwd.join(".scrippo")
-                }
-            };
+            let scrippo_dir = require_project_scrippo_dir(&cwd)?;
             scrippo_dir.join("lib")
         }
         (NewKind::Package, NewScope::Global) => global_lib_dir()?,

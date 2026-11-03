@@ -64,7 +64,7 @@ M.BUILTINS = {
   },
   import = {
     signature = '@import path [--as .command|function]',
-    description = 'Inlines another scrippo or bash file, or a standard library (`scrippo/std`, `scrippo/std/io`, `scrippo/std/types`, `scrippo/std/path`). Relative paths and globs resolve from the importing file. Each file is imported once per scope. Use `--as .command` or `--as function` to wrap the imported script.',
+    description = 'Inlines another scrippo or bash file, or a standard library (`scrippo/std`, `scrippo/std/io`, `scrippo/std/types`, `scrippo/std/path`). Relative paths and globs resolve from the importing file. Each file is imported once per scope. Local package management requires an environment created with bare `scrippo -i`; global storage is searched separately and never counts as a project. Use `--as .command` or `--as function` to wrap the imported script.',
     macro = true,
     snippet = 'import ${1:scrippo/std}',
     flags = {},
