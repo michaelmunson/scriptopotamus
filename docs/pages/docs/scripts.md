@@ -16,8 +16,14 @@ A local script is created in the current directory:
 
 ```scrippo
 #! /usr/bin/env scrippo
-.main()
-  -> "hello from greet"
+@info
+  --name greet
+  --version 0.1.0
+  --description "A greet script"
+  --script
+
+.()
+  -> "root command"
 ```
 
 With `-g`, the script is created in `~/.scrippo/scripts/` instead. You can also create the file yourself; `scrippolib new` only writes the starter text. Installing, listing, and removing scripts is also `scrippolib`: see [scrippolib](/scrippolib).

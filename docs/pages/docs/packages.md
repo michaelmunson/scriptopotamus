@@ -13,7 +13,7 @@ scrippolib new package mylib
 scrippolib new package -g mylib
 ```
 
-Without `-g`, the file is `.scrippo/lib/mylib.scrippo` in the nearest initialized project. Run `scrippolib init` to create the project environment first; the global directory never counts as a project. `-g` writes `~/.scrippo/lib/mylib.scrippo`. The new file contains a comment with the package name. Replace that with the functions you want to export.
+Without `-g`, the file is `.scrippo/lib/mylib.scrippo` in the nearest initialized project. Run `scrippolib init` to create the project environment first; the global directory never counts as a project. `-g` writes `~/.scrippo/lib/mylib.scrippo`. The new file starts with an `@info` block (name, version `0.1.0`, description, `--package`) and a comment with the package name. Replace the comment with the functions you want to export.
 
 Installed packages are managed with [scrippolib](/scrippolib): `scrippolib list`, `scrippolib uninstall <name>`. Files you create with `scrippolib new` are plain files; delete them directly.
 

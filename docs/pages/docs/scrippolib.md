@@ -64,17 +64,25 @@ Every command takes `--help`.
 
 ## Create packages and scripts
 
-`new package` and `new script` write a starter file and, when an [editor is configured](/configuration#editor), open it. A package starts as a comment with its name. A script starts with a shebang and a `.main` command:
+`new package` and `new script` write a starter file and, when an [editor is configured](/configuration#editor), open it. Each file starts with an `@info` block, so it can be installed as it is: the name is the file name, the version is `0.1.0`, and the kind is `--package` or `--script`. A script is a shebang, the `@info`, and a root command `.()`:
 
 ```scrippo
 #! /usr/bin/env scrippo
-.main()
-  -> "hello from greet"
+@info
+  --name greet
+  --version 0.1.0
+  --description "A greet script"
+  --script
+
+.()
+  -> "root command"
 ```
+
+A package is the same `@info` with `--package`, followed by a comment where its functions go. Edit the description, and raise the version when you publish a change.
 
 Names start with a letter or `_` and then use letters, digits, `_`, or `-`. An existing file is never overwritten or opened. If the editor cannot launch or exits with an error, you get an error and the new file is kept.
 
-The files are plain files. Delete them directly; `uninstall` only removes things that `install` put there. To make one installable by others, add an `@info` block ([Metadata](/metadata)) and [publish it](/publishing).
+The files are plain files. Delete them directly; `uninstall` only removes things that `install` put there. To share one, [publish it](/publishing); the `@info` block is described on [Metadata](/metadata).
 
 ## A typical workflow
 
