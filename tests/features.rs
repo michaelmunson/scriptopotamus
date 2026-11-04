@@ -549,3 +549,37 @@ fn indented_lines_after_a_command_are_its_arguments() {
         "one\ntwo words\nthree\nfour\nfive\n  kept\n"
     );
 }
+
+#[test]
+fn config_module_reads_and_writes_json_config() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("c.json");
+    let source = format!(
+        "@import config\nconfig --init {f}\nconfig\n  hello=world\n  n=5\n  a.b=true\nconfig hello\nconfig a.b\nconfig --assign hello:H n:N\n-> \"$H $N\"\nconfig missing || echo none\nconfig --init {f}\nconfig n\nconfig --init {f} --force\nconfig n || echo reset\n",
+        f = file.display()
+    );
+    let out = run(&source, &[]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "world\ntrue\nworld 5\nnone\n5\nreset\n");
+    assert_eq!(std::fs::read_to_string(&file).unwrap().trim(), "{}");
+}
+
+#[test]
+fn config_rejects_mixed_and_unselected_use() {
+    let out = run("@import config\nconfig a=1\n", &[]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("no config file selected"));
+    let dir = tempfile::tempdir().unwrap();
+    let source = format!(
+        "@import config\nconfig --init {}/c.json\nconfig a=1 b\n",
+        dir.path().display()
+    );
+    let out = run(&source, &[]);
+    assert!(stderr(&out).contains("cannot get and set"));
+}
+
+#[test]
+fn a_command_named_set_does_not_shadow_the_builtin() {
+    let out = run(".set(x)\n  -> $x\n", &["set", "ok"]);
+    assert_eq!(stdout(&out), "ok\n");
+}

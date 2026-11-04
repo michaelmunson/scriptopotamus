@@ -133,11 +133,17 @@ test('packages complete after @import', () => {
       'scrippo/io',
       'scrippo/types',
       'scrippo/path',
+      'config',
       'scrippo/*',
     ],
   );
   assert.equal(at(SOURCE, '@import scrippo/std/').from, '@import '.length);
   assert.equal(at(SOURCE, '@import "scrippo/io').items.find((item) => item.label === 'scrippo/io').insertText, 'scrippo/io"');
+});
+
+test('config completes its options after @import config', () => {
+  assert.deepEqual(labels(['@import config'], 'config --'), ['--init', '--force', '--assign']);
+  assert.ok(!labels(['x=1'], 'c').includes('config'));
 });
 
 test('nested commands complete after their parent', () => {

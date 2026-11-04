@@ -1,9 +1,9 @@
 ---
 title: Standard library
-description: prt, input, throw, list, dict, str, and here.
+description: prt, input, throw, list, dict, str, here, and config.
 ---
 
-The standard library is three modules compiled into `scrippo`. Import the pieces you need, or all of them:
+The standard library is compiled into `scrippo`: the `io`, `types`, and `path` modules, plus `config`. Import the pieces you need, or all of the first three:
 
 ```scrippo
 @import scrippo/std
@@ -146,3 +146,59 @@ here([--file] [--rel])
 Prints the directory that contains the running script. `--file` prints the script path instead. `--rel` prints that path relative to the current directory; a path that is the current directory prints `.`.
 
 `here` uses `_SCRIPPO_FILE` when scrippo set it, and `BASH_SOURCE` otherwise, then `realpath`. Call it from a script you ran with `scrippo` or via a shebang so the source path is the `.scrippo` file and not the temporary bash file.
+
+## config
+
+```scrippo
+@import config
+```
+
+`config` is imported by name and is not included in `scrippo/std`. It needs `jq` on the path.
+
+```scrippo
+config(
+  field...
+  [
+    --init<str>
+    [--force]
+  ]
+  [
+    --assign<str>...
+  ]
+)
+```
+
+Reads and writes a JSON config file.
+
+| Call | Effect |
+| --- | --- |
+| `config --init myscript` | Selects `.scrippo/configs/myscript.config.json`, creating it as `{}` when it does not exist. The file is found in the nearest project `.scrippo` directory, or created under the current directory. |
+| `config --init ~/.myscript/config.json` | Selects that file. A value ending in `.json` is a path; anything else is an id of letters, digits, `_`, `-` and `.`. |
+| `config --init myscript --force` | Resets an existing file to `{}`. |
+| `config hello` | Prints the value of `hello`. Strings print as they are, other values as JSON. Exits 1 when the key is missing or null. |
+| `config hello=world foo=bar` | Sets any number of values in one write. |
+| `config --assign hello:HELLO foo:FOO` | Sets the variable `HELLO` to the value of `hello`, and `FOO` to the value of `foo`. A missing key sets an empty string. |
+
+`--init` leaves the chosen file in effect for every later `config` call in the script, so it is usually written once near the top. Without it, `config` stops with an error. `--init` does nothing to an existing file unless `--force` is given, and stops if that file is not valid JSON.
+
+A key with dots is a path: `a.b.c=1` sets `{"a":{"b":{"c":1}}}`, and a numeric part indexes an array. A value is stored as JSON when it parses as JSON (`5`, `true`, `null`, `{"k":[1]}`) and as a string otherwise. To store the string `"5"`, write `'"5"'`.
+
+One call can hold any number of sets or one get, not both. `--assign` takes every word after it, so write it last.
+
+```scrippo
+@import config
+
+config --init myscript
+
+.set()
+  config
+    hello=world
+    foo=bar
+
+.get()
+  config hello
+
+.assign()
+  config --assign hello:HELLO foo:FOO
+  -> $HELLO $FOO
+```

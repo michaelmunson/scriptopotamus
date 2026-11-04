@@ -2,7 +2,7 @@ const keywords =
   /\b(?:if|elif|else|for|while|case|in|fi|done|then|do|esac)\b|->/;
 
 const builtins =
-  /(?<![\w$-])(?:echo|printf|read|cd|source|shift|local|declare|export|readonly|unset|set|eval|exec|test|trap|wait|mapfile|let|return|exit|break|continue|prt|input|throw|list|dict|str|here)(?![\w-])/;
+  /(?<![\w$-])(?:echo|printf|read|cd|source|shift|local|declare|export|readonly|unset|set|eval|exec|test|trap|wait|mapfile|let|return|exit|break|continue|prt|input|throw|list|dict|str|here|config)(?![\w-])/;
 
 function registerScrippo(Prism) {
   if (Prism.languages.scrippo) {

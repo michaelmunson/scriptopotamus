@@ -232,7 +232,7 @@ pub fn emit_function_params(em: &mut Emitter, fn_label: &str, params: &[Param]) 
             }
         }
     }
-    em.emit_line("set -- \"${_scrippo_argv[@]}\"");
+    em.emit_line("builtin set -- \"${_scrippo_argv[@]}\"");
     Ok(())
 }
 

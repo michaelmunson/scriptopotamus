@@ -192,3 +192,125 @@ function _scrippo_select_plain {
   done
   _scrippo_reply=${_scrippo_picks[0]:-}
 }
+
+function _scrippo_config_path {
+  local id=$1 dir=$PWD
+  case $id in
+    "~/"*) id=$HOME/${id#"~/"} ;;
+  esac
+  if [[ $id == *.json ]]; then
+    printf '%s\n' "$id"
+    return
+  fi
+  if [[ ! $id =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    echo "config: invalid config id '$id' (use letters, digits, '_', '-', '.', or a path ending in .json)" >&2
+    return 1
+  fi
+  while [[ $dir != / && $dir != "$HOME" ]]; do
+    if [[ -d $dir/.scrippo ]]; then
+      printf '%s\n' "$dir/.scrippo/configs/$id.config.json"
+      return
+    fi
+    dir=$(dirname "$dir")
+  done
+  printf '%s\n' "$PWD/.scrippo/configs/$id.config.json"
+}
+
+# Print the value at a dotted key. Strings print raw, everything else as JSON.
+# Returns 1 when the key is missing or null.
+function _scrippo_config_get {
+  local file=$_SCRIPPO_CONFIG_FILE
+  [[ -f $file ]] || return 1
+  jq -e -r --arg k "$1" '
+    ($k | split(".") | map(if test("^[0-9]+$") then tonumber else . end)) as $p
+    | (try getpath($p) catch null)
+    | select(. != null)
+    | if type == "string" then . else tojson end
+  ' "$file" 2>/dev/null
+}
+
+function _scrippo_config {
+  local force=$1 init=$2 count=$3
+  shift 3
+  local -a fields=("${@:1:count}")
+  local -a assigns=("${@:count+1}")
+  local field key value json sets=0 file
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "config: jq is required" >&2
+    exit 1
+  fi
+
+  if [[ -n $init ]]; then
+    file=$(_scrippo_config_path "$init") || exit 1
+    if [[ $force == true || ! -e $file ]]; then
+      mkdir -p "$(dirname "$file")" && printf '{}\n' > "$file" || exit 1
+    elif ! jq -e . "$file" >/dev/null 2>&1; then
+      echo "config: $file is not valid JSON (use --force to reset it)" >&2
+      exit 1
+    fi
+    _SCRIPPO_CONFIG_FILE=$file
+  fi
+
+  if (( count == 0 && ${#assigns[@]} == 0 )); then
+    if [[ -z $init ]]; then
+      echo "config: nothing to do (give a field to get or set, --init, or --assign)" >&2
+      exit 1
+    fi
+    return 0
+  fi
+  if [[ -z ${_SCRIPPO_CONFIG_FILE-} ]]; then
+    echo "config: no config file selected (run 'config --init <id|path>' first)" >&2
+    exit 1
+  fi
+  file=$_SCRIPPO_CONFIG_FILE
+
+  for field in "${fields[@]}"; do
+    [[ $field == *=* ]] && sets=$((sets + 1))
+  done
+  if (( sets > 0 && sets < count )); then
+    echo "config: cannot get and set in the same call" >&2
+    exit 1
+  elif (( sets == 0 && count > 1 )); then
+    echo "config: only one field can be read at a time" >&2
+    exit 1
+  fi
+
+  if (( sets > 0 )); then
+    json='{}'
+    [[ -f $file ]] && json=$(<"$file")
+    for field in "${fields[@]}"; do
+      key=${field%%=*}
+      value=${field#*=}
+      if [[ -z $key ]]; then
+        echo "config: missing field name in '$field'" >&2
+        exit 1
+      fi
+      json=$(jq --arg k "$key" --arg v "$value" '
+        ($k | split(".") | map(if test("^[0-9]+$") then tonumber else . end)) as $p
+        | ($v | try fromjson catch $v) as $x
+        | setpath($p; $x)
+      ' <<<"$json") || { echo "config: cannot set '$key'" >&2; exit 1; }
+    done
+    mkdir -p "$(dirname "$file")"
+    printf '%s\n' "$json" | jq . > "$file.tmp.$$" && mv "$file.tmp.$$" "$file" || exit 1
+  elif (( count == 1 )); then
+    _scrippo_config_get "${fields[0]}" || return 1
+  fi
+
+  local item var
+  for item in "${assigns[@]}"; do
+    if [[ $item != *:* ]]; then
+      echo "config: --assign expects field:VARIABLE, got '$item'" >&2
+      exit 1
+    fi
+    key=${item%:*}
+    var=${item##*:}
+    if [[ ! $var =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+      echo "config: invalid variable name '$var' in --assign" >&2
+      exit 1
+    fi
+    value=$(_scrippo_config_get "$key") || value=""
+    printf -v "$var" '%s' "$value"
+  done
+}

@@ -32,8 +32,9 @@ These paths are built into the compiler:
 | `scrippo/std/io` | `scrippo/io`, `scrippo/std/io.scrippo` |
 | `scrippo/std/types` | `scrippo/types`, `scrippo/std/types.scrippo` |
 | `scrippo/std/path` | `scrippo/path`, `scrippo/std/path.scrippo` |
+| `config` | `scrippo/config`, `scrippo/std/config`, `scrippo/std/config.scrippo` |
 
-`scrippo/std` is io, then types, then path. The helpers are documented in [Standard library](/standard-library).
+`scrippo/std` is io, then types, then path. `config` is not part of `scrippo/std`; import it by name. It always refers to the built-in module, so a package called `config` cannot be imported by that name. The helpers are documented in [Standard library](/standard-library).
 
 ## Packages
 

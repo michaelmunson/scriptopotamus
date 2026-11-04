@@ -57,6 +57,13 @@ const BUILTINS = {
     flags: ['--file', '--rel'],
     pkg: 'path',
   },
+  config: {
+    signature: 'config(\n  field...\n  [\n    --init<str>\n    [--force]\n  ]\n  [\n    --assign<str>...\n  ]\n)',
+    description: 'Reads and writes a JSON config file with `jq`. `config key` prints a value, `config key=value ...` sets values (dotted keys nest), `--init <id|path>` selects the file (an id writes `.scrippo/configs/<id>.config.json`; `--force` resets it), and `--assign key:VAR` stores a value in a variable. From `@import config`.',
+    snippet: 'config ${1:key}',
+    flags: ['--init', '--force', '--assign'],
+    pkg: 'config',
+  },
   inherit: { signature: '@inherit', description: 'Inherit parameters and options from the parent command or function. Use inside a parameter list.', macro: true, snippet: 'inherit' },
   usage: { signature: '@usage [code<int=1>] [--no-exit]', description: 'Print usage for the current scope, including #? documentation. Exit with code unless --no-exit is given.', macro: true, snippet: 'usage ${1:0}' },
   hook: {
@@ -68,7 +75,7 @@ const BUILTINS = {
   },
   import: {
     signature: '@import path [--as .command|function]',
-    description: 'Inlines another scrippo or bash file, or a standard library (`scrippo/std`, `scrippo/std/io`, `scrippo/std/types`, `scrippo/std/path`). Relative paths and globs resolve from the importing file. Each file is imported once per scope. Local package management requires an environment created with bare `scrippo -i`; global storage is searched separately and never counts as a project. Use `--as .command` or `--as function` to wrap the imported script.',
+    description: 'Inlines another scrippo or bash file, or a standard library (`scrippo/std`, `scrippo/std/io`, `scrippo/std/types`, `scrippo/std/path`, or `config`). Relative paths and globs resolve from the importing file. Each file is imported once per scope. Local package management requires an environment created with bare `scrippo -i`; global storage is searched separately and never counts as a project. Use `--as .command` or `--as function` to wrap the imported script.',
     macro: true,
     snippet: 'import ${1:scrippo/std}',
     flags: [],
@@ -117,6 +124,7 @@ const PACKAGES = [
   { path: 'scrippo/io', detail: 'scrippo/std/io', description: 'Alias of `scrippo/std/io`.' },
   { path: 'scrippo/types', detail: 'scrippo/std/types', description: 'Alias of `scrippo/std/types`.' },
   { path: 'scrippo/path', detail: 'scrippo/std/path', description: 'Alias of `scrippo/std/path`.' },
+  { path: 'config', detail: 'config', description: 'Read and write a JSON config file.' },
   { path: 'scrippo/*', detail: 'io, types, path', description: 'Every standard library module.' },
 ];
 
@@ -136,6 +144,10 @@ const PACKAGE_MODULES = {
   'scrippo/std/path': ['path'],
   'scrippo/path': ['path'],
   'scrippo/std/path.scrippo': ['path'],
+  'config': ['config'],
+  'scrippo/config': ['config'],
+  'scrippo/std/config': ['config'],
+  'scrippo/std/config.scrippo': ['config'],
 };
 
 function importPath(raw) {

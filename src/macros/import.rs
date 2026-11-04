@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 const STD_IO: &str = include_str!("../../stdlib/io.scrippo");
 const STD_TYPES: &str = include_str!("../../stdlib/types.scrippo");
 const STD_PATH: &str = include_str!("../../stdlib/path.scrippo");
+const STD_CONFIG: &str = include_str!("../../stdlib/config.scrippo");
 const STD_ALL: &str = include_str!("../../stdlib/std.scrippo");
 
 pub struct ImportContext {
@@ -299,6 +300,9 @@ fn resolve_stdlib(pattern: &str) -> Result<Option<Vec<Stmt>>> {
         }
         "scrippo/std/path" | "scrippo/path" | "scrippo/std/path.scrippo" => {
             Ok(Some(parse::parse_source(virtual_path, STD_PATH)?.body))
+        }
+        "config" | "scrippo/config" | "scrippo/std/config" | "scrippo/std/config.scrippo" => {
+            Ok(Some(parse::parse_source(virtual_path, STD_CONFIG)?.body))
         }
         _ => Ok(None),
     }

@@ -50,6 +50,13 @@ M.BUILTINS = {
     flags = { '--file', '--rel' },
     pkg = 'path',
   },
+  config = {
+    signature = 'config(\n  field...\n  [\n    --init<str>\n    [--force]\n  ]\n  [\n    --assign<str>...\n  ]\n)',
+    description = 'Reads and writes a JSON config file with `jq`. `config key` prints a value, `config key=value ...` sets values, `--init <id|path>` selects the file, and `--assign key:VAR` stores a value in a variable. From `@import config`.',
+    snippet = 'config ${1:key}',
+    flags = { '--init', '--force', '--assign' },
+    pkg = 'config',
+  },
   inherit = {
     signature = '@inherit',
     description = 'Inherit parameters and options from the parent command or function. Use inside a parameter list.',

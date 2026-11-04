@@ -1,0 +1,11 @@
+config(
+  field... #? {field} to get, {field}={value} to set; any number of sets, one get
+  [
+    --init<str> #? initialize the config; a config id or a path ending in .json
+    [--force] #? reset an existing config file to {}
+  ]
+  [
+    --assign<str>... #? {field}:{VARIABLE}, set VARIABLE to the value of field
+  ]
+)
+  _scrippo_config "$force" "$init" "${#field[@]}" "${field[@]}" "${assign[@]}"

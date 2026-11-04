@@ -107,7 +107,7 @@ fn program_needs_helpers(program: &ast::Program) -> bool {
         for stmt in stmts {
             match stmt {
                 ast::Stmt::Function { name, body, .. } => {
-                    if matches!(name.as_str(), "prt" | "input" | "throw") {
+                    if matches!(name.as_str(), "prt" | "input" | "throw" | "config") {
                         return true;
                     }
                     if walk(body) {
