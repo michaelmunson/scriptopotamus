@@ -79,6 +79,10 @@ scrippo greet.scrippo
 
 If the file also defines commands, those top-level statements still run first, and then the first argument selects a command. Prefer keeping executable work inside functions and commands so importing the file does not run it. See [Commands](/commands) and [Imports](/imports).
 
+## Start a script with scrippolib
+
+`scrippolib new script hello` writes a starter `hello.scrippo` like the one above, and `scrippolib new script -g hello` puts it in `~/.scrippo/scripts` so `scrippo hello` finds it from anywhere. `scrippolib` also creates packages and installs other people's. See [scrippolib](/scrippolib).
+
 ## When something fails
 
 Compile errors name the file and line. Argument errors print usage on stderr and exit 1. `--help` prints usage on stdout and exits 0, unless you declared `--help` yourself. `NO_COLOR` turns usage colors off when it is set to anything, including an empty value.

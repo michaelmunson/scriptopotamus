@@ -1,36 +1,9 @@
 ---
 title: Installing
-description: Install packages and scripts with scrippolib, from the registry, a Git repository, or a directory.
+description: Sources, versions, and what scrippolib install writes to disk.
 ---
 
-Package management is done by `scrippolib`, a separate command. `scrippo` compiles and runs scripts; `scrippolib` installs, updates, lists, and removes the packages and scripts they use.
-
-```bash
-scrippolib init                      # create .scrippo in this directory
-scrippolib install shell             # from the registry
-scrippolib install -g shell          # into ~/.scrippo
-scrippolib install https://github.com/owner/helpers.git
-scrippolib install ./helpers         # a plain directory
-scrippolib update [name] [-g]
-scrippolib uninstall <name> [-g]
-scrippolib list [-g]
-scrippolib info <name> [-g]
-scrippolib configure registry=<url>
-```
-
-## Commands
-
-| Command | Result |
-| --- | --- |
-| `init` | Create `.scrippo` in the current directory. Safe to repeat. It creates an environment here even if a parent already has one. |
-| `install <name> [-g] [--tag VERSION]` | Install the packages and scripts a registry name, repository, or directory provides. |
-| `update [<name>] [-g]` | Upgrade one install, or everything in the scope, to the newest version of the source it came from. |
-| `uninstall <name> [-g]` | Remove an installed package or script. |
-| `list [-g]` | List what is installed, with versions and origins. |
-| `info <name> [-g]` | Show an installed entry's metadata, or the registry's entry when it is not installed. |
-| `configure [registry=<url>]` | Print settings, or set them. |
-
-`-g` / `--global` uses `~/.scrippo` (or `SCRIPPO_HOME`): packages in `lib/`, scripts in `scripts/`. Without it the scope is the project: packages in the nearest initialized project's `.scrippo/lib` (the global directory never counts as a project), scripts in the current directory.
+This page is the reference for `scrippolib install`, `update`, `uninstall`, `list`, and `info`: what a source is, how versions are chosen, and what ends up on disk. The commands and scopes are introduced on [scrippolib](/scrippolib).
 
 ## What `<name>` means
 
@@ -41,14 +14,7 @@ With a source, both kinds are installed: every `.scrippo` file whose `@info` dec
 
 ## The registry
 
-The registry is a Git repository (or a plain directory) of `.scrippo` files with `@info`. Layout is free-form; the default registry uses `packages/<name>/<name>.scrippo`. The default is <https://github.com/michaelmunson/scrippolib-registry>:
-
-```bash
-scrippolib configure                                  # print settings
-scrippolib configure registry=https://example.com/my-registry.git
-```
-
-Settings live in `~/.scrippo/scrippolib.config` (override with `SCRIPPOLIB_CONFIG`). Registries are not tagged: an entry's version is its `@info --version`, taken from the default branch. Updates install the entry when that version is higher than the installed one. The registry an entry came from is recorded, so `update` keeps using it.
+A bare name is installed from the configured registry. Layout, configuration, and versions are on [Registry](/registry).
 
 ## Git and directory sources
 
@@ -77,7 +43,7 @@ Scripts keep the full source tree. `<name>.scrippo` is a relative symlink into t
 
 `install.json` records the repository, registry (if any), tag, commit, and each entry's metadata. `<id>` is the entry name for registry installs and the source basename (without `.git`) otherwise.
 
-Existing public files are never overwritten; `install` points you at `update` when the name is already installed. Publication takes a directory lock, `.scrippo-install.lock`. Validation and compilation finish before anything is published, and a failed install deletes only what it created. A failed update restores the previous version. `uninstall` removes an entry's public file; when a source's last entry goes, its snapshot goes too. Files made with `scrippo -n` are not installs, so `uninstall` leaves them alone.
+Existing public files are never overwritten; `install` points you at `update` when the name is already installed. Publication takes a directory lock, `.scrippo-install.lock`. Validation and compilation finish before anything is published, and a failed install deletes only what it created. A failed update restores the previous version. `uninstall` removes an entry's public file; when a source's last entry goes, its snapshot goes too. Files made with `scrippolib new` are not installs, so `uninstall` leaves them alone.
 
 ## Install hooks
 

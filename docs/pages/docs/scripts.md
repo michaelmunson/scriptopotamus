@@ -8,8 +8,8 @@ A script is a `.scrippo` file you run. It may define a root command, a command t
 ## Create one
 
 ```bash
-scrippo -n -s greet
-scrippo -n -s -g greet
+scrippolib new script greet
+scrippolib new script -g greet
 ```
 
 A local script is created in the current directory:
@@ -20,9 +20,7 @@ A local script is created in the current directory:
   -> "hello from greet"
 ```
 
-A global script is created in `~/.scrippo/scripts/`. List and remove follow the same flags as packages, with `-s` / `--script`:
-
-You can also create the file yourself. The CLI is only creating the directory and the starter text.
+With `-g`, the script is created in `~/.scrippo/scripts/` instead. You can also create the file yourself; `scrippolib new` only writes the starter text. Installing, listing, and removing scripts is also `scrippolib`: see [scrippolib](/scrippolib).
 
 ## Run one
 
@@ -40,7 +38,7 @@ Resolution for a single path component (`greet` or `greet.scrippo`):
 
 A path that already points at a file is used as given. A directory is used only when `<dir>/commands.scrippo` exists; otherwise the argument is an error. Local files win over global scripts. Tab completion for `scrippo <name>` uses the same search.
 
-Arguments after the script name are the script's arguments. `scrippo greet --loud` passes `--loud` to `greet`. Flags that belong to `scrippo` itself (`-c`, `--noexec`, `-n`, `-i`, and the rest) go before the script name.
+Arguments after the script name are the script's arguments. `scrippo greet --loud` passes `--loud` to `greet`. Flags that belong to `scrippo` itself (`-c`, `--noexec`, `--configure`, and the rest) go before the script name.
 
 ## Project commands
 
@@ -58,4 +56,4 @@ With autoload, each top-level command is an alias, so `build` runs `scrippo .scr
 
 `scrippolib install` installs scripts by keeping the repository source tree and linking `<name>.scrippo` at the destination. Relative imports, `here`, package lookup, and command completion keep working because the link points into the snapshot. Links are relative, so a project install can move with the project. Creating the link on Windows requires permission to create symlinks.
 
-An installed script's `@info --name` must match its filename. The snapshot layout is described in [Installing](/installing).
+An installed script's `@info --name` must match its filename. The snapshot layout is described in [Installing](/installing#where-the-bytes-go).

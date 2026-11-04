@@ -82,7 +82,7 @@ const BUILTINS = {
   },
   info: {
     signature: '@info\n  --name <name>\n  --version <version>\n  --description <text>\n  --script | --package',
-    description: 'File metadata at the top, after shebang and comments. New scripts and packages created with scrippo -n open in the editor set by scrippo --configure editor="cursor" (or editor="nvim"). All values are literals. Installable entries require a name matching the filename and a version matching the stable Git tag. Autoload defaults to enable; disable omits shell aliases. Options form an indented block; parentheses and inline arguments are rejected. Emits no runtime code.',
+    description: 'File metadata at the top, after shebang and comments. New scripts and packages created with scrippolib new open in the editor set by scrippo --configure editor="cursor" (or editor="nvim"). All values are literals. Installable entries require a name matching the filename and a version matching the stable Git tag. Autoload defaults to enable; disable omits shell aliases. Options form an indented block; parentheses and inline arguments are rejected. Emits no runtime code.',
     macro: true,
     snippet: 'info\n  --name ${1:name}\n  --version ${2:1.0.0}\n  --description "${3:description}"',
     flags: ['--name', '--description', '--version', '--author', '--license', '--repository', '--script', '--package', '--autoload'],

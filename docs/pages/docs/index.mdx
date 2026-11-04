@@ -30,7 +30,7 @@ scrippo circumference.scrippo
   <Link to="/installation"><strong>Install the compiler</strong><span>Build scrippo and put it on your PATH.</span></Link>
   <Link to="/getting-started"><strong>Write a first script</strong><span>Compile, check, and run.</span></Link>
   <Link to="/commands"><strong>Commands and arguments</strong><span>Subcommands, options, and usage text.</span></Link>
-  <Link to="/packages"><strong>Packages</strong><span>Create, publish, and install libraries.</span></Link>
+  <Link to="/scrippolib"><strong>scrippolib</strong><span>Create, install, and share packages and scripts.</span></Link>
 </div>
 
 ## The manual
@@ -39,12 +39,14 @@ scrippo circumference.scrippo
 
 **Language.** [Files and syntax](/syntax), [variables and types](/variables), [values and output](/values), [control flow](/control-flow), [functions](/functions), [commands](/commands), [parameters](/parameters), [usage text](/usage), the [`@inherit` macro](/inherit), [macros](/macros), [hooks](/hooks), [imports](/imports), the [standard library](/standard-library), and [bash passthrough](/bash).
 
-**Distribution.** [Project layout](/layout), [packages](/packages), [scripts](/scripts), [`@info` metadata](/metadata), [publishing](/publishing), and [installing from Git](/installing).
+**scrippolib.** The package manager: [overview and commands](/scrippolib), [installing](/installing), the [registry](/registry), and [publishing](/publishing).
+
+**Packages and scripts.** [Packages](/packages), [scripts](/scripts), [`@info` metadata](/metadata), and [project layout](/layout).
 
 **Tooling.** [Configuration](/configuration), [shell integration](/shell), [editors](/editors), and the [compilation model](/compilation).
 
 ## What you need
 
-Running a compiled script needs Bash. Installing from Git needs Git and Bash. Building the compiler needs a Rust toolchain and `make`. The compiler version in this tree is 0.6.2.
+Running a compiled script needs Bash. `scrippolib` installing from Git needs Git and Bash. Building the compiler needs a Rust toolchain and `make`. The compiler version in this tree is 0.6.2.
 
 These pages live in `docs/pages` and are a [Docusaurus](https://docusaurus.io) site published with GitHub Pages. Local preview needs Node.js 20 or newer: from `docs/pages`, run `npm install` and `npm start`. In the repository settings, set Pages to deploy from GitHub Actions. The workflow is `.github/workflows/pages.yml`.

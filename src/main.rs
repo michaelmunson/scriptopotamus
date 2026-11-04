@@ -16,22 +16,6 @@ struct Cli {
     #[arg(long = "configure", num_args = 0.., value_name = "KEY=VALUE")]
     configure: Option<Vec<String>>,
 
-    /// Create a new package or script (install and manage them with `scrippolib`)
-    #[arg(short = 'n', long = "new", conflicts_with_all = ["configure", "init", "env", "complete", "compile_only", "noexec"])]
-    new: bool,
-
-    /// Select packages (with --new)
-    #[arg(short = 'p', long = "package", conflicts_with = "script")]
-    package: bool,
-
-    /// Select scripts (with --new)
-    #[arg(short = 's', long = "script", conflicts_with = "package")]
-    script: bool,
-
-    /// Use ~/.scrippo, or SCRIPPO_HOME (default: project / current directory)
-    #[arg(short = 'g', long = "global")]
-    global: bool,
-
     /// Emit shell init for autoload (eval from your shell rc)
     #[arg(long = "init")]
     init: bool,
@@ -52,7 +36,7 @@ struct Cli {
     #[arg(long = "noexec")]
     noexec: bool,
 
-    /// Script file, name for --new, or completion words
+    /// Script file, or completion words
     #[arg(value_name = "FILE", trailing_var_arg = true)]
     input: Vec<OsString>,
 }
@@ -62,9 +46,6 @@ fn main() -> Result<()> {
 
     if let Some(pairs) = cli.configure {
         return config::apply_configure(&pairs);
-    }
-    if cli.new {
-        return run_new(&cli);
     }
     if cli.init {
         return shell::emit_init();
@@ -149,52 +130,6 @@ fn main() -> Result<()> {
 
     let _ = std::fs::remove_file(&tmp);
     result
-}
-
-fn kind_flag(cli: &Cli) -> Result<paths::NewKind> {
-    match (cli.package, cli.script) {
-        (true, false) => Ok(paths::NewKind::Package),
-        (false, true) => Ok(paths::NewKind::Script),
-        (false, false) => bail!("specify --package or --script"),
-        (true, true) => unreachable!("clap conflicts_with"),
-    }
-}
-
-fn scope_flag(cli: &Cli) -> paths::NewScope {
-    if cli.global {
-        paths::NewScope::Global
-    } else {
-        paths::NewScope::Local
-    }
-}
-
-fn run_new(cli: &Cli) -> Result<()> {
-    let name = cli
-        .input
-        .first()
-        .map(|p| p.to_string_lossy().into_owned())
-        .context("usage: scrippo -n (-p|-s) [-g] <name>")?;
-
-    let kind = kind_flag(cli)?;
-    let cfg = config::Config::load()?;
-    let path = paths::create_new(kind, scope_flag(cli), &name)?;
-    println!("created {}", path.display());
-    if !cfg.editor.is_empty() {
-        let status = Command::new("bash")
-            .arg("-c")
-            .arg(format!("{} \"$@\"", cfg.editor))
-            .arg("scrippo-editor")
-            .arg(&path)
-            .status()
-            .with_context(|| format!("created {}, but failed to launch editor", path.display()))?;
-        if !status.success() {
-            bail!(
-                "created {}, but editor exited with {status}",
-                path.display()
-            );
-        }
-    }
-    Ok(())
 }
 
 fn tempfile_path() -> Result<PathBuf> {

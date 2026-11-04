@@ -36,15 +36,24 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Distribution',
+      label: 'scrippolib',
       collapsed: false,
       items: [
-        'layout',
+        'scrippolib',
+        'installing',
+        'registry',
+        'publishing',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Packages and scripts',
+      collapsed: false,
+      items: [
         'packages',
         'scripts',
         'metadata',
-        'publishing',
-        'installing',
+        'layout',
       ],
     },
     {

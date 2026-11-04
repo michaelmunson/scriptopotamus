@@ -229,52 +229,9 @@ pub fn validate_name(name: &str) -> Result<String> {
     Ok(stem.to_string())
 }
 
+/// What a package-management entry is: a package or a script.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NewKind {
     Package,
     Script,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NewScope {
-    Local,
-    Global,
-}
-
-/// Directory for packages or scripts in the given scope.
-pub fn scope_dir(kind: NewKind, scope: NewScope) -> Result<PathBuf> {
-    Ok(match (kind, scope) {
-        (NewKind::Package, NewScope::Local) => {
-            let cwd = std::env::current_dir().context("failed to get current directory")?;
-            let scrippo_dir = require_project_scrippo_dir(&cwd)?;
-            scrippo_dir.join("lib")
-        }
-        (NewKind::Package, NewScope::Global) => global_lib_dir()?,
-        (NewKind::Script, NewScope::Global) => global_scripts_dir()?,
-        (NewKind::Script, NewScope::Local) => {
-            std::env::current_dir().context("failed to get current directory")?
-        }
-    })
-}
-
-pub fn create_new(kind: NewKind, scope: NewScope, name: &str) -> Result<PathBuf> {
-    let stem = validate_name(name)?;
-    let path = scope_dir(kind, scope)?.join(format!("{stem}.scrippo"));
-
-    if path.exists() {
-        bail!("already exists: {}", path.display());
-    }
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("failed to create {}", parent.display()))?;
-    }
-
-    let body = match kind {
-        NewKind::Package => format!("# {stem} package\n"),
-        NewKind::Script => {
-            format!("#! /usr/bin/env scrippo\n.main()\n\t-> \"hello from {stem}\"\n")
-        }
-    };
-    std::fs::write(&path, body).with_context(|| format!("failed to write {}", path.display()))?;
-    Ok(path)
 }

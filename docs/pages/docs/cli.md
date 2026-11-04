@@ -1,6 +1,6 @@
 ---
 title: Command line
-description: Flags for compiling, running, packages, scripts, configuration, and completion.
+description: Flags for compiling, running, configuration, and completion.
 ---
 
 The `scrippo` command is itself a scrippo script. Its options, nesting, and exclusivity are the usage text and the completion candidates. Put scrippo's own flags before the script or source path. Everything after a script filename belongs to that script.
@@ -23,36 +23,21 @@ With no arguments, `scrippo` prints usage and exits 1.
 | `scrippo -V` / `scrippo --version` | Print the compiler version. |
 | `scrippo <file> --help` | Run that file's usage. `--help` is passed through once the filename is present. |
 
-`-c`, `--noexec`, `-n`, `--configure`, `--hook`, `--env`, and `--complete` are mutually exclusive modes.
+`-c`, `--noexec`, `--configure`, `--hook`, `--env`, and `--complete` are mutually exclusive modes.
 
 A filename that exists is used as given. A bare name such as `hello` or `hello.scrippo` resolves to the nearest `<name>.scrippo` walking upward from the current directory, then to `~/.scrippo/scripts`. A directory argument uses `<dir>/commands.scrippo` when that file exists. Details are on [Scripts](/scripts).
 
-## Create
+## Packages and scripts
 
-New scripts and packages open automatically when an [editor is configured](/configuration#editor), for both local and global creation. Set it with `scrippo --configure editor="cursor"` or `scrippo --configure editor="nvim"`.
+`scrippo` does not create, install, or remove packages and scripts. [`scrippolib`](/scrippolib) does: `scrippolib new package|script`, `install`, `update`, `uninstall`, `list`, `info`, and `init`. They replace `scrippo -n`, `-i`, `-ls`, and `-rm`, which now fail as unknown options.
 
-`-n` needs `-p` / `--package` or `-s` / `--script`. `-g` / `--global` uses `~/.scrippo` (or `SCRIPPO_HOME`) instead of the project.
-
-| Invocation | Result |
-| --- | --- |
-| `scrippo -n -p <name>` | Create `.scrippo/lib/<name>.scrippo`. |
-| `scrippo -n -s <name>` | Create `<name>.scrippo` in the current directory, with a shebang and a `.main` command. |
-| `scrippo -n -p -g <name>` | Create `~/.scrippo/lib/<name>.scrippo`. |
-| `scrippo -n -s -g <name>` | Create `~/.scrippo/scripts/<name>.scrippo`. |
-
-`-n` is `--new`. Names start with a letter or `_` and then use letters, digits, `_`, or `-`.
-
-Local package creation requires a project environment. Run `scrippolib init` in your project root to create `.scrippo`; commands in descendants then use its `.scrippo/lib`. The global directory is excluded from project lookup. If `.scrippo` is a legacy command file rather than a directory, create the directory layout first. See [Project layout](/layout).
-
-## Install, update, list, remove
-
-Package management moved out of `scrippo`. `scrippolib install`, `update`, `uninstall`, `list`, `info`, and `init` replace `scrippo -i`, `-ls`, and `-rm`. See [Installing](/installing).
+Local packages need a project environment. Run `scrippolib init` in your project root to create `.scrippo`; commands in descendants then use its `.scrippo/lib`. The global directory is excluded from project lookup. If `.scrippo` is a legacy command file rather than a directory, create the directory layout first. See [Project layout](/layout).
 
 ## Configuration and the shell
 
 | Invocation | Result |
 | --- | --- |
-| `scrippo --configure` | Print `autoload`, `autocomplete`, and `alias`. |
+| `scrippo --configure` | Print `autoload`, `autocomplete`, `alias`, and `editor`. |
 | `scrippo --configure autoload=true autocomplete=true` | Update those keys and print the result. |
 | `scrippo --configure alias=s,sc` | Extra command names for the wrapper. `alias=` clears them. |
 | `scrippo --env` | Print aliases and completions for the current directory. |

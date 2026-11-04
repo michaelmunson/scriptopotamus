@@ -51,8 +51,8 @@ Global packages and scripts live under `~/.scrippo` (override with `SCRIPPO_HOME
 Create them with:
 
 ```bash
-scrippo -n -p [-g] <name>   # package; local unless -g
-scrippo -n -s [-g] <name>   # script; local unless -g
+scrippolib new package [-g] <name>   # package; local unless -g (needs scrippolib init)
+scrippolib new script [-g] <name>    # script; local unless -g
 ```
 
 Installing, updating, listing, and removing packages and scripts is done by
@@ -157,8 +157,8 @@ Entering a directory loads aliases from that directory and all its parents. The 
 - global scripts in `~/.scrippo/scripts/` (local names win on conflict)
 
 With `autocomplete=true`, tab completion covers those aliases' commands and `--` options.
-It also covers `scrippo` itself: modes and their modifiers (only what fits what you have
-typed: `scrippo --new -p <tab>` no longer offers `-s`), and once a script is named,
+It also covers `scrippo` itself: modes (only what fits what you have
+typed: `scrippo -c <tab>` no longer offers `--noexec`), and once a script is named,
 that script's own commands and options (`scrippo app.scrippo <tab>`).
 
 Put `--autoload disable` in the indented `@info` block at the top of a file to

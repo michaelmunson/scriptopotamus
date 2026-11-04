@@ -9,13 +9,13 @@ A package is a `.scrippo` file meant to be imported. It contributes functions an
 
 ```bash
 scrippolib init
-scrippo -n -p mylib
-scrippo -n -p -g mylib
+scrippolib new package mylib
+scrippolib new package -g mylib
 ```
 
-`-p` / `--package` selects packages. Without `-g`, the file is `.scrippo/lib/mylib.scrippo` in the nearest initialized project. Run `scrippolib init` to create the project environment first; the global directory never counts as a project. `-g` writes `~/.scrippo/lib/mylib.scrippo`. The new file contains a comment with the package name. Replace that with the functions you want to export.
+Without `-g`, the file is `.scrippo/lib/mylib.scrippo` in the nearest initialized project. Run `scrippolib init` to create the project environment first; the global directory never counts as a project. `-g` writes `~/.scrippo/lib/mylib.scrippo`. The new file contains a comment with the package name. Replace that with the functions you want to export.
 
-Installed packages are managed with [scrippolib](/installing): `scrippolib list`, `scrippolib uninstall <name>`. Files you create with `scrippo -n` are plain files; delete them directly.
+Installed packages are managed with [scrippolib](/scrippolib): `scrippolib list`, `scrippolib uninstall <name>`. Files you create with `scrippolib new` are plain files; delete them directly.
 
 ## Write one
 
@@ -30,7 +30,7 @@ is_even(value<int>)
   [[ $((value % 2)) == 0 ]]
 ```
 
-`@info` is optional for a package you only use locally. It is required when the file should be installed from Git. The name must match the filename without `.scrippo`. See [Metadata](/metadata) and [Publishing](/publishing).
+`@info` is optional for a package you only use locally. It is required when the file should be installed with `scrippolib`. The name must match the filename without `.scrippo`. See [Metadata](/metadata) and [Publishing](/publishing).
 
 Export functions and, when useful, named commands (`.greet`). A root command `.()` is rejected when the file is compiled as an installable package. Put `.()` in a script.
 

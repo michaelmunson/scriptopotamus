@@ -51,7 +51,7 @@ With `autocomplete=true`, the hook installs completion for:
 - each name in `alias`
 - each autoload alias
 
-Completion of `scrippo` itself follows the wrapper's modes. After you choose a mode, candidates that cannot combine with it disappear: `scrippo --new -p` does not offer `-s`. After a script name, completion switches to that script's commands and options.
+Completion of `scrippo` itself follows the wrapper's modes. After you choose a mode, candidates that cannot combine with it disappear: `scrippo -c` does not offer `--noexec`. After a script name, completion switches to that script's commands and options.
 
 ## alias
 
@@ -59,8 +59,8 @@ Completion of `scrippo` itself follows the wrapper's modes. After you choose a m
 
 ## editor
 
-After creating a local or global script or package, `scrippo -n` opens its new `.scrippo` file with this command. For example, `scrippo --configure editor="nvim"` followed by `scrippo -n -s -g myscript` opens the global script in Neovim.
+After creating a local or global script or package, `scrippolib new` opens its new `.scrippo` file with this command. For example, `scrippo --configure editor="nvim"` followed by `scrippolib new script -g myscript` opens the global script in Neovim.
 
-The command runs through Bash with the file path appended as one quoted argument. Arguments and quoted executable paths are supported, for example `scrippo --configure editor="cursor --wait"`. Scrippo inherits the terminal and waits for the editor command to finish. A launch failure or nonzero exit reports an error and preserves the created file. Existing files are never opened or overwritten by `-n`.
+The command runs through Bash with the file path appended as one quoted argument. Arguments and quoted executable paths are supported, for example `scrippo --configure editor="cursor --wait"`. Scrippo inherits the terminal and waits for the editor command to finish. A launch failure or nonzero exit reports an error and preserves the created file. Existing files are never opened or overwritten by `scrippolib new`.
 
 Use `scrippo --configure editor=` to disable opening. An unset editor also leaves creation without opening a program.

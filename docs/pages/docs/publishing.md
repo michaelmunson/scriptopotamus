@@ -3,7 +3,7 @@ title: Publishing
 description: Lay out a repository so scrippolib can install it, or add it to a registry.
 ---
 
-Publishing is a Git tag on a repository of `.scrippo` files. There is no build hook on the Git host. `scrippolib` clones the tag and reads `@info`. To make an entry installable by bare name, add it to a registry (see below).
+Publishing is a Git tag on a repository of `.scrippo` files. There is no build hook on the Git host. [`scrippolib`](/scrippolib) clones the tag and reads `@info`. To make an entry installable by bare name, add it to a [registry](/registry) as well.
 
 ## Layout
 
@@ -16,7 +16,7 @@ helpers/
 └── support/common.scrippo
 ```
 
-`support/common.scrippo` has no `@info`, so it is a support file. Importers inside the repository can still `@import` it by relative path. Hidden files and directories (names starting with `.`) are not selected as entries. An entry can run its own `@hook pre-install` and `@hook post-install` blocks. See [Installing](/installing).
+`support/common.scrippo` has no `@info`, so it is a support file. Importers inside the repository can still `@import` it by relative path. Hidden files and directories (names starting with `.`) are not selected as entries. An entry can run its own `@hook pre-install` and `@hook post-install` blocks. See [Installing](/installing#install-hooks).
 
 ## Mark each entry
 
@@ -63,8 +63,4 @@ Ship the source. The installer compiles packages on the machine that runs `scrip
 
 ## Publish to a registry
 
-A registry is a Git repository of `.scrippo` files with `@info`; the default is [scrippolib-registry](https://github.com/michaelmunson/scrippolib-registry). Add your file (for example `packages/is-even/is-even.scrippo`) and commit it to the default branch. Registries are not tagged. Raising `@info --version` is what makes `scrippolib update` pick up a change. Then callers run:
-
-```bash
-scrippolib install is-even
-```
+A bare name such as `scrippolib install is-even` comes from a registry, which is not tagged: commit the file with `@info` to the registry's default branch and raise `--version` to ship a change. See [Registry](/registry).

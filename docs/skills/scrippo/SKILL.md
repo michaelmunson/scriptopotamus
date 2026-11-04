@@ -34,8 +34,8 @@ When this skill is referenced, also skim [docs/pages](../../pages/) and [docs/ex
 Create with CLI (prefer this over hand-rolling dirs):
 
 ```bash
-scrippo -n -p [-g] <name>   # package; local unless -g
-scrippo -n -s [-g] <name>   # script; local unless -g
+scrippolib new package [-g] <name>   # package; local unless -g (needs scrippolib init)
+scrippolib new script [-g] <name>    # script; local unless -g
 ```
 
 Install and manage packages and scripts with `scrippolib` (a separate command):
@@ -197,21 +197,21 @@ Prefer `@import scrippo/std` for scripts that print, prompt, or touch paths.
 
 ### New project commands
 
-1. `scrippo -n -p <lib>` if sharing helpers
+1. `scrippolib new package <lib>` if sharing helpers
 2. Put dispatchable commands in `.scrippo/commands.scrippo` (`.build()`, `.test()`, …)
 3. `@import` libs from commands or app scripts as needed
 4. Verify: `scrippo --noexec .scrippo/commands.scrippo` then `scrippo .scrippo/commands.scrippo <cmd> …`
 
 ### New package
 
-1. `scrippo -n -p <name>` (or `-g` for global)
+1. `scrippolib new package <name>` (or `-g` for global)
 2. Export functions and/or `.commands`
 3. Consumers: `@import <name>` then call
 4. Keep packages focused; one concern per file
 
 ### New runnable script
 
-1. `scrippo -n -s …` or create `app.scrippo` with shebang
+1. `scrippolib new script …` or create `app.scrippo` with shebang
 2. Add `.commands` if the script should dispatch subcommands
 3. `scrippo --noexec app.scrippo` then `scrippo app.scrippo [cmd] [args]`
 
