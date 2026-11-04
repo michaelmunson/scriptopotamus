@@ -537,3 +537,15 @@ fn install_hooks_are_not_compiled_into_scripts() {
     );
     assert_eq!(stdout(&out), "a\n");
 }
+
+#[test]
+fn indented_lines_after_a_command_are_its_arguments() {
+    let out = run(
+        "show(*rest)\n  for i in $rest\n    echo $i\n\nshow\n  one\n  \"two words\" # note\n  three\n\nshow \\\n  four \\\n  five\n\ncat <<EOF\n  kept\nEOF\n",
+        &[],
+    );
+    assert_eq!(
+        stdout(&out),
+        "one\ntwo words\nthree\nfour\nfive\n  kept\n"
+    );
+}

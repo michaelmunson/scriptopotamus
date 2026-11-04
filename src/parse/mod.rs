@@ -955,8 +955,58 @@ fn parse_bash(src: &mut Source) -> Result<Stmt> {
         lines.push(content);
         src.next();
     }
-    Ok(Stmt::Bash {
-        raw: lines.join("\n"),
-        line,
-    })
+    let raw = match fold_arguments(&lines) {
+        Some(folded) => folded,
+        None => lines.join("\n"),
+    };
+    Ok(Stmt::Bash { raw, line })
+}
+
+/// A simple command followed by more-indented lines takes those lines as further
+/// words, so `\` is not needed:
+///
+/// ```text
+/// deploy
+///   --env prod
+///   --force
+/// ```
+///
+/// Compound commands, here-docs and unfinished quotes keep the lines as written.
+fn fold_arguments(lines: &[String]) -> Option<String> {
+    let (head, rest) = lines.split_first()?;
+    if rest.is_empty() || lines.iter().any(|l| l.contains("<<")) {
+        return None;
+    }
+    let head = head.trim_end();
+    if source::value_continues(head) {
+        return None;
+    }
+    let open_ended = ["do", "then", "else", "in", "{", "(", ";", "|", "&&", "||", "\\"];
+    if open_ended.iter().any(|t| head.ends_with(t)) || head.starts_with(['{', '(']) {
+        return None;
+    }
+    let reserved = ["fi", "done", "esac", "elif", "else", "then", "do", "}", ")", ";;"];
+    if rest
+        .iter()
+        .any(|l| reserved.contains(&l.split_whitespace().next().unwrap_or("")))
+    {
+        return None;
+    }
+    let mut out = head.to_string();
+    for line in rest {
+        let mut part = line.trim();
+        if let Some(i) = find_comment(part) {
+            part = part[..i].trim_end();
+        }
+        if source::value_continues(part) {
+            return None;
+        }
+        if out.ends_with('\\') {
+            out.pop();
+            out.truncate(out.trim_end().len());
+        }
+        out.push(' ');
+        out.push_str(part);
+    }
+    Some(out)
 }

@@ -13,6 +13,23 @@ if $ready
 
 The `if` is scrippo. The `grep` pipeline is bash. Use this for tests, redirects, arithmetic, and programs that already have a bash shape.
 
+## Multiline commands
+
+A simple command followed by more-indented lines takes those lines as further arguments. No `\` is needed.
+
+```scrippo
+show(*rest)
+  for i in $rest
+    echo $i
+
+show
+  one
+  "two words"
+  three
+```
+
+This is the same as `show one "two words" three`. A trailing `\` still works. Folding is skipped, and the lines stay as written, when the first line ends in `do`, `then`, `{`, `(`, `;`, `|`, `&&` or `||`, when it opens a here-doc, when a quote is left open, or when an indented line starts with `fi`, `done`, `esac`, `}` or another closing word.
+
 ## What is rewritten
 
 `$name`, `${name}`, `$name[key]`, `$--flag`, and `$-flag` are rewritten everywhere in the bash text, including inside double quotes. The rules are the same as in [Values and output](/values).
