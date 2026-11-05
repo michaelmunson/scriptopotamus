@@ -34,12 +34,15 @@ Scripts keep the full source tree. `<name>.scrippo` is a relative symlink into t
 
 ```
 <destination>/
-├── is-even.bash                         # or greet.scrippo
-└── .scrippo-installed/packages/<id>/content/
-    ├── source/
-    ├── compiled/
-    └── install.json
+└── is-even.bash                         # or greet.scrippo
+
+<root>/.scrippolib/packages/<id>/content/
+├── source/
+├── compiled/
+└── install.json
 ```
+
+`<root>` is the project's `.scrippo` directory, or `~/.scrippo` with `-g`. Local scripts need an initialized project too, even though their links go in the current directory. Installs made with the older `.scrippo-installed/` layout are not picked up; reinstall them.
 
 `install.json` records the repository, registry (if any), tag, commit, and each entry's metadata. `<id>` is the entry name for registry installs and the source basename (without `.git`) otherwise.
 

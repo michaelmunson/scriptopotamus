@@ -12,9 +12,9 @@ project/
 ├── app.scrippo
 ├── .scrippo/
 │   ├── commands.scrippo
-│   └── lib/
-│       └── mylib.scrippo
-└── .scrippo-installed/
+│   ├── lib/
+│   │   └── mylib.scrippo
+│   └── .scrippolib/
 ```
 
 | Path | Role |
@@ -24,7 +24,7 @@ project/
 | `.scrippo/commands.scrippo` | Project command tree. Autoload aliases each top-level command. |
 | `.scrippo` as a file | Legacy command tree. Same role as `commands.scrippo`. |
 | `<name>.scrippo` | A script in the project. `scrippo <name>` finds the nearest one walking upward. |
-| `.scrippo-installed/` | Snapshots and manifests from `scrippolib`. Created when you install. |
+| `.scrippo/.scrippolib/` | Snapshots and manifests from `scrippolib`. Created when you install. |
 
 The project root is the nearest ancestor of the current file or directory that contains a `.scrippo` directory. The global directory (`~/.scrippo` or `SCRIPPO_HOME`) never counts as a project. Run `scrippolib init` in your project root to create `.scrippo`. Local package commands require this environment and create `lib` inside it as needed.
 
@@ -35,6 +35,7 @@ If `.scrippo` is a file, local package commands stop and ask you to move that fi
 ```
 ~/.scrippo/
 ├── config
+├── .scrippolib/
 ├── lib/
 │   ├── <package>.scrippo
 │   └── <package>.bash
@@ -59,13 +60,13 @@ An older config at `~/.config/scrippo/config` is still read when `SCRIPPO_CONFIG
 
 ## Installed snapshots
 
-`scrippolib install` stores the source contents under the destination:
+`scrippolib install` stores the source contents under the `.scrippo` directory (`~/.scrippo` for global installs):
 
 ```
-<destination>/.scrippo-installed/<packages|scripts>/<id>/content/
+<.scrippo>/.scrippolib/<packages|scripts>/<id>/content/
 ├── source/
 ├── compiled/          # packages
 └── install.json
 ```
 
-Public names are hard links (packages, `<name>.bash`) or relative symlinks (scripts, `<name>.scrippo`) from the destination back into that snapshot. See [Installing](/installing).
+Public names are hard links (packages, `<name>.bash`) or relative symlinks (scripts, `<name>.scrippo`) from the destination (`.scrippo/lib`, or the current directory for local scripts) back into that snapshot. See [Installing](/installing).
