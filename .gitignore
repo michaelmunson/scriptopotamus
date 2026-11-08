@@ -3,7 +3,7 @@
 .codex
 .vscode
 *.local*
-
+.specs
 
 # Added by cargo
 

@@ -10,8 +10,22 @@ Scrippo samples use `scrippo` fences so they highlight. Shell commands stay `bas
 
 If the change adds or changes tokens the docs highlighter should recognize, update `docs/pages/src/theme/scrippo-prism.js` too.
 
-## VS Code extension
+## Development Tools
+### Skills
 
+The agent skill for writing scrippo lives in `dev/skills/scrippo`. `SKILL.md` is the router and cheat sheet; nested skills each own one area. Update the one that matches the change:
+
+- Syntax, types, values, control flow, functions: `syntax/SKILL.md`
+- Commands, parameters, usage text, `@inherit`, `@hook exec`/`exit`: `commands/SKILL.md`
+- Standard library (`prt`, `input`, `throw`, `list`, `dict`, `str`, `here`, `config`): `stdlib/SKILL.md`
+- Imports, packages, `@info`, `scrippolib`, install hooks, publishing: `packages/SKILL.md`
+- CLI flags, config, shell integration, environment, errors: `tooling/SKILL.md`
+
+Add a new nested directory with its own `SKILL.md` (and a row in the router table) when a topic does not fit one of these.
+
+### nvim Support
+
+### VS Code extension
 Editor support lives in `dev/vscode-ext`. Update the part that matches the change:
 
 - Syntax highlighting: `dev/vscode-ext/syntaxes/scriptopotamus.tmLanguage.json`
@@ -19,3 +33,4 @@ Editor support lives in `dev/vscode-ext`. Update the part that matches the chang
 - Tests next to that behavior in `dev/vscode-ext/test/`
 
 A syntax or completion change needs a test that fails without the change and passes with it.
+

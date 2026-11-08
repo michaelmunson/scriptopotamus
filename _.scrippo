@@ -1,64 +1,40 @@
 #! /usr/bin/env scrippo
-@info
-     --name name
-     --version 1.0.0
-     --description "description"
-     --autoload enable
-
 @import scrippo/std
 @import "./docs/examples/demo/demo.scrippo" --as .demo
 
 .version()
-     .get()
-          cargo pkgid | sed -E 's/.*#([^:]+).*/\1/'
-     .bump(bump<str {patch minor major}> [message<str="Bump Version">])
-          prt "Current Version:" -s yellow "$(version get)"
-          prt "Bump:" -s green "$bump"
-          input --confirm "Bump Version?" -v answer
-          if ! $answer
-               throw 1 "Bump Version Aborted"
-          cargo set-version --bump $bump
-          new_version<str>="$(version get)"
-          jq -r '.version = "'"$new_version"'"' <<< $(cat ./dev/vscode-ext/package.json) > ./dev/vscode-ext/package.json.tmp
-          mv ./dev/vscode-ext/package.json.tmp ./dev/vscode-ext/package.json
-          [[ -n $message ]] || message="$new_version / $bump"
-          git status
-          input "Commit: $message" --confirm  -v answer
-          if ! $answer
-               throw 1 "Commit Aborted"
-          git add .
-          git commit -m "$message"
-          input --confirm "Push <$(git branch --show-current)>?" -v answer
-          if ! $answer
-               throw 1 "Push Aborted"
-          git push
-     .set(version<str>)
-          if $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$
-               cargo set-version $version
-          else
-               throw 1 "Invalid version: $version"
+	.get()
+		cargo pkgid | sed -E 's/.*#([^:]+).*/\1/'
+	.bump(bump<str {patch minor major}> [message<str="Bump Version">])
+		prt "Current Version:" -s yellow "$(version get)"
+		prt "Bump:" -s green "$bump"
+		input --confirm "Bump Version?" -v answer
+		if ! $answer
+			throw 1 "Bump Version Aborted"
+		cargo set-version --bump $bump
+		new_version<str>="$(version get)"
+		jq -r '.version = "'"$new_version"'"' <<< $(cat ./dev/vscode-ext/package.json) > ./dev/vscode-ext/package.json.tmp
+		mv ./dev/vscode-ext/package.json.tmp ./dev/vscode-ext/package.json
+		[[ -n $message ]] || message="$new_version / $bump"
+		git status
+		input "Commit: $message" --confirm  -v answer
+		if ! $answer
+			throw 1 "Commit Aborted"
+		git add .
+		git commit -m "$message"
+		input --confirm "Push <$(git branch --show-current)>?" -v answer
+		if ! $answer
+			throw 1 "Push Aborted"
+		git push
+	.set(version<str>)
+		if $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$
+			cargo set-version $version
+		else
+			throw 1 "Invalid version: $version"
 
 .build()
-     make build
-     make build-extension
-.install(
-     [--sudo]
-     [--extension [--only]]
-)
-     if $extension
-          path_to_ext="./dev/vscode-ext/scriptopotamus.vsix"
-          make build-extension
-          if code --install-extension $path_to_ext 2> /dev/null
-               prt -s green "VSCode Extension Installed"
-          else
-               prt -s red "Failed to install VSCode Extension"
-          if cursor --install-extension $path_to_ext 2> /dev/null
-               prt -s green "Cursor Extension Installed"
-          else
-               prt -s red "Failed to install Cursor Extension"
-          if $only
-               return 0
-     if $sudo
-          sudo make install
-     else
-          make install
+	make build
+	make install
+	make build-extension
+
+
