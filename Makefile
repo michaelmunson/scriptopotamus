@@ -1,4 +1,4 @@
-.PHONY: build build-release test run install sudo-install version build-extension install-nvim test-nvim
+.PHONY: build build-release test run install sudo-install version build-extension install-nvim test-nvim install-skills
 
 # `scrippo` is a scrippo script (cli/scrippo.scrippo) compiled to bash, wrapping the
 # `scrippo-core` Rust binary that sits next to it.
@@ -25,12 +25,6 @@ test:
 test-nvim:
 	nvim --headless -u NONE -l dev/nvim/test/run.lua
 
-NVIM_PACK_DIR ?= $(or $(XDG_DATA_HOME),$(HOME)/.local/share)/nvim/site/pack/scriptopotamus/start
-
-install-nvim:
-	mkdir -p $(NVIM_PACK_DIR)
-	ln -sfn $(CURDIR)/dev/nvim $(NVIM_PACK_DIR)/scrippo.nvim
-
 run: build
 	target/debug/scrippo
 
@@ -43,3 +37,25 @@ sudo-install: build-release
 	sudo install -m 755 target/release/scrippo-core /usr/local/bin/scrippo-core
 	sudo install -m 755 target/release/scrippo /usr/local/bin/scrippo
 	sudo ln -sf scrippo /usr/local/bin/scriptopotamus
+
+NVIM_PACK_DIR ?= $(or $(XDG_DATA_HOME),$(HOME)/.local/share)/nvim/site/pack/scriptopotamus/start
+
+install-nvim:
+	mkdir -p $(NVIM_PACK_DIR)
+	ln -sfn $(CURDIR)/dev/nvim $(NVIM_PACK_DIR)/scrippo.nvim
+
+SKILL_DIRS ?= $(HOME)/.claude/skills $(HOME)/.codex/skills $(HOME)/.cursor/skills $(HOME)/.agents/skills
+
+install-skills:
+	@for dir in $(SKILL_DIRS); do \
+		mkdir -p "$$dir"; \
+		for skill in $(CURDIR)/dev/skills/*/; do \
+			name=$$(basename "$$skill"); \
+			if [ -e "$$dir/$$name" ] && [ ! -L "$$dir/$$name" ]; then \
+				echo "skip $$dir/$$name: exists and is not a symlink (remove it and re-run)"; \
+				continue; \
+			fi; \
+			ln -sfn "$(CURDIR)/dev/skills/$$name" "$$dir/$$name"; \
+			echo "$$dir/$$name -> $(CURDIR)/dev/skills/$$name"; \
+		done; \
+	done
