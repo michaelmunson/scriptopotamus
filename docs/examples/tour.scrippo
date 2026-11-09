@@ -1,0 +1,233 @@
+#! /usr/bin/env scrippo
+@import scrippo/std
+@import config
+@import "./demo/fs.scrippo" --as .fs
+
+PI<const float>=3.14
+limit<const int>=3
+app<str>="tour"
+verbose<bool>=false
+ratio<float>=0.5
+anything<any>
+bump<str {patch minor major}>=patch
+colors<list>=(red green "dark blue")
+ports<list>=(
+  80
+  443 # https
+  8080
+)
+person<dict>=(
+  name="Ada Lovelace"
+  year=1815
+)
+view<ref list>=colors
+banner<str>="line one
+line two"
+
+@hook exec
+  prt -s dim "[tour] starting"
+
+@hook exit code=CODE
+  if $CODE != 0
+    prt -s red "[tour] failed with $CODE"
+  else
+    prt -s dim "[tour] done"
+
+circumference(diameter<float>)
+  -> $PI * $diameter
+
+double(n<int>) -> $n * 2
+
+greet_all(greeting<str="hello"> [--shout] names...)
+  for name in $names
+    if $shout
+      prt -s bold "${greeting^^} $name"
+    else
+      prt "$greeting $name"
+
+total(*nums)
+  sum<int>=0
+  for n in $nums
+    sum=$((sum + n))
+  -> $sum
+
+classify(n<int>)
+  if $n -lt 0
+    -> "negative"
+  elif $n -eq 0
+    -> "zero"
+  else
+    -> "positive"
+
+#? Entry point: runs when no command is named
+.(
+  [--name<str="world">] #? Who to greet
+)
+  prt -s green "Hello, $name!"
+  prt "try:" -s yellow "tour --help"
+
+#? Variables, types, lists, dicts and math
+.values()
+  -> "app=$app limit=$limit ratio=$ratio"
+  -> "first color: $colors[0]"
+  -> "third color: $colors[2]"
+  -> "port count: ${#ports[@]}"
+  -> "$person[name] was born in $person[year]"
+  -> "$banner"
+  -> "circumference of 10: $(circumference 10)"
+  -> "double of 21: $(double 21)"
+  -> 2 + 3 * 4
+  area<float>=$PI * 2 * 2
+  -> "area: $area"
+  -> "view sees: $view[1]"
+  anything="now a string"
+  anything=42
+  -> "anything=$anything bump=$bump"
+  greet_all hi --shout ada grace
+  greet_all
+    hello
+    linus
+  -> "total: $(total 1 2 3 4)"
+  n<int>=1
+  n=2
+  prt "n is" -s cyan $n
+  ->
+
+#? Loops, conditions and case
+.flow(
+  count<int> #? How many times to loop
+  [--mode<str {fast slow}>] #? Pick a mode
+)
+  i<int>=0
+  while $i -lt $count
+    -> "tick $i"
+    i=$((i + 1))
+  for c in $colors
+    -> "color: $c"
+  for p in 1 2 3; -> "port slot $p"
+  if $verbose; -> "verbose"; else -> "quiet"
+  if ! $verbose
+    -> "not verbose"
+  if grep -q "^PI" "$(here --file)"
+    -> "found PI in this script"
+  if $mode =~ ^f
+    -> "mode starts with f"
+  case $mode
+    fast | quick)
+      -> "going fast"
+    slow) ;&
+      -> "going slow"
+    *)
+      -> "no mode, or fell through"
+  classify $count
+
+#? Arguments, options, defaults, repeats and rest
+.args(
+  required<int> #? A required int
+  [optional=notes] #? Optional with a default
+  -v<str> #? A required option with a value
+  [--level<int {1 2 3}=2>] #? Limited by a literal set
+  [--tag<str>...] #? Repeatable option
+  [-d / --dry-run] #? Bool option with an alias
+  *rest #? Everything else, verbatim
+)
+  -> "required=$required optional=$optional v=$v level=$level"
+  -> "dry-run=$dry_run d=$d"
+  -> "tags: ${tag[*]}"
+  -> "rest: ${rest[*]}"
+
+#? Exclusive sets and groups
+.pick(
+  [
+    --item<str>...
+    [--multi]
+  ] | [
+    --all
+  ]
+)
+  if $all
+    -> "everything"
+  elif $multi
+    -> "many: ${item[*]}"
+  else
+    -> "one: ${item[*]}"
+
+#? Pass a list to a function by name
+.lists()
+  mylist<list>=(a b c)
+  mydict<dict>=(x=1 y=2 z=3)
+  mystr<str>="a.b.c"
+  -> "length $(list --length mylist)"
+  -> "joined $(list --join "." mylist)"
+  -> "reversed $(list --reverse mylist)"
+  -> "has b: $(list --contains mylist b)"
+  -> "keys $(dict --keys mydict)"
+  -> "dict length $(dict --length mydict)"
+  -> "has x: $(dict --contains mydict x)"
+  -> "str length $(str --length mystr)"
+  -> "split $(str --split mystr ".")"
+  -> "contains b: $(str --contains mystr "b")"
+
+#? Nested commands that inherit their parent's parameters
+.release(
+  version<str> #? Version to release
+  [--force] #? Skip checks
+)
+  #? Show what would happen
+  .plan(@inherit)
+    -> "would release $version"
+  #? Do the release
+  .ship(@inherit [--tag<str="latest">])
+    if ! $force
+      if ! $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$
+        throw 1 "Invalid version: $version"
+    -> "shipping $version as $tag"
+  #? Show this command's usage and stop
+  .help()
+    @usage 0
+
+#? Scripts can use plain bash too
+.bash()
+  files=$(printf '%s\n' one two three)
+  -> "files: $files"
+  printf '%s\n' "printf works" >&2
+  [[ -n $app ]] && echo "app is set"
+  show
+    one
+    "two words"
+    three
+  n=$((limit * 2))
+  -> "limit doubled: $n"
+
+show(*rest)
+  for i in $rest
+    echo "arg: $i"
+
+#? Stdlib: prt, throw and input
+.io()
+  prt -s green "ok" -s bold red "stop"
+  prt -j "." a b c
+  prt -n "no newline"
+  ->
+  input "Your name" -v who
+  input "Proceed?" --confirm -v answer
+  input "Pick one" --select a --select b -v choice
+  if ! $answer
+    throw 2 "Aborted by" "$who"
+  -> "$who chose $choice"
+
+#? Stdlib: config
+.settings()
+  config --init tour --force
+  config
+    hello=world
+    nested.key=1
+    flag=true
+  config --assign hello:HELLO nested.key:KEY
+  -> "$HELLO $KEY"
+  -> "flag is $(config flag)"
+  -> "missing: $(config nope || echo none)"
+
+#? Return a failing status to see the exit hook report it
+.fail()
+  return 3

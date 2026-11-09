@@ -161,7 +161,9 @@ config(
   [
     --init<str>
     [--force]
+    [-f / --default<str>...]
   ]
+  [--interactive]
   [
     --assign<str>...
   ]
@@ -175,11 +177,17 @@ Reads and writes a JSON config file.
 | `config --init myscript` | Selects `.scrippo/configs/myscript.config.json`, creating it as `{}` when it does not exist. The file is found in the nearest project `.scrippo` directory, or created under the current directory. |
 | `config --init ~/.myscript/config.json` | Selects that file. A value ending in `.json` is a path; anything else is an id of letters, digits, `_`, `-` and `.`. |
 | `config --init myscript --force` | Resets an existing file to `{}`. |
+| `config --init myscript -f ai.enabled false -f ai.provider claude` | Selects the file, then sets each `-f` field and value pair that is not already in the file. |
+| `config --interactive` | Edits the selected file through a menu. |
 | `config hello` | Prints the value of `hello`. Strings print as they are, other values as JSON. Exits 1 when the key is missing or null. |
 | `config hello=world foo=bar` | Sets any number of values in one write. |
 | `config --assign hello:HELLO foo:FOO` | Sets the variable `HELLO` to the value of `hello`, and `FOO` to the value of `foo`. A missing key sets an empty string. |
 
 `--init` leaves the chosen file in effect for every later `config` call in the script, so it is usually written once near the top. Without it, `config` stops with an error. `--init` does nothing to an existing file unless `--force` is given, and stops if that file is not valid JSON.
+
+Each `-f` (long form `--default`) takes a field and a value. The values follow the same rules as a set: JSON when they parse as JSON, a string otherwise. A field that already has a value is left alone, so running the same `--init` again keeps what the user changed. With `--force` the file is reset first, so every `-f` field is written. `-f` takes every word up to the next option, so write it after the `--init` and give it as pairs. An odd number of words, or `-f` without `--init`, is an error.
+
+`--interactive` lists every value in the file as `field = value` and a `Done` entry, using the same prompts as [`input`](#input). Pick a field to change it, and the menu returns until you pick `Done`. A `true` or `false` value is chosen from a `true` / `false` list. A string is typed in, with the current value shown in the prompt. Numbers and other values are typed in and stored as JSON when they parse as JSON. An empty answer leaves the value as it was. Each change is saved as soon as you make it. The menu shows values that exist, so seed the fields with `-f` first. `--interactive` needs a selected file and cannot be combined with a field or `--assign`.
 
 A key with dots is a path: `a.b.c=1` sets `{"a":{"b":{"c":1}}}`, and a numeric part indexes an array. A value is stored as JSON when it parses as JSON (`5`, `true`, `null`, `{"k":[1]}`) and as a string otherwise. To store the string `"5"`, write `'"5"'`.
 
@@ -189,6 +197,8 @@ One call can hold any number of sets or one get, not both. `--assign` takes ever
 @import config
 
 config --init myscript
+  -f ai.enabled false
+  -f ai.provider "claude"
 
 .set()
   config
@@ -201,4 +211,7 @@ config --init myscript
 .assign()
   config --assign hello:HELLO foo:FOO
   -> $HELLO $FOO
+
+.settings()
+  config --interactive
 ```

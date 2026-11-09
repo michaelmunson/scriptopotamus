@@ -142,7 +142,7 @@ test('packages complete after @import', () => {
 });
 
 test('config completes its options after @import config', () => {
-  assert.deepEqual(labels(['@import config'], 'config --'), ['--init', '--force', '--assign']);
+  assert.deepEqual(labels(['@import config'], 'config --'), ['--init', '--force', '-f', '--default', '--interactive', '--assign']);
   assert.ok(!labels(['x=1'], 'c').includes('config'));
 });
 

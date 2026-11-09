@@ -51,10 +51,10 @@ M.BUILTINS = {
     pkg = 'path',
   },
   config = {
-    signature = 'config(\n  field...\n  [\n    --init<str>\n    [--force]\n  ]\n  [\n    --assign<str>...\n  ]\n)',
-    description = 'Reads and writes a JSON config file with `jq`. `config key` prints a value, `config key=value ...` sets values, `--init <id|path>` selects the file, and `--assign key:VAR` stores a value in a variable. From `@import config`.',
+    signature = 'config(\n  field...\n  [\n    --init<str>\n    [--force]\n    [-f / --default<str>...]\n  ]\n  [--interactive]\n  [\n    --assign<str>...\n  ]\n)',
+    description = 'Reads and writes a JSON config file with `jq`. `config key` prints a value, `config key=value ...` sets values, `--init <id|path>` selects the file (`-f key value` pairs after it set fields only when they are missing), `--interactive` edits the config through a menu, and `--assign key:VAR` stores a value in a variable. From `@import config`.',
     snippet = 'config ${1:key}',
-    flags = { '--init', '--force', '--assign' },
+    flags = { '--init', '--force', '-f', '--default', '--interactive', '--assign' },
     pkg = 'config',
   },
   inherit = {
@@ -126,6 +126,7 @@ M.PACKAGES = {
   { path = 'scrippo/io', detail = 'scrippo/std/io', description = 'Alias of `scrippo/std/io`.' },
   { path = 'scrippo/types', detail = 'scrippo/std/types', description = 'Alias of `scrippo/std/types`.' },
   { path = 'scrippo/path', detail = 'scrippo/std/path', description = 'Alias of `scrippo/std/path`.' },
+  { path = 'config', detail = 'config', description = 'Read and write a JSON config file.' },
   { path = 'scrippo/*', detail = 'io, types, path', description = 'Every standard library module.' },
 }
 
@@ -144,6 +145,10 @@ M.PACKAGE_MODULES = {
   ['scrippo/std/path'] = { 'path' },
   ['scrippo/path'] = { 'path' },
   ['scrippo/std/path.scrippo'] = { 'path' },
+  ['config'] = { 'config' },
+  ['scrippo/config'] = { 'config' },
+  ['scrippo/std/config'] = { 'config' },
+  ['scrippo/std/config.scrippo'] = { 'config' },
 }
 
 --- Path argument of an `@import` line (first word, quotes removed).

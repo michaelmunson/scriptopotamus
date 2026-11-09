@@ -229,12 +229,87 @@ function _scrippo_config_get {
   ' "$file" 2>/dev/null
 }
 
+# Print $1 (JSON) with the dotted key $2 set to $3. $3 is stored as JSON when it
+# parses as JSON and as a string otherwise.
+function _scrippo_config_put {
+  jq --arg k "$2" --arg v "$3" '
+    ($k | split(".") | map(if test("^[0-9]+$") then tonumber else . end)) as $p
+    | ($v | try fromjson catch $v) as $x
+    | setpath($p; $x)
+  ' <<<"$1"
+}
+
+# Write JSON ($2) to the config file ($1), pretty printed.
+function _scrippo_config_write {
+  mkdir -p "$(dirname "$1")"
+  printf '%s\n' "$2" | jq . > "$1.tmp.$$" && mv "$1.tmp.$$" "$1"
+}
+
+# Edit the selected config file through a menu: pick a field, then change it.
+# Booleans are chosen from true/false, everything else is typed.
+function _scrippo_config_interactive {
+  local file=$_SCRIPPO_CONFIG_FILE json line key type value label choice i found
+  local -a keys=() types=() values=() labels=()
+  local done_label="Done"
+  while true; do
+    json='{}'
+    [[ -f $file ]] && json=$(<"$file")
+    keys=() types=() values=() labels=()
+    while IFS=$'\t' read -r key type value; do
+      keys+=("$key")
+      types+=("$type")
+      values+=("$value")
+      labels+=("$key = $value")
+    done < <(jq -r '
+      [path(.. | select(type != "object" and type != "array")) as $p
+       | [($p | map(tostring) | join(".")), (getpath($p) | type), (getpath($p) | tojson)]]
+      | .[] | @tsv
+    ' <<<"$json")
+    if (( ${#keys[@]} == 0 )); then
+      echo "config: nothing to edit in $file" >&2
+      return 0
+    fi
+    _scrippo_select "Edit config" false "${labels[@]}" "$done_label"
+    choice=$_scrippo_reply
+    [[ -z $choice || $choice == "$done_label" ]] && return 0
+    found=
+    for i in "${!labels[@]}"; do
+      if [[ ${labels[i]} == "$choice" ]]; then
+        found=$i
+        break
+      fi
+    done
+    [[ -z $found ]] && return 0
+    key=${keys[found]}
+    type=${types[found]}
+    value=${values[found]}
+    if [[ $type == boolean ]]; then
+      _scrippo_select "$key" false true false
+      [[ -z $_scrippo_reply ]] && continue
+      value=$_scrippo_reply
+    else
+      if [[ $type == string ]]; then
+        value=$(jq -r . <<<"$value")
+      fi
+      _scrippo_input "$key [$value]"
+      [[ -z $_scrippo_reply ]] && continue
+      value=$_scrippo_reply
+      if [[ $type == string ]]; then
+        value=$(jq -c -n --arg v "$value" '$v')
+      fi
+    fi
+    json=$(_scrippo_config_put "$json" "$key" "$value") || { echo "config: cannot set '$key'" >&2; return 1; }
+    _scrippo_config_write "$file" "$json" || return 1
+  done
+}
+
 function _scrippo_config {
-  local force=$1 init=$2 count=$3
-  shift 3
-  local -a fields=("${@:1:count}")
-  local -a assigns=("${@:count+1}")
-  local field key value json sets=0 file
+  local force=$1 init=$2 interactive=$3 ndefaults=$4 count=$5
+  shift 5
+  local -a defaults=("${@:1:ndefaults}")
+  local -a fields=("${@:ndefaults+1:count}")
+  local -a assigns=("${@:ndefaults+count+1}")
+  local field key value json sets=0 file i
 
   if ! command -v jq >/dev/null 2>&1; then
     echo "config: jq is required" >&2
@@ -250,11 +325,42 @@ function _scrippo_config {
       exit 1
     fi
     _SCRIPPO_CONFIG_FILE=$file
+    if (( ndefaults % 2 != 0 )); then
+      echo "config: -f expects a field and a value, got an odd number of words" >&2
+      exit 1
+    fi
+    json=$(<"$file")
+    for (( i = 0; i < ndefaults; i += 2 )); do
+      key=${defaults[i]}
+      if [[ -z $key ]]; then
+        echo "config: missing field name after -f" >&2
+        exit 1
+      fi
+      _scrippo_config_get "$key" >/dev/null && continue
+      json=$(_scrippo_config_put "$json" "$key" "${defaults[i + 1]}") || { echo "config: cannot set '$key'" >&2; exit 1; }
+      _scrippo_config_write "$file" "$json" || exit 1
+    done
+  elif (( ndefaults > 0 )); then
+    echo "config: -f only works together with --init" >&2
+    exit 1
+  fi
+
+  if [[ $interactive == true ]]; then
+    if (( count > 0 || ${#assigns[@]} > 0 )); then
+      echo "config: --interactive cannot be combined with a field or --assign" >&2
+      exit 1
+    fi
+    if [[ -z ${_SCRIPPO_CONFIG_FILE-} ]]; then
+      echo "config: no config file selected (run 'config --init <id|path>' first)" >&2
+      exit 1
+    fi
+    _scrippo_config_interactive || exit 1
+    return 0
   fi
 
   if (( count == 0 && ${#assigns[@]} == 0 )); then
     if [[ -z $init ]]; then
-      echo "config: nothing to do (give a field to get or set, --init, or --assign)" >&2
+      echo "config: nothing to do (give a field to get or set, --init, --interactive, or --assign)" >&2
       exit 1
     fi
     return 0
@@ -286,14 +392,9 @@ function _scrippo_config {
         echo "config: missing field name in '$field'" >&2
         exit 1
       fi
-      json=$(jq --arg k "$key" --arg v "$value" '
-        ($k | split(".") | map(if test("^[0-9]+$") then tonumber else . end)) as $p
-        | ($v | try fromjson catch $v) as $x
-        | setpath($p; $x)
-      ' <<<"$json") || { echo "config: cannot set '$key'" >&2; exit 1; }
+      json=$(_scrippo_config_put "$json" "$key" "$value") || { echo "config: cannot set '$key'" >&2; exit 1; }
     done
-    mkdir -p "$(dirname "$file")"
-    printf '%s\n' "$json" | jq . > "$file.tmp.$$" && mv "$file.tmp.$$" "$file" || exit 1
+    _scrippo_config_write "$file" "$json" || exit 1
   elif (( count == 1 )); then
     _scrippo_config_get "${fields[0]}" || return 1
   fi

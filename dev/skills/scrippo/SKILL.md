@@ -12,7 +12,7 @@ description: >-
 
 Scrippo compiles to bash. Prefer scrippo syntax over raw bash unless a construct has no scrippo form yet.
 
-Reference docs live in [docs/pages/docs](../../../docs/pages/docs/) and runnable samples in [docs/examples](../../../docs/examples/). Read them, and the golden fixtures in `tests/fixtures/`, before inventing syntax.
+Reference docs live in [docs/pages/docs](../../../docs/pages/docs/) and runnable samples in [docs/examples](../../../docs/examples/). Read them, and the golden fixtures in `tests/fixtures/`, before inventing syntax. [docs/examples/tour.scrippo](../../../docs/examples/tour.scrippo) is a runnable script that touches every language feature and is the quickest model to copy from.
 
 ## Nested skills
 

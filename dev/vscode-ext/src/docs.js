@@ -58,10 +58,10 @@ const BUILTINS = {
     pkg: 'path',
   },
   config: {
-    signature: 'config(\n  field...\n  [\n    --init<str>\n    [--force]\n  ]\n  [\n    --assign<str>...\n  ]\n)',
-    description: 'Reads and writes a JSON config file with `jq`. `config key` prints a value, `config key=value ...` sets values (dotted keys nest), `--init <id|path>` selects the file (an id writes `.scrippo/configs/<id>.config.json`; `--force` resets it), and `--assign key:VAR` stores a value in a variable. From `@import config`.',
+    signature: 'config(\n  field...\n  [\n    --init<str>\n    [--force]\n    [-f / --default<str>...]\n  ]\n  [--interactive]\n  [\n    --assign<str>...\n  ]\n)',
+    description: 'Reads and writes a JSON config file with `jq`. `config key` prints a value, `config key=value ...` sets values (dotted keys nest), `--init <id|path>` selects the file (an id writes `.scrippo/configs/<id>.config.json`; `--force` resets it; `-f key value` pairs after it set fields only when they are missing), `--interactive` edits the config through a menu, and `--assign key:VAR` stores a value in a variable. From `@import config`.',
     snippet: 'config ${1:key}',
-    flags: ['--init', '--force', '--assign'],
+    flags: ['--init', '--force', '-f', '--default', '--interactive', '--assign'],
     pkg: 'config',
   },
   inherit: { signature: '@inherit', description: 'Inherit parameters and options from the parent command or function. Use inside a parameter list.', macro: true, snippet: 'inherit' },

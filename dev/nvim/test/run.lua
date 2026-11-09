@@ -259,6 +259,10 @@ do
   r = at(with_line('helper x y --'))
   eq('function flags', labels(r), { '--force' })
 
+  local cfg = { '@import config', 'config --' }
+  r = at(cfg, 2, #cfg[2])
+  check('config flags', r and has(labels(r), '--init') and has(labels(r), '-f') and has(labels(r), '--default') and has(labels(r), '--interactive') and has(labels(r), '--assign'), vim.inspect(labels(r)))
+
   r = at(with_line('prt "x" -'))
   check('std flags', r and has(labels(r), '--style') and has(labels(r), '-j'), vim.inspect(labels(r)))
 

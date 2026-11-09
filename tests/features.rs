@@ -578,6 +578,102 @@ fn config_rejects_mixed_and_unselected_use() {
     assert!(stderr(&out).contains("cannot get and set"));
 }
 
+fn compact(file: &Path) -> String {
+    std::fs::read_to_string(file)
+        .unwrap()
+        .split_whitespace()
+        .collect()
+}
+
+#[test]
+fn config_init_sets_fields_only_when_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("c.json");
+    let source = format!(
+        "@import config\nconfig --init {f}\n  -f ai.enabled false\n  -f ai.provider \"claude\"\n  -f ai.retries 3\nconfig ai.enabled\nconfig ai.provider\nconfig ai.retries\nconfig ai.provider=other\nconfig --init {f} -f ai.provider claude -f extra yes\nconfig ai.provider\nconfig extra\nconfig --init {f} --force -f only 1\nconfig only\nconfig ai.provider || echo gone\n",
+        f = file.display()
+    );
+    let out = run(&source, &[]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "false\nclaude\n3\nother\nyes\n1\ngone\n");
+    assert_eq!(compact(&file), "{\"only\":1}");
+}
+
+#[test]
+fn config_init_defaults_reject_bad_use() {
+    let dir = tempfile::tempdir().unwrap();
+    let odd = format!(
+        "@import config\nconfig --init {}/c.json -f a\n",
+        dir.path().display()
+    );
+    assert!(stderr(&run(&odd, &[])).contains("-f expects a field and a value"));
+    let without_init = format!(
+        "@import config\nconfig --init {}/d.json\nconfig -f a 1\n",
+        dir.path().display()
+    );
+    assert!(stderr(&run(&without_init, &[])).contains("-f only works together with --init"));
+}
+
+fn run_with_stdin(source: &str, input: &str) -> Output {
+    let bash = compile_source(Path::new("features.scrippo"), source).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let script = dir.path().join("script.bash");
+    std::fs::write(&script, bash).unwrap();
+    let mut child = Command::new("bash")
+        .arg(&script)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(input.as_bytes())
+        .unwrap();
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn config_interactive_edits_bools_strings_and_numbers() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("c.json");
+    let source = format!(
+        "@import config\nconfig --init {f}\n  -f ai.enabled false\n  -f ai.provider claude\n  -f ai.retries 3\nconfig --interactive\n",
+        f = file.display()
+    );
+    // enabled -> true, provider -> gpt, retries -> 5, then Done.
+    let out = run_with_stdin(&source, "1\n1\n2\ngpt\n3\n5\n4\n");
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        compact(&file),
+        "{\"ai\":{\"enabled\":true,\"provider\":\"gpt\",\"retries\":5}}"
+    );
+    // The menu lists current values, including booleans that are false.
+    assert!(stderr(&out).contains("ai.enabled = false"), "{}", stderr(&out));
+}
+
+#[test]
+fn config_interactive_keeps_values_on_empty_input_and_needs_a_config() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("c.json");
+    let source = format!(
+        "@import config\nconfig --init {f} -f name ada\nconfig --interactive\n",
+        f = file.display()
+    );
+    let out = run_with_stdin(&source, "1\n\n2\n");
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(std::fs::read_to_string(&file).unwrap().contains("\"ada\""));
+    let out = run_with_stdin("@import config\nconfig --interactive\n", "");
+    assert!(stderr(&out).contains("no config file selected"));
+    let mixed = format!(
+        "@import config\nconfig --init {}/m.json\nconfig --interactive a\n",
+        dir.path().display()
+    );
+    assert!(stderr(&run_with_stdin(&mixed, "")).contains("cannot be combined"));
+}
+
 #[test]
 fn a_command_named_set_does_not_shadow_the_builtin() {
     let out = run(".set(x)\n  -> $x\n", &["set", "ok"]);

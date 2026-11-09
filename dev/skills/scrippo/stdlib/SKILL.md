@@ -99,6 +99,8 @@ JSON config via `jq`. `@import config` (not in `scrippo/std`).
 | `config --init myscript` | select `.scrippo/configs/myscript.config.json` (nearest project `.scrippo`, else created under cwd); creates `{}` if missing |
 | `config --init ~/.myscript/config.json` | select that file (value ending `.json` is a path; otherwise an id of letters, digits, `_ - .`) |
 | `config --init myscript --force` | reset an existing file to `{}` |
+| `config --init myscript -f ai.enabled false -f ai.provider claude` | after selecting, set each `-f` field/value pair that is not already in the file (long form `--default`) |
+| `config --interactive` | menu of every `field = value` in the selected file; bools pick true/false, other values are typed; empty answer keeps the value; `Done` exits |
 | `config key` | print the value (strings raw, others JSON); exit 1 if missing/null |
 | `config a=1 b=two` | set any number of values in one write |
 | `config --assign key:VAR other:VAR2` | set shell variables from keys; missing key → empty string |
@@ -107,6 +109,8 @@ JSON config via `jq`. `@import config` (not in `scrippo/std`).
 @import config
 
 config --init myscript
+  -f ai.enabled false
+  -f ai.provider "claude"
 
 .set()
   config
@@ -116,6 +120,9 @@ config --init myscript
 .assign()
   config --assign hello:HELLO foo:FOO
   -> $HELLO $FOO
+
+.settings()
+  config --interactive
 ```
 
 * `--init` applies to every later `config` call in the script, so write it once near the top; without it `config` errors
@@ -124,6 +131,8 @@ config --init myscript
 * one call is any number of sets **or** one get, not both
 * `--assign` swallows every word after it; write it last
 * `--init` stops if the existing file is invalid JSON
+* `-f` takes pairs up to the next option, so write it after `--init`; it never overwrites an existing value (use `--force` to reset first), an odd word count or `-f` without `--init` errors
+* `--interactive` needs a selected file, cannot combine with a field or `--assign`, and saves after every change; seed fields with `-f` so there is something to edit
 
 ## When to use bash instead
 

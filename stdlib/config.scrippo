@@ -3,9 +3,11 @@ config(
   [
     --init<str> #? initialize the config; a config id or a path ending in .json
     [--force] #? reset an existing config file to {}
+    [-f / --default<str>...] #? {field} {value} pairs set only when the field is missing
   ]
+  [--interactive] #? edit the selected config through a menu
   [
     --assign<str>... #? {field}:{VARIABLE}, set VARIABLE to the value of field
   ]
 )
-  _scrippo_config "$force" "$init" "${#field[@]}" "${field[@]}" "${assign[@]}"
+  _scrippo_config "$force" "$init" "$interactive" "${#f[@]}" "${#field[@]}" "${f[@]}" "${field[@]}" "${assign[@]}"
