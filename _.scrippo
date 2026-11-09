@@ -53,6 +53,6 @@
 		if $only
 			return 0
 	if $sudo
-		sudo sudo-install
+		make sudo-install
 	else
 		make install
